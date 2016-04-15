@@ -17,7 +17,7 @@ import pandas as pd
 
 delT = 15
 
-main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_2/MaskedVideos/'
+main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/MaskedVideos/'
 
 from MWTracker.featuresAnalysis.obtainFeaturesHelper import WormFromTable
 from MWTracker.featuresAnalysis.obtainFeatures import getMicronsPerPixel, getFPS
@@ -47,7 +47,7 @@ for mask_id in range(len(files)):#[25, 37, 47,48]:
     try:
         with h5py.File(feat_file, 'r') as fid:
             if fid['/features_means'].attrs['has_finished'] and fid['/features_timeseries'].size>0:
-                skeletons = fid['/worm_1/skeletons'][:]
+                skeletons = fid['/skeletons'][:]
     except (OSError):
         continue
     
