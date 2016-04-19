@@ -287,12 +287,13 @@ def getDampFactor(length_resampling):
 if __name__ == '__main__':
     #%%
     #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
+    masked_image_file = '/Users/ajaver/Desktop/Videos/test_3/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_17112015_205616.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 swimming_2011_03_04__13_16_37__8.hdf5'    
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 on food Rz_2011_03_04__12_55_53__7.hdf5'    
     #masked_image_file = '/Users/ajaver/Desktop/Videos/single_worm/agar2/MaskedVideos/goa-1 on food R_2009_10_30__15_20_35___4___8.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/single_worm/agar2/MaskedVideos/gpa-16 (ok2349)I on food L_2010_03_11__11_06___3___4.hdf5'
-    masked_image_file = '/Users/ajaver/Desktop/Videos/single_worm/agar2/MaskedVideos/gpa-16 (ok2349)X on food L_2010_03_09__12_24_31___2___6.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/single_worm/agar2/MaskedVideos/gpa-16 (ok2349)X on food L_2010_03_09__12_24_31___2___6.hdf5'
     skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
     intensities_file = skeletons_file.replace('_skeletons', '_intensities')
 
@@ -321,9 +322,9 @@ if __name__ == '__main__':
     bad_worms = [] #worms with not enough difference between the normal and inverted median intensity profile
     switched_blocks = [] #data from the blocks that were switched
     
-    #ind2check = [765] 
+    ind2check = [52] 
     for index_n, (worm_index, trajectories_worm) in enumerate(grouped_trajectories):
-        #if not worm_index in ind2check: continue 
+        if not worm_index in ind2check: continue 
         
         if index_n % 10 == 0:
             dd = " Correcting Head-Tail using intensity profiles. Worm %i of %i." % (index_n+1, tot_worms)
@@ -339,11 +340,11 @@ if __name__ == '__main__':
         if int_map_id.size < min_block_size:
             continue
         
-        
+        #%%
         #read the worm intensity profiles
         with tables.File(intensities_file, 'r') as fid:
             worm_int_profile = fid.get_node('/straighten_worm_intensity_median')[int_map_id,:]
-        
+        #%%
 
         #reduce the importance of the head and tail. This parts are typically more noisy
         damp_factor = getDampFactor(worm_int_profile.shape[1])
@@ -354,7 +355,7 @@ if __name__ == '__main__':
         for ii in range(worm_int_profile.shape[0]):
             worm_int_profile[ii,:] -= np.median(worm_int_profile[ii,:])
             
-        
+        #%%
         #worm median intensity
         med_int = np.median(worm_int_profile, axis=0).astype(np.float)
         
@@ -382,7 +383,11 @@ if __name__ == '__main__':
         #Therefore it will become more stringent on detection
         diff_orim = minimum_filter(diff_ori_med, smooth_W)    
         diff_invM = maximum_filter(diff_inv_med, smooth_W)   
-                
+        
+        #plt.figure()
+        #plt.plot(diff_orim)
+        #plt.plot(diff_invM)
+        
         #a segment with a bad head-tail indentification should have a lower 
         #difference with the median when the profile is inverted.
         bad_orientationM = diff_orim>diff_invM
@@ -418,20 +423,25 @@ if __name__ == '__main__':
         for ini, fin in blocks2correct:
             switched_blocks.append((worm_index, int_frame_number[ini], int_frame_number[fin]))
         
-        if not blocks2correct: continue
+        #if not blocks2correct: continue
         
         #%%
         if True:
-        
+            #%%
             fig, ax1 = plt.subplots()
             
             if True:            
+            
                 ax1.imshow(worm_int_profile.T, interpolation='none', cmap='gray') 
                 plt.grid('off')
+                plt.xlabel('Frame number')
+                
+                
+            #%%
                 for ini, fin in blocks2correct:
                     ax1.plot((ini, ini), ax1.get_ylim(), 'c-')
                     ax1.plot((fin, fin), ax1.get_ylim(), 'c-')
-                
+            #%%
             if False:
                 ax2=ax1.twinx()
                 ax2.plot(diff_ori, '.-')
@@ -449,7 +459,7 @@ if __name__ == '__main__':
             plt.xlim((-1, len(diff_ori)))    
             #plt.xlim((42303, 43913))
         #%%
-        if True:
+        if False:
             for ini, fin in blocks2correct:
                 plt.figure()
                 plt.imshow(worm_int_profile.T, interpolation='none', cmap='gray')

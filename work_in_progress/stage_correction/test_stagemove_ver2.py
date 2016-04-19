@@ -13,9 +13,11 @@ import matplotlib.pylab as plt
 from scipy.io import loadmat
 import glob
 import os
-import pandas as pd
+#import pandas as pd
 
 delT = 15
+
+#30 28 20 19
 
 main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/MaskedVideos/'
 
@@ -26,8 +28,10 @@ files = glob.glob(os.path.join(main_dir, '*.hdf5' ))
 files = sorted(files)
 #%%
 # agar_1 -> 41, 39
-# agar_2 -> 34, 25, 21
-for mask_id in range(len(files)):#[25, 37, 47,48]:
+# agar_3 -> 23
+# agar_4 -> 26, 33, 34
+
+for mask_id in [30, 28, 20, 19]:#range(len(files)):
     masked_image_file = files[mask_id]
     skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
     feat_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_features.hdf5'
@@ -45,9 +49,16 @@ for mask_id in range(len(files)):#[25, 37, 47,48]:
 #    
 #    continue
     try:
-        with h5py.File(feat_file, 'r') as fid:
-            if fid['/features_means'].attrs['has_finished'] and fid['/features_timeseries'].size>0:
-                skeletons = fid['/skeletons'][:]
+        with tables.File(feat_file, 'r') as fid:
+            if '/features_means' in fid and \
+            fid.get_node('/features_means').attrs['has_finished'] and \
+            fid.get_node('/features_timeseries').shape[0]>0:
+                skeletons = fid.get_node('/skeletons')[:]
+                frame_range = fid.get_node('/features_events/worm_1')._v_attrs['frame_range']
+            
+            #pad the beginign with np.nan to have the same reference as segworm
+            skeletons = np.pad(skeletons, [(frame_range[0],0), (0,0), (0,0)], 
+                           'constant', constant_values=np.nan)
     except (OSError):
         continue
     
@@ -133,16 +144,20 @@ for mask_id in range(len(files)):#[25, 37, 47,48]:
         plt.ylim((0, np.nanmax(skel_error)))
         plt.xlim(w_xlim)
         plt.title(mask_id)
+        plt.ylabel('Error')
         
         plt.subplot(3,1,2)
         plt.plot(skel_y[:,1], 'b') 
         plt.plot(seg_y[:,1], 'r')
         plt.xlim(w_ylim)
+        plt.ylabel('Y coord')
         
         plt.subplot(3,1,3)
         plt.plot(skel_x[:,1], 'b') 
         plt.plot(seg_x[:,1], 'r')
         plt.xlim(w_xlim)
+        plt.ylabel('X coord')
+        plt.xlabel('Frame Number')
         #%%
         plt.figure()
         #plt.subplot(3,1,1)        
@@ -157,3 +172,4 @@ for mask_id in range(len(files)):#[25, 37, 47,48]:
         plt.plot(skeletons[::delT,:, 0].T, skeletons[::delT,:, 1].T, 'b') 
         plt.axis('equal')
         #%%
+    #%%

@@ -20,10 +20,9 @@ from scipy.signal import medfilt
 import sys
 sys.path.append('/Users/ajaver/Documents/GitHub/Multiworm_Tracking')
 from MWTracker.helperFunctions.timeCounterStr import timeCounterStr
-
-from MWTracker.trackWorms.getSkeletonsTables import getWormROI, getWormMask, binaryMask2Contour
-from MWTracker.featuresAnalysis.obtainFeaturesHelper import WLAB
-from MWTracker.featuresAnalysis.getFilteredFeats import saveModifiedTrajData
+from MWTracker.helperFunctions.miscFun import WLAB
+from MWTracker.trackWorms.getSkeletonsTables import getWormROI, getWormMask
+from MWTracker.trackWorms.getFilteredSkels import saveModifiedTrajData
 
 #%%
 def getStartEndTraj(trajectories_data):
@@ -108,8 +107,7 @@ def getIndCnt(img, x, y, roi_size, thresh, max_area):
     
     
     worm_img, roi_corner = getWormROI(img, x, y, roi_size)
-    worm_mask = getWormMask(worm_img, thresh)
-    worm_cnt, _ = binaryMask2Contour(worm_mask, min_mask_area = max_area)
+    worm_mask, worm_cnt, _ = getWormMask(worm_img, thresh)
     if worm_cnt.size > 0:
         worm_cnt += roi_corner   
     return worm_cnt                 
