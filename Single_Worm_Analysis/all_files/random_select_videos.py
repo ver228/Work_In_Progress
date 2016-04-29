@@ -51,7 +51,7 @@ def copy_files(flist, ori_root_dir, final_root_dir):
 
 if __name__ == '__main__':
     ori_video_dir = '/Volumes/behavgenom_archive$/thecus/'
-    ori_mask_dir = '/Volumes/behavgenom_archive$/MaskedVideos_old/'
+    ori_mask_dir = '/Volumes/behavgenom_archive$/MaskedVideos/'
     
     
     
@@ -65,9 +65,9 @@ if __name__ == '__main__':
     #final_root_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar/MaskedVideos/'
     #copy_files(agar_files, ori_mask_dir, final_root_dir)
     
-    select_random_videos('all_agar.txt', 40, ori_video_dir, ori_mask_dir)
-    agar_files = read_file('random_agar.txt')
-    final_root_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_goa/MaskedVideos/'
+    #select_random_videos('all_agar.txt', 40, ori_video_dir, ori_mask_dir)
+    agar_files = read_file('random_agar_4.txt')
+    final_root_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_4/MaskedVideos/'
     copy_files(agar_files, ori_mask_dir, final_root_dir)
     
     
