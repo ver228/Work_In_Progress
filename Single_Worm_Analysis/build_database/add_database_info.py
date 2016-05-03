@@ -17,18 +17,19 @@ import tables
 import stat
 
 from create_database import  Strain, Tracker, Sex, DevelopmentalStage, \
-VentralSide, Food, Arena, Habituation, Experimenter, Experiment, Allele, Gene
+VentralSide, Food, Arena, Habituation, Experimenter, Experiment, Allele, \
+Gene, OriginalVideo
 
 if __name__ == '__main__':
     engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
     session_v2 = Session(engine_v2)
-    
-    
-    headers = ['base_name', 'directory', 'date','original_video_name', 'tracker', 
+
+    headers = ['base_name', 'original_directory', 'original_video_name', 'date', 'tracker', 
                 'sex', 'developmental_stage', 'ventral_side', 'food', 'arena', 
-                'habituation', 'experimenter', 'strain', 'genotype', 'gene', 'allele'];
-    all_data = session_v2.query(Experiment.base_name, Experiment.directory, Experiment.date, 
-                     Experiment.original_video_name, Tracker.name,
+                'habituation', 'experimenter', 'strain', 'genotype', 'gene', 'allele', 'original_video'];
+    all_data = session_v2.query(Experiment.base_name, OriginalVideo.directory,
+                     OriginalVideo.video_name, Experiment.date,
+                     Tracker.name,
                      Sex.name, DevelopmentalStage.name, VentralSide.name, 
                      Food.name, Arena.name, Habituation.name, Experimenter.name,
                      Strain.name, Strain.genotype, Gene.name, Allele.name).\
@@ -36,6 +37,7 @@ if __name__ == '__main__':
                      join(VentralSide).join(Food).\
                      join(Arena).join(Habituation).join(Experimenter).\
                      join(Strain).join(Gene).join(Allele).\
+                     join(OriginalVideo).\
                      all()
     
     for ii_dat, dat in enumerate(all_data):
@@ -43,10 +45,10 @@ if __name__ == '__main__':
         dat_dict['date'] = dat_dict['date'].isoformat()
         variables2save = bytes(json.dumps(dat_dict), 'utf-8')
         
-        mask_dir = dat_dict['directory'].replace('/thecus/', '/MaskedVideos/')
-        results_dir = dat_dict['directory'].replace('/thecus/', '/Results/')
-        #mask_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/MaskedVideos'
-        #results_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/Results'
+        #mask_dir = dat_dict['directory'].replace('/thecus/', '/MaskedVideos/')
+        #results_dir = dat_dict['directory'].replace('/thecus/', '/Results/')
+        mask_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/MaskedVideos'
+        results_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/Results'
         
         masked_image_file = os.path.join(mask_dir, dat_dict['base_name'] + '.hdf5')
         skeletons_file = os.path.join(results_dir, dat_dict['base_name'] + '_skeletons.hdf5')

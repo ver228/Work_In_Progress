@@ -37,10 +37,3 @@ if __name__ == '__main__':
             if os.path.exists(skeletons_file) and isBadStageAligment(skeletons_file):
                 print(ii_dat)
                 fid.write(skeletons_file + '\n')
-        
-        
-
-
-
-
-

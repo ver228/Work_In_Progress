@@ -408,7 +408,7 @@ if __name__ == '__main__':
     'VC40429':['vc40429'],
     '14 JU393':['814 JU393'],
     'tsp-17(tm5169)':['tsp-17 (tm51)', 'tsp017(tm5169)', 'tsp-17(tm5168)','tsp-17(tm5160)'],
-    'tsp-17(tm4995)':['tsp-17(tm1995)', 'tsp-17 (tm4995)'],
+    'tsp-17(tm4995)':['tsp-17(tm1995)', 'tsp-17 (tm4995)', 'tsp-17 (tm4994)'],
     'tsp-17(gt1681)':['tsp-17(gt1686)', 'tsp-17(tmgt1681)', 'tsp-17(gt1868)',
      'tsp-17(g1681)', 'tsp-17(gt1691)', 'tsp-17 (gt1681)'],
     'unc-73 (lf) nca-1 (gf)':['unc-73 (gf) nca-1 (gf)'],
@@ -451,7 +451,6 @@ if __name__ == '__main__':
 
     'IL2 cam in RB557' : ['IL2 cam in RB557 1', 'IL2 cam RB557', 'il2 CAM IN rb557'],
     'IL2 cam in RB2005': ['IL2 cam IN RB2005', 'IL2 cam RB2005'],
-    'LR342.2 in RB2005' : ['LR342.2 in RB2005 2'],
 
     'PLG119 in RB557' :['PLG119 1 in RB557', 'PLG119 2 in RB557', 'PLG119 IN RB557 1',
     'PLG119 IN rb557 1', 'PLG119 IN rb557 2',  'PLG119 in RB557 1', 'plg119 in RB557 1',
@@ -463,9 +462,12 @@ if __name__ == '__main__':
     'PLG120 in RB2005 1', 'PLG120 in RB2005 2', 'Plg120 in RB2005 2', 'PLG 120 in RB2005 1',
     'PL;G120 in RB2005', 'PLG 120 1 IN rb2005', 'PLG120 RB2005 2', 'plg120 in RB2005 1',
     'plg120 in RB2005 2'],
-    
+
     '342.2 in RB2005':['342.2 inRB2005'],
-    'LR342.2 in RB2005':['lr342.2 in RB2005']
+    'LR342.2 in RB2005':['lr342.2 in RB2005', 'LR342.2 in RB2005 2', 'plg342.2 IN rb2005'],
+    'ocr4;ocr2;ocr1' : ['LX982'],
+    'ocr-2;4' : ['LX981']
+
     }
 
     str2change = {'unc-8':'unc-80 (e1069)', 
@@ -474,7 +476,6 @@ if __name__ == '__main__':
     'AQ2458':'clh-3(ok768)II',
     'AQ63':'unc-36(e873)III',
     'AQ1062':'clh-3(ok763)',
-    'tsp-17(tm4995)':'tsp-17 (tm4994)',
     't28f2.7 (ok2657)I':'acd-5 (ok2657)I',
     't28f4.2 (ok289)I':'asic-2 (ok289)I',
     'acr-13or lev-8 (x15)X	':'lev-8 (x15)',
@@ -484,7 +485,9 @@ if __name__ == '__main__':
     'T28F2.7 (ok2657)I':'acd-5 (ok2657)I',
     'unc-10 (ok1781)X':'egg-5 (ok1781)',
     'unc-7 (cb5)':'unc-7 (e5)',
-    'trpa-1 (ok999); osm-9 (ky10)':'AQ1422'
+    'trpa-1 (ok999); osm-9 (ky10)':'AQ1422',
+    'acr-13or lev-8 (x15)X' : 'lev-8 (x15)X',
+    'cf2027 Q40; def-2 (e1570)':'CF2027 Q40; def-2 (e1570)'
     }
     for key in miss_spellings:
         for bad_s in miss_spellings[key]:
@@ -498,8 +501,6 @@ if __name__ == '__main__':
     'AQ2613':('AQ2613',None, None, None, 'ljEx337[podr-1::Cx36*::YFP, punc-122::mCherry]; ljEx336[pttx-3(int2)::Cx36*::mCherry, pelt-2::mCherry]'),
     ('pink-1', 'tm1779'):('BR4006', 'tm1779', 'pink-1' ,'II', 'pink-1(tm1779) II; byEx655'),
     ('pdr-1', 'gk448'):('VC1024', 'gk448', 'pdr-1','III', 'pdr-1(gk448) III'),
-    'ocr4;ocr2;ocr1' : ('LX982', 'ocr-1;ocr-2;ocr-4', 'ok132;ak47;vs137', 'IV;V', 'ocr-4 (vs317); ocr-2 (9447); ocr-1 (ok134)'),
-    'ocr-2;4':('LX981', 'ocr-2;ocr-4', 'ak47;vs137','IV','ocr-4 (vs137); ocr-2 (9697)'),
     }
     #%%
     genotype_query = session.query(experiments_full.c.strain, experiments_full.c.allele,

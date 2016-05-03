@@ -31,7 +31,7 @@ files = sorted(files)
 # agar_3 -> 23
 # agar_4 -> 26, 33, 34
 
-for mask_id in [30, 28, 20, 19]:#range(len(files)):
+for mask_id in range(len(files)):
     masked_image_file = files[mask_id]
     skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
     feat_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_features.hdf5'
@@ -39,15 +39,6 @@ for mask_id in [30, 28, 20, 19]:#range(len(files)):
 
 #%%
     print(mask_id, masked_image_file)
-    
-#    fps, is_default_timestamp = getFPS(skeletons_file, 25)
-#    micronsPerPixel = getMicronsPerPixel(skeletons_file)
-#    
-#    worm = WormFromTable(skeletons_file, 1, \
-#        use_skel_filter = True, use_manual_join = False, \
-#        micronsPerPixel = 1,fps=fps, smooth_window = 5)
-#    
-#    continue
     try:
         with tables.File(feat_file, 'r') as fid:
             if '/features_means' in fid and \
@@ -62,8 +53,6 @@ for mask_id in [30, 28, 20, 19]:#range(len(files)):
     except (OSError):
         continue
     
-    
-    
     if os.path.exists(segworm_feat_file):
         fvars = loadmat(segworm_feat_file)
         micronsPerPixels_x = fvars['info']['video'][0][0]['resolution'][0][0]['micronsPerPixels'][0][0]['x'][0][0][0][0]
@@ -77,8 +66,6 @@ for mask_id in [30, 28, 20, 19]:#range(len(files)):
         #FLAG_DROPPED = 2;
         #FLAG_STAGE = 3;
         frame_annotations = fvars['info']['video'][0][0]['annotations'][0][0]['frames'][0][0][0];
-        
-        
         
         #%%
         

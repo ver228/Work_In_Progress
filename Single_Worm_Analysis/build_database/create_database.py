@@ -7,7 +7,7 @@ Created on Wed Apr 27 08:52:54 2016
 from sqlalchemy import create_engine, MetaData, UniqueConstraint
 from sqlalchemy.orm import Session, relationship
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence, ForeignKey, DateTime, distinct, func
+from sqlalchemy import Column, Float, Integer, String, Sequence, ForeignKey, DateTime, distinct, func
 from sqlalchemy.schema import Table
 
 #%%
@@ -94,8 +94,7 @@ class Experiment(Base):
     base_name = Column(String(200), unique=True, index=True, nullable=False)
     directory = Column(String(500))
     date = Column(DateTime())
-    original_video_name = Column(String(200), unique=True, nullable=False)
-    
+
     strain_id = Column(Integer, ForeignKey('strains.id'), nullable=False)
     tracker_id = Column(Integer, ForeignKey('trackers.id'), nullable=False)
     sex_id = Column(Integer, ForeignKey('sexes.id'), nullable=False)
@@ -118,6 +117,14 @@ class Experiment(Base):
     habituation = relationship(Habituation, primaryjoin="Experiment.habituation_id == Habituation.id")
     experimenter = relationship(Experimenter, primaryjoin="Experiment.experimenter_id == Experimenter.id")
 
+
+class OriginalVideo(Base):
+    __tablename__ = 'original_videos'
+    id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    video_name = Column(String(200), unique=True, nullable = False)
+    directory = Column(String(500), nullable = False)
+    video_size = Column(Float)
+    experiment = relationship(Experiment, primaryjoin="Experiment.id == OriginalVideo.id")
 #%%
 if __name__ == '__main__':
     engine_old = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_old')
@@ -125,7 +132,7 @@ if __name__ == '__main__':
     
     all_tables = [Allele, Gene, Strain, Tracker, Sex, DevelopmentalStage, 
                   VentralSide, Food, Arena, Habituation, Experimenter, 
-                  Strain, Experiment]
+                  Strain, Experiment, OriginalVideo]
     
     for new_table in all_tables[::-1]:
         new_table.__table__.drop(engine_v2, checkfirst=True)
@@ -169,9 +176,10 @@ if __name__ == '__main__':
     #%%
     strains_obj = [Strain(name=s, allele_id=a, gene_id=g, genotype=gt) for (s,a,g,gt) in strains_k]
     session_v2.add_all(strains_obj)
+    
     #%%
     dd = [experiments_full_new.c.base_name, experiments_full_new.c.directory, 
-          experiments_full_new.c.date, experiments_full_new.c.original_video_name, 
+          experiments_full_new.c.date, 
           experiments_full_new.c.strain, experiments_full_new.c.tracker, 
           experiments_full_new.c.sex, experiments_full_new.c.developmental_stage, 
           experiments_full_new.c.ventral_side,
@@ -181,7 +189,7 @@ if __name__ == '__main__':
     
     #%%
     experiments_obj = []
-    exp_fields = ['base_name', 'directory', 'date', 'original_video_name', 
+    exp_fields = ['base_name', 'directory', 'date',
                 'strain_id', 'tracker_id', 'sex_id',
                 'developmental_stage_id', 'ventral_side_id', 'food_id','arena_id',
                 'habituation_id','experimenter_id']
@@ -190,10 +198,9 @@ if __name__ == '__main__':
                 'developmental_stage_id':DevelopmentalStage, 'ventral_side_id':VentralSide,
                 'food_id':Food, 'arena_id':Arena, 'habituation_id':Habituation,
                 'experimenter_id':Experimenter}
-    
     dict4keys = {x:get_table_keys(obj4keys[x]) for x in obj4keys}
     #%%
-    rows2inset = []
+    exp_rows = []
     for exp_dat in experiments:
         exp_dict = {}
         for ii, key in enumerate(exp_fields):
@@ -202,9 +209,20 @@ if __name__ == '__main__':
                 exp_dict[key] = id_dict[exp_dat[ii]]
             else:
                 exp_dict[key] = exp_dat[ii]
+        
+        #let's save the masked directories as the main directory
+        exp_dict['directory'] = exp_dict['directory'].replace('/thecus/','/MaskedVideos/')
+        exp_rows.append(Experiment(**exp_dict))
     
-        rows2inset.append(Experiment(**exp_dict))
-    
-    session_v2.add_all(rows2inset)
+    session_v2.add_all(exp_rows)
+    session_v2.commit()
+    #%% Let's add the fields from the original videos
+    video_rows = []
+    for exp in exp_rows:
+        vid_dict = {'id':exp.id,
+        'directory':exp.directory.replace('/MaskedVideos/' , 'thecus'), 
+        'video_name': exp.base_name + '.avi'}
+        video_rows.append(OriginalVideo(**vid_dict))
+    session_v2.add_all(video_rows)
     #%%
     session_v2.commit()
