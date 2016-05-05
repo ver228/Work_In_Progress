@@ -56,7 +56,7 @@ def get_file_parts():
     #%%
     agar_file = '/Users/ajaver/Documents/GitHub/Work_In_Progress/Single_Worm_Analysis/all_files/all_agar.txt'
     swim_file = '/Users/ajaver/Documents/GitHub/Work_In_Progress/Single_Worm_Analysis/all_files/all_swimming.txt'
-    
+    #%%
     with open(agar_file, 'r') as fid:
         all_data = fid.read()
     with open(swim_file, 'r') as fid:

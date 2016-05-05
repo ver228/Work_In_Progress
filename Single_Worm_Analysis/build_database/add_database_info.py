@@ -72,6 +72,7 @@ if __name__ == '__main__':
                 if fname == masked_image_file:
                     os.chflags(fname, stat.UF_IMMUTABLE)
 
+        
 
 
 

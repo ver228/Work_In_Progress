@@ -17,20 +17,14 @@ import os
 
 delT = 15
 
-#30 28 20 19
-
-main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_3/MaskedVideos/'
+main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_4/MaskedVideos/'
 
 from MWTracker.featuresAnalysis.obtainFeaturesHelper import WormFromTable
 from MWTracker.featuresAnalysis.obtainFeatures import getMicronsPerPixel, getFPS
 
 files = glob.glob(os.path.join(main_dir, '*.hdf5' ))
-files = sorted(files)
+files = sorted(files)[0:]
 #%%
-# agar_1 -> 41, 39
-# agar_3 -> 23
-# agar_4 -> 26, 33, 34
-
 for mask_id in range(len(files)):
     masked_image_file = files[mask_id]
     skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
@@ -39,6 +33,7 @@ for mask_id in range(len(files)):
 
 #%%
     print(mask_id, masked_image_file)
+    
     try:
         with tables.File(feat_file, 'r') as fid:
             if '/features_means' in fid and \
@@ -54,18 +49,14 @@ for mask_id in range(len(files)):
         continue
     
     if os.path.exists(segworm_feat_file):
-        fvars = loadmat(segworm_feat_file)
-        micronsPerPixels_x = fvars['info']['video'][0][0]['resolution'][0][0]['micronsPerPixels'][0][0]['x'][0][0][0][0]
-        micronsPerPixels_y = fvars['info']['video'][0][0]['resolution'][0][0]['micronsPerPixels'][0][0]['y'][0][0][0][0]
+        fvars = loadmat(segworm_feat_file, struct_as_record=False, squeeze_me=True)
+        micronsPerPixels_x = fvars['info'].video.resolution.micronsPerPixels.x
+        micronsPerPixels_y = fvars['info'].video.resolution.micronsPerPixels.y
         
-        segworm_x = -fvars['worm']['posture'][0][0]['skeleton'][0][0]['x'][0][0].T
-        segworm_y = -fvars['worm']['posture'][0][0]['skeleton'][0][0]['y'][0][0].T
+        segworm_x = -fvars['worm'].posture.skeleton.x.T
+        segworm_y = -fvars['worm'].posture.skeleton.y.T
         
-        #%%
-        # it seems there is a bug in segworm and the flag for dropped frames is the same as stage movements...
-        #FLAG_DROPPED = 2;
-        #FLAG_STAGE = 3;
-        frame_annotations = fvars['info']['video'][0][0]['annotations'][0][0]['frames'][0][0][0];
+        frame_annotations = fvars['info'].video.annotations.frames
         
         #%%
         

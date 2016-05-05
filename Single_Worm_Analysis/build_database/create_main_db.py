@@ -10,6 +10,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Float, Integer, String, Sequence, ForeignKey, DateTime, distinct, func
 from sqlalchemy.schema import Table
 
+import os
+
 #%%
 Base = declarative_base()
 
@@ -92,7 +94,6 @@ class Experiment(Base):
     __tablename__ = 'experiments'
     id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
     base_name = Column(String(200), unique=True, index=True, nullable=False)
-    directory = Column(String(500))
     date = Column(DateTime())
 
     strain_id = Column(Integer, ForeignKey('strains.id'), nullable=False)
@@ -121,10 +122,11 @@ class Experiment(Base):
 class OriginalVideo(Base):
     __tablename__ = 'original_videos'
     id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
-    video_name = Column(String(200), unique=True, nullable = False)
+    name = Column(String(200), unique=True, nullable = False)
     directory = Column(String(500), nullable = False)
-    video_size = Column(Float)
+    sizeMB = Column(Float)
     experiment = relationship(Experiment, primaryjoin="Experiment.id == OriginalVideo.id")
+
 #%%
 if __name__ == '__main__':
     engine_old = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_old')
@@ -132,11 +134,11 @@ if __name__ == '__main__':
     
     all_tables = [Allele, Gene, Strain, Tracker, Sex, DevelopmentalStage, 
                   VentralSide, Food, Arena, Habituation, Experimenter, 
-                  Strain, Experiment, OriginalVideo]
-    
+                  Strain, Experiment, OriginalVideo, ExitFlag, ProgressMask]
+    #%%
     for new_table in all_tables[::-1]:
         new_table.__table__.drop(engine_v2, checkfirst=True)
-    
+    #%%
     for new_table in all_tables:
         new_table.__table__.create(engine_v2, checkfirst=True)
     
@@ -178,7 +180,7 @@ if __name__ == '__main__':
     session_v2.add_all(strains_obj)
     
     #%%
-    dd = [experiments_full_new.c.base_name, experiments_full_new.c.directory, 
+    dd = [experiments_full_new.c.base_name, 
           experiments_full_new.c.date, 
           experiments_full_new.c.strain, experiments_full_new.c.tracker, 
           experiments_full_new.c.sex, experiments_full_new.c.developmental_stage, 
@@ -189,7 +191,7 @@ if __name__ == '__main__':
     
     #%%
     experiments_obj = []
-    exp_fields = ['base_name', 'directory', 'date',
+    exp_fields = ['base_name', 'date',
                 'strain_id', 'tracker_id', 'sex_id',
                 'developmental_stage_id', 'ventral_side_id', 'food_id','arena_id',
                 'habituation_id','experimenter_id']
@@ -210,18 +212,26 @@ if __name__ == '__main__':
             else:
                 exp_dict[key] = exp_dat[ii]
         
-        #let's save the masked directories as the main directory
-        exp_dict['directory'] = exp_dict['directory'].replace('/thecus/','/MaskedVideos/')
         exp_rows.append(Experiment(**exp_dict))
-    
+       
     session_v2.add_all(exp_rows)
     session_v2.commit()
     #%% Let's add the fields from the original videos
+    dd = [experiments_full_new.c.base_name, experiments_full_new.c.directory]
+    base2dir = {x:d for x,d in session_old.query(*dd).distinct(*dd).all()}
+    
+    #%%
     video_rows = []
-    for exp in exp_rows:
+    for ii, exp in enumerate(exp_rows):
+        if ii % 100 == 0: 
+            print('Getting original video file size {}/{}'.format(ii,len(exp_rows)))
         vid_dict = {'id':exp.id,
-        'directory':exp.directory.replace('/MaskedVideos/' , 'thecus'), 
-        'video_name': exp.base_name + '.avi'}
+        'directory':base2dir[exp.base_name], 
+        'name': exp.base_name + '.avi'}
+        
+        video_file = os.path.join(vid_dict['directory'], vid_dict['name'])
+        vid_dict['sizeMB'] = os.path.getsize(video_file)/(1024*1024.0)
+        
         video_rows.append(OriginalVideo(**vid_dict))
     session_v2.add_all(video_rows)
     #%%
