@@ -17,19 +17,34 @@ import os
 
 delT = 15
 
-main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_4/MaskedVideos/'
+#main_dir = '/Users/ajaver/Desktop/Videos/single_worm/agar_4/MaskedVideos/'
+#main_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample/'
+main_dir = '/Users/ajaver/Desktop/Videos/single_worm/switched_sample/'
 
 from MWTracker.featuresAnalysis.obtainFeaturesHelper import WormFromTable
 from MWTracker.featuresAnalysis.obtainFeatures import getMicronsPerPixel, getFPS
 
 files = glob.glob(os.path.join(main_dir, '*.hdf5' ))
-files = sorted(files)[0:]
+files = [x for x in files if not x.endswith('_skeletons.hdf5') \
+and not x.endswith('_features.hdf5')]
+
+files = sorted(files[0:1])
 #%%
 for mask_id in range(len(files)):
     masked_image_file = files[mask_id]
-    skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
-    feat_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_features.hdf5'
-    segworm_feat_file = masked_image_file.replace('MaskedVideos', 'Features')[:-5] + '_features.mat'
+    
+    segworm_feat_file = masked_image_file[:-5] + '_features.mat'
+    dd = os.path.split(masked_image_file[:-5])
+    skeletons_file = os.path.join(dd[0], 'Results', dd[1] + '_skeletons.hdf5')
+    feat_file = os.path.join(dd[0], 'Results', dd[1] + '_features.hdf5')
+    
+    #skeletons_file = masked_image_file[:-5] + '_skeletons.hdf5'
+    #feat_file = masked_image_file[:-5] + '_features.hdf5'
+    #segworm_feat_file = masked_image_file[:-5] + '_features.mat'
+    
+    #skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    #feat_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_features.hdf5'
+    #segworm_feat_file = masked_image_file.replace('MaskedVideos', 'Features')[:-5] + '_features.mat'
 
 #%%
     print(mask_id, masked_image_file)
@@ -115,7 +130,6 @@ for mask_id in range(len(files)):
         
         #%%
         w_xlim = w_ylim = (-10, skel_error.size+10)
-        
         plt.figure()
         plt.subplot(3,1,1)
         plt.plot(skel_error, '.')
@@ -137,17 +151,29 @@ for mask_id in range(len(files)):
         plt.ylabel('X coord')
         plt.xlabel('Frame Number')
         #%%
-        plt.figure()
-        #plt.subplot(3,1,1)        
-        plt.plot(skel_x[::delT].T, skel_y[::delT].T, 'b')    
-        plt.plot(seg_x[::delT].T, seg_y[::delT].T, 'r')
-        plt.axis('equal')
-        plt.title(mask_id)
+#        plt.figure()
+#        #plt.subplot(3,1,1)
+#        plt.plot(skel_x[::delT].T, skel_y[::delT].T, 'b')    
+#        plt.plot(seg_x[::delT].T, seg_y[::delT].T, 'r')
+#        plt.axis('equal')
+#        plt.title(mask_id)
         #%%
     else:
+#        plt.figure()
+#        plt.title(mask_id)
+#        plt.plot(skeletons[::delT,:, 0].T, skeletons[::delT,:, 1].T, 'b') 
+#        plt.axis('equal')
+        
         plt.figure()
-        plt.title(mask_id)
-        plt.plot(skeletons[::delT,:, 0].T, skeletons[::delT,:, 1].T, 'b') 
-        plt.axis('equal')
+        plt.subplot(2,1,1)
+        plt.plot(skeletons[:,1,1], 'b')
+        #plt.xlim(w_ylim)
+        plt.ylabel('Y coord')
+        
+        plt.subplot(2,1,2)
+        plt.plot(skeletons[:,1,0], 'b') 
+        #plt.xlim(w_xlim)
+        plt.ylabel('X coord')
+        plt.xlabel('Frame Number')
         #%%
     #%%

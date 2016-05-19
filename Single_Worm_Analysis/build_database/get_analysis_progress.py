@@ -18,9 +18,8 @@ import tables
 import numpy as np
 import pandas as pd
 
-from create_database import Experiment, OriginalVideo
 from MWTracker.batchProcessing.trackSingleWorker import getStartingPoint, checkpoint_label, \
-isBadStageAligment, isBadCntOrientationStr, constructNames
+isBadStageAligment, hasExpCntInfo, constructNames
 
 from MWTracker.batchProcessing.compressMultipleFilesHelper import isBadMask
 from MWTracker.compressVideos.getAdditionalData import getAdditionalFiles
@@ -52,7 +51,7 @@ class ExitFlag(Base):
 class ProgressMask(Base):
     __tablename__ = 'progress_masks'
     __table_args__ = {'extend_existing': True}
-    id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
     exit_flag_id = Column(Integer, ForeignKey('exit_flags.id'))
     mask_file = Column(String(500))
     n_valid_frames = Column(Integer)
@@ -64,7 +63,7 @@ class ProgressMask(Base):
 class ProgressTrack(Base):
     __table_args__ = {'extend_existing': True}
     __tablename__ = 'progress_tracks'
-    id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
     exit_flag_id = Column(Integer, ForeignKey('exit_flags.id'))
     skeletons_file = Column(String(500))
     features_file = Column(String(500))
@@ -78,7 +77,8 @@ class ProgressTrack(Base):
     exit_flag = relationship(ExitFlag, primaryjoin="ProgressTrack.exit_flag_id == ExitFlag.id")
 
 Base.prepare(engine_v2, reflect=True)
-
+Experiment = Base.classes.experiments
+OriginalVideo = Base.classes.original_videos
 
 all_tables = [ExitFlag, ProgressMask, ProgressTrack]
 if __name__ == '__main__':
@@ -102,7 +102,17 @@ if __name__ == '__main__':
         
         session_v2.commit()
     
-    calculated_ids = list(zip(*session_v2.query(ProgressMask.id).all()))[0]
+    calculated_ids = session_v2.query(ProgressMask.experiment_id).all()
+    if len(calculated_ids)>0:
+        calculated_ids = list(zip(*calculated_ids))[0]
+    
+    if False:
+        not_finished = session_v2.query(ProgressTrack.experiment_id).\
+        filter(ProgressTrack.exit_flag_id != dict_track_flags['END'][0]).all()
+        if len(not_finished) > 0:
+            not_finished = set(list(zip(*not_finished))[0])
+            calculated_ids = set(calculated_ids) - not_finished
+    
     all_data = session_v2.query(OriginalVideo, Experiment).join(Experiment).\
     filter(~Experiment.id.in_(calculated_ids)).all()
     
@@ -113,7 +123,7 @@ if __name__ == '__main__':
         masked_image_file = os.path.join(mask_dir, exp_obj.base_name + '.hdf5')
         results_dir = vid_obj.directory.replace('/thecus/','/Results/')
         
-        progress_mask = {'id':exp_obj.id}
+        progress_mask = {'experiment_id':exp_obj.id}
         try:
             #this function will throw and error if the .info.xml or .log.csv are not found
             info_file, stage_file = getAdditionalFiles(video_file)
@@ -145,7 +155,7 @@ if __name__ == '__main__':
         except (IOError, FileNotFoundError):
             progress_mask['exit_flag_id'] = dict_mask_flags['Missed auxiliary files']
         
-        session_v2.add(ProgressMask(**progress_mask))
+        session_v2.merge(ProgressMask(**progress_mask))
 
         if progress_mask['exit_flag_id'] == dict_mask_flags['Finished mask file']:
             base_name, trajectories_file, skeletons_file, features_file, \
@@ -153,16 +163,16 @@ if __name__ == '__main__':
             
             checkpoint_ind = getStartingPoint(masked_image_file, results_dir)
             current_point = checkpoint_label[checkpoint_ind]
-            if current_point == 'INT_PROFILE' and isBadStageAligment(skeletons_file):
+            if current_point == 'INT_PROFILE' and in_valid_skeletonssBadStageAligment(skeletons_file):
                 current_point = 'STAGE_ALIGMENT'
-            if current_point == 'FEAT_CREATE' and isBadCntOrientationStr(skeletons_file):
+            if current_point == 'FEAT_CREATE' and hasExpCntInfo(skeletons_file):
                 current_point = 'CONTOUR_ORIENT'
             
             
             
             track_progress_flag, _ = dict_track_flags[current_point]
             
-            progress_track = {'id':exp_obj.id, 'exit_flag_id' : track_progress_flag}
+            progress_track = {'experiment_id':exp_obj.id, 'exit_flag_id' : track_progress_flag}
             if track_progress_flag > dict_track_flags['SKE_CREATE'][0]:
                 progress_track['skeletons_file'] = skeletons_file
                 
@@ -176,14 +186,17 @@ if __name__ == '__main__':
             
             if track_progress_flag > dict_track_flags['FEAT_CREATE'][0]:
                 progress_track['features_file'] = features_file
-                with pd.HDFStore(features_file, 'r') as fid:
-                    worm_length = fid['/features_timeseries']['length'] #use it as a proxy of valid skeletons
-                    if worm_length.size > 0:
-                        progress_track['n_filtered_skeletons'] = len(worm_length)
-                        progress_track['n_timestamps'] = int(np.sum(~np.isnan(worm_length)))
+                with tables.File(features_file, 'r') as fid:
+                    skel = fid.get_node('/skeletons')[:,0,0] #use it as a proxy of valid skeletons
+                    if skel.size > 0:
+                        
+                        progress_track['n_valid_skeletons'] = int(np.sum(~np.isnan(skel)))
+                        progress_track['n_timestamps'] = len(skel)
+                    else:
+                        progress_track['n_valid_skeletons'] = 0
+                        progress_track['n_timestamps'] = 0
                 
-                
-            session_v2.add(ProgressTrack(**progress_track))
+            session_v2.merge(ProgressTrack(**progress_track))
         
         print(exp_obj.id)
         session_v2.commit()

@@ -1,2 +1,11 @@
 
 *.pyc
+*.hdf5
+work_in_progress/create_binaries/test_nuitka/dum.build/*
+work_in_progress/create_binaries/test_nuitka/dum_hola.build/*
+work_in_progress/create_binaries/test_nuitka/dum.dist/*
+work_in_progress/create_binaries/test_nuitka/dum_hola.dist/*
+
+work_in_progress/create_binaries/test_cxfreeze/dist/*
+work_in_progress/create_binaries/test_cxfreeze/build/*
+Single_Worm_Analysis/stage_correction/failed_files.txt

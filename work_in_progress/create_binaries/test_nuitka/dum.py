@@ -9,7 +9,7 @@ import cv2
 import h5py
 import tables
 
-from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt4.QtGui import QApplication, QWidget
 
 
 if __name__ == '__main__':

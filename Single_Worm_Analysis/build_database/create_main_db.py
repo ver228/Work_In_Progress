@@ -121,7 +121,7 @@ class Experiment(Base):
 
 class OriginalVideo(Base):
     __tablename__ = 'original_videos'
-    id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
     name = Column(String(200), unique=True, nullable = False)
     directory = Column(String(500), nullable = False)
     sizeMB = Column(Float)
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     for ii, exp in enumerate(exp_rows):
         if ii % 100 == 0: 
             print('Getting original video file size {}/{}'.format(ii,len(exp_rows)))
-        vid_dict = {'id':exp.id,
+        vid_dict = {'experiment_id':exp.id,
         'directory':base2dir[exp.base_name], 
         'name': exp.base_name + '.avi'}
         

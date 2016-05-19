@@ -22,27 +22,27 @@ engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2'
 Base = automap_base()
 
 
-class SegwormFeatures(Base):
+class SegwormFeature(Base):
     __tablename__ = 'segworm_features'
     __table_args__ = {'extend_existing': True}
     id = Column(Integer, primary_key = True)
     file_name = Column(String(500), nullable = False)
-    #experiment_id = Column(Integer, ForeignKey('experiments.id'))
+    experiment_id = Column(Integer, ForeignKey('experiments.id'))
     fps = Column(Float)
     total_time = Column(Float)
     n_valid_skeletons = Column(Integer)
     n_timestamps = Column(Integer)
 Base.prepare(engine_v2, reflect=True)
 
-#Experiment = Base.classes.experiments;
-#SegwormFeatures.experiment = relationship(Experiment, backref= 'segworm_features', 
-#                              primaryjoin="SegwormFeatures.experiment_id == experiments.id")
+Experiment = Base.classes.experiments;
+SegwormFeature.experiment = relationship(Experiment, backref= 'segworm_features', 
+                              primaryjoin="SegwormFeature.experiment_id == experiments.id")
 
 if __name__ == '__main__':
     session_v2 = Session(engine_v2)
     if False:
-        SegwormFeatures.__table__.drop(engine_v2, checkfirst=True)
-        SegwormFeatures.__table__.create(engine_v2, checkfirst=True)
+        SegwormFeature.__table__.drop(engine_v2, checkfirst=True)
+        SegwormFeature.__table__.create(engine_v2, checkfirst=True)
         
     segworm_feat_file = '/Users/ajaver/Documents/GitHub/Work_In_Progress/Single_Worm_Analysis/all_files/segworm_feat_files.txt'
     with open(segworm_feat_file, 'r') as fid:
@@ -62,11 +62,13 @@ if __name__ == '__main__':
             segworm_dict['n_timestamps'] = info['info'].video.length.frames
             segworm_dict['n_valid_skeletons'] = int(np.sum(info['info'].video.annotations.frames==1))
             
-#            expObj = session_v2.query(Experiment).filter(Experiment.base_name==base_name).one_or_none()
-#            if expObj is not None:
-#                segworm_dict['experiment_id'] = expObj.id
+            expObj = session_v2.query(Experiment).filter(Experiment.base_name==base_name).one_or_none()
+            if expObj is not None:
+                segworm_dict['experiment_id'] = expObj.id
             
-            SegwormFeatures(**segworm_dict)
+            session_v2.add(SegwormFeature(**segworm_dict))
+    
+    session_v2.commit()
 
 #    engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
 #    session_v2 = Session(engine_v2)
