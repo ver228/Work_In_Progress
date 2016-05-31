@@ -107,6 +107,7 @@ if __name__ == '__main__':
         calculated_ids = list(zip(*calculated_ids))[0]
     
     if False:
+        #Recalculate videos that were not finished (END)
         not_finished = session_v2.query(ProgressTrack.experiment_id).\
         filter(ProgressTrack.exit_flag_id != dict_track_flags['END'][0]).all()
         if len(not_finished) > 0:
@@ -163,7 +164,7 @@ if __name__ == '__main__':
             
             checkpoint_ind = getStartingPoint(masked_image_file, results_dir)
             current_point = checkpoint_label[checkpoint_ind]
-            if current_point == 'INT_PROFILE' and in_valid_skeletonssBadStageAligment(skeletons_file):
+            if current_point == 'INT_PROFILE' and isBadStageAligment(skeletons_file):
                 current_point = 'STAGE_ALIGMENT'
             if current_point == 'FEAT_CREATE' and hasExpCntInfo(skeletons_file):
                 current_point = 'CONTOUR_ORIENT'

@@ -28,9 +28,10 @@ if __name__ == '__main__':
     Gene = Base.classes.genes
     ProgressMask = Base.classes.progress_masks
     session_v2 = Session(engine_v2)
-    all_data = session_v2.query(ProgressMask.mask_file).\
-    join(Experiment, Experiment.id == ProgressMask.experiment_id).\
-    join(Strain).join(Gene).filter(Gene.name=='goa-1').all()
+    
+    #all_data = session_v2.query(ProgressMask.mask_file).\
+    #join(Experiment, Experiment.id == ProgressMask.experiment_id).\
+    #join(Strain).join(Gene).filter(Gene.name=='goa-1').all()
     
     
 #    dst_dir = '/Users/ajaver/Desktop/Videos/single_worm/goa-1/'
@@ -43,6 +44,7 @@ if __name__ == '__main__':
     #%%
     SegwormFeatures = Base.classes.segworm_features
     ProgressTracks = Base.classes.progress_tracks
+    
     goa_feats = session_v2.query(SegwormFeatures.file_name, ProgressTracks.exit_flag_id).\
     filter(SegwormFeatures.file_name.ilike('%goa-1%')).\
     filter(~SegwormFeatures.file_name.ilike('%egl-30;goa-1%')).\

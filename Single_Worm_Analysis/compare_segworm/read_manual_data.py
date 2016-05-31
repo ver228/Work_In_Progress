@@ -12,6 +12,8 @@ import cv2
 import matplotlib.pylab as plt
 import tables
 import csv
+
+import glob
 #%%
 from MWTracker.trackWorms.segWormPython.linearSkeleton import linearSkeleton
 from MWTracker.trackWorms.segWormPython.getHeadTail import rollHead2FirstIndex
@@ -20,6 +22,7 @@ from MWTracker.trackWorms.segWormPython.cleanWorm import circSmooth, extremaPeak
 from MWTracker.trackWorms.segWormPython.cythonFiles.circCurvature import circCurvature
 from MWTracker.trackWorms.segWormPython.mainSegworm import resampleAll
 
+from MWTracker.trackWorms.segWormPython.mainSegworm import getSkeleton
 
 def getSkeletonHT(contour, head_ind, tail_ind):
     ske_worm_segments = 24.;
@@ -77,7 +80,8 @@ def getSkeletonHT(contour, head_ind, tail_ind):
 
 #%%
 if __name__ == '__main__':
-    save_dir = '/Volumes/behavgenom$/Kezhi/DataSet/AllFiles/OutSource_files/All_Label/contours_from_manual/'
+    #save_dir = '/Volumes/behavgenom$/Kezhi/DataSet/AllFiles/OutSource_files/All_Label/contours_from_manual/'
+    save_dir = '/Volumes/behavgenom$/Kezhi/DataSet/AllFiles/OutSource_files/All_Label/Tif/skeleton_Ave/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     average_width_file = os.path.join(save_dir, 'average_width.csv')
@@ -87,13 +91,17 @@ if __name__ == '__main__':
         pass
     
     resampling_N = 49
+    tif_dir = '/Volumes/behavgenom$/Kezhi/DataSet/AllFiles/OutSource_files/All_Label/Tif/'
+    xls_dir = '/Volumes/behavgenom$/Kezhi/DataSet/AllFiles/OutSource_files/All_Label/xlsx/'
     
-    with open('manual_xls.txt', 'r') as fid:
-        dat = fid.read()
-        dat = [x for x in dat.split('\n') if x]
+    all_tif = glob.glob(tif_dir + '*.tif')
+    all_xls = glob.glob(xls_dir + '*.xls*')
+    #with open('manual_xls.txt', 'r') as fid:
+    #    dat = fid.read()
+    #    dat = [x for x in dat.split('\n') if x]
     
-    with open('manual_tif.txt', 'r') as fid:
-        all_tif = fid.read().split('\n')
+    #with open('manual_tif.txt', 'r') as fid:
+    #    all_tif = fid.read().split('\n')
     
     
     
@@ -101,10 +109,11 @@ if __name__ == '__main__':
     all_coords = {}
     tif_dict = {}
     
-    for ii, fname in enumerate(dat):
+    for ii, fname in enumerate(all_xls):
         
-        print(ii, len(dat))
+        print(ii, len(all_xls))
         base_name = os.path.splitext(os.path.split(fname)[1])[0]
+        base_name = base_name.rpartition(')')[0] + ')'
         try:
             wb = xlrd.open_workbook(fname)
             wb_data =[]
@@ -150,9 +159,14 @@ if __name__ == '__main__':
     
     #%% read images
         images = tifffile.imread(tif_dict[base_name]);
-        all_masks = np.zeros(images.shape[:-1], np.uint8)
+        
+        img_shape = images.shape if images.ndim == 3 else images.shape[:-1]
+        all_masks = np.zeros(img_shape, np.uint8)
         for ii, img in enumerate(images):
-            all_masks[ii] = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)>0
+            if img.ndim == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            all_masks[ii] = img>0
+        
         all_masks = all_masks.astype(np.uint8)*255
     #%%
         tot_rows = all_masks.shape[0]
@@ -161,40 +175,42 @@ if __name__ == '__main__':
         cnt_side2s = np.full((tot_rows, resampling_N, 2), np.nan)
         cnt_widths = np.full((tot_rows, resampling_N), np.nan)
         
-        try:
-            for tt in range(tot_rows):
-                worm_mask = all_masks[tt]
-                head_coord = head_coords[tt]
-                tail_coord = tail_coords[tt]
+        #try:
+        for tt in range(tot_rows):
+            worm_mask = all_masks[tt]
+            #head_coord = head_coords[tt]
+            #tail_coord = tail_coords[tt]
+            
+            #%%
+            _, contours, hierarchies = cv2.findContours(worm_mask.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+            
+            IM_LIMX = worm_mask.shape[0]-2
+            IM_LIMY = worm_mask.shape[1]-2
+            contour = []
+            hierarchy = []
+            for cnt, hier in zip(contours, hierarchies[0]):
+                if not np.any(cnt == 1) and \
+                    not np.any(cnt[:,:,0] ==  IM_LIMY)\
+                    and not np.any(cnt[:,:,1] == IM_LIMX):
+                        contour.append(cnt)
+                        hierarchy.append(hier)
+            #%%
+            if len(contour) == 1:
+                contour = np.squeeze(contour[0]).astype(np.float)
                 
-                #%%
-                _, contours, hierarchies = cv2.findContours(worm_mask.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
-                
-                IM_LIMX = worm_mask.shape[0]-2
-                IM_LIMY = worm_mask.shape[1]-2
-                contour = []
-                hierarchy = []
-                for cnt, hier in zip(contours, hierarchies[0]):
-                    if not np.any(cnt == 1) and \
-                        not np.any(cnt[:,:,0] ==  IM_LIMY)\
-                        and not np.any(cnt[:,:,1] == IM_LIMX):
-                            contour.append(cnt)
-                            hierarchy.append(hier)
-                #%%
-                if len(contour) == 1:
-                    contour = np.squeeze(contour[0]).astype(np.float)
-                    
-                    head_ind = np.argmin(np.sum((contour - head_coord)**2, axis=1))
-                    tail_ind = np.argmin(np.sum((contour - tail_coord)**2, axis=1))
-                    skeleton, cnt_side1, cnt_side2, cnt_width = getSkeletonHT(contour, head_ind, tail_ind)
-                    
+                #head_ind = np.argmin(np.sum((contour - head_coord)**2, axis=1))
+                #tail_ind = np.argmin(np.sum((contour - tail_coord)**2, axis=1))
+                #skeleton, cnt_side1, cnt_side2, cnt_widths = getSkeletonHT(contour, head_ind, tail_ind)
+                skeleton, ske_len, cnt_side1, cnt_side2, cnt_width, cnt_area = \
+                getSkeleton(contour, resampling_N=49)
+                if skeleton.size>0:
                     skeletons[tt] = skeleton
                     cnt_side1s[tt] = cnt_side1
                     cnt_side2s[tt] = cnt_side2
                     cnt_widths[tt] = cnt_width
-        except (IndexError, AssertionError, ZeroDivisionError):
-            with open(bad_files, 'a') as fid:
-                fid.write(fname + '/n')
+        #except (IndexError, AssertionError, ZeroDivisionError):
+        #    with open(bad_files, 'a') as fid:
+        #        fid.write(fname + '/n')
                     
                     
         #%%

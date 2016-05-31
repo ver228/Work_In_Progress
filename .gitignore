@@ -9,3 +9,7 @@ work_in_progress/create_binaries/test_nuitka/dum_hola.dist/*
 work_in_progress/create_binaries/test_cxfreeze/dist/*
 work_in_progress/create_binaries/test_cxfreeze/build/*
 Single_Worm_Analysis/stage_correction/failed_files.txt
+
+*.dat
+
+work_in_progress/decode/tiff export.tiff

@@ -101,12 +101,13 @@ if __name__ == '__main__':
                 
                 #%%
                 rotation_matrix_inv = rotation_matrix*[(1,-1),(-1,1)]
-                stage_position_pix = -np.dot(stage_vec_ori/micronsPerPixel,rotation_matrix_inv)
+                stage_position_pix = -np.dot(rotation_matrix_inv, (stage_vec_ori/micronsPerPixel).T).T
+                micronsPerPixel_rot = np.dot(rotation_matrix_inv, micronsPerPixel)
                 with tables.File(masked_image_file, 'r+') as fid:
                     if '/stage_position_pix' in fid: fid.remove_node('/', 'stage_position_pix')
                     fid.create_array('/', 'stage_position_pix', obj=stage_position_pix)
-                    fid.get_node('/stage_position_pix')._v_attrs['pixel_per_micron_scale'] = micronsPerPixel
-                    fid.get_node('/stage_position_pix')._v_attrs['rotation_matrix'] = rotation_matrix
+                    fid.get_node('/stage_position_pix')._v_attrs['pixel_per_micron_scale'] = micronsPerPixel_rot
+                    fid.get_node('/stage_position_pix')._v_attrs['rotation_matrix'] = rotation_matrix_inv
         
         if os.path.exists(masked_image_file):
             with tables.File(masked_image_file, 'r+') as fid:

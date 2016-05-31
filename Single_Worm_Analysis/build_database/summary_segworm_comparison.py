@@ -47,20 +47,20 @@ all_segworm = pd.DataFrame(all_segworm).fillna(0)
 all_segworm['skel_frac'] = all_segworm['n_valid_skeletons']/all_segworm['n_valid_frames']
 all_segworm['segworm_frac'] = all_segworm['n_segworm_skeletons']/all_segworm['n_valid_frames']
 
-plt.figure()
-plt.plot(all_segworm['skel_frac'], all_segworm['segworm_frac'], '.')
-plt.xlabel('fraction skeletons')
-plt.ylabel('fraction skeletons (segworm)')
-#%%
-all_segworm['best_n'] = (all_segworm['n_valid_skeletons']-all_segworm['n_segworm_skeletons'])/(all_segworm['n_valid_skeletons']+all_segworm['n_segworm_skeletons'])
-plt.figure()
-plt.plot(all_segworm['best_n'], '.')
+#plt.figure()
+#plt.plot(all_segworm['skel_frac'], all_segworm['segworm_frac'], '.')
+#plt.xlabel('fraction skeletons')
+#plt.ylabel('fraction skeletons (segworm)')
+##%%
+#all_segworm['best_n'] = (all_segworm['n_valid_skeletons']-all_segworm['n_segworm_skeletons'])/(all_segworm['n_valid_skeletons']+all_segworm['n_segworm_skeletons'])
+#plt.figure()
+#plt.plot(all_segworm['best_n'], '.')
 #%%
 
 if False:
     #copy sample files
     videos_15min = all_segworm[(all_segworm['total_time'] > 888) &(all_segworm['total_time'] < 910)]
-    sample_videos = videos_15min.sample(2)
+    sample_videos = videos_15min.sample(100)
     save_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

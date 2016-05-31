@@ -34,7 +34,6 @@ with h5py.File(mask_file_name, 'r') as fid:
         if current_timestamp <= ii:
             current_frame += 1
     
-    
     for ii in range(0, tot_timestamps, 16):
         current_frame = tt_vec[ii]
         img = fid['/mask'][current_frame]
