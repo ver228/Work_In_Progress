@@ -19,13 +19,14 @@ files = sorted(glob.glob(os.path.join(main_dir, '*.dat')))
 dat_order = [int(os.path.split(x)[1].partition('spool')[0][::-1]) for x in files]
 tot_img_decoded = max(dat_order) + 1
 
-
 tif_file = main_dir + 'OMG2 short TIFF 16 bit.tiff'
 img_tif = tifffile.imread(tif_file)
 
 #I cannot initialize yet since i do not have the image size
 all_decoded = np.zeros(0)
 
+files = ['/Users/ajaver/Downloads/0000010000spool.dat']
+tot_img_decoded = len(files)
 for img_n, fname in enumerate(files):
     bin_dat = np.fromfile(fname, np.uint8)
     
@@ -38,9 +39,9 @@ for img_n, fname in enumerate(files):
         all_decoded = np.zeros((tot_img_decoded, im_size[1], im_size[0]), np.uint16)
     
     #every 3 bytes will correspond two pixel levels.
-    D1 = bin_dat[:-40:3] 
-    D2 = bin_dat[1:-40:3] 
-    D3 = bin_dat[2:-40:3] 
+    D1 = bin_dat[:-40:3]
+    D2 = bin_dat[1:-40:3]
+    D3 = bin_dat[2:-40:3]
     
     #and this pixel combination seems to work to recreated the desire intensities
     #1 and 3 represent the higher bits of the pixel intensity, while the second is divided as the lower bits.
@@ -57,11 +58,11 @@ for img_n, fname in enumerate(files):
 
 assert np.all(all_decoded == img_tif)
 #%%
-#    if False:
-#        plt.figure()
-#        plt.imshow(img_tif[img_n], interpolation='none', cmap='gray')
-#        plt.figure()
-#        plt.imshow(image_decoded, interpolation='none', cmap='gray')
+if True:
+    #plt.figure()
+    #plt.imshow(img_tif[img_n], interpolation='none', cmap='gray')
+    plt.figure()
+    plt.imshow(image_decoded, interpolation='none', cmap='gray')
     
     #%%
     #dd = image_decoded.astype(np.double)-img_tif[1].astype(np.double)

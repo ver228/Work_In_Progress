@@ -80,7 +80,7 @@ def getFPS(skeletons_file, fps_expected):
 def getMicroPerPixel(skeletons_file):
     try:
         with tables.File(skeletons_file, 'r') as fid:
-            return fid.get_node('/stage_movement')._v_sattrs['pixel_per_micron_scale']
+            return fid.get_node('/stage_movement')._v_sattrs['microns_per_pixel_scale']
     except (tables.exceptions.NoSuchNodeError, IOError, KeyError):
             #i need to change it to something better, but for the momement let's use 1 as default
             return 1

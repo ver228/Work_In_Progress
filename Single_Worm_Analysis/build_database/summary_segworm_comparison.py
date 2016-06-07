@@ -60,8 +60,8 @@ all_segworm['segworm_frac'] = all_segworm['n_segworm_skeletons']/all_segworm['n_
 if False:
     #copy sample files
     videos_15min = all_segworm[(all_segworm['total_time'] > 888) &(all_segworm['total_time'] < 910)]
-    sample_videos = videos_15min.sample(100)
-    save_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample/'
+    sample_videos = videos_15min.sample(25)
+    save_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample_v2/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
@@ -69,7 +69,11 @@ if False:
         print(ii)
         for fstr in ['mask_file', 'skeletons_file', 'features_file', 'segworm_file']:
             fname = row[fstr]
+            
             shutil.copy(fname, save_dir)
+            if fstr == 'skeletons_file':
+                shutil.copy(fname.replace('_skeletons.', '_intensities.'), save_dir)
+                shutil.copy(fname.replace('_skeletons.', '_trajectories.'), save_dir)
 
 #%%
 

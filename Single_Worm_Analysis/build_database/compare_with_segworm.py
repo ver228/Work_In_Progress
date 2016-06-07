@@ -89,46 +89,44 @@ if __name__ == '__main__':
         #pad the beginign with np.nan to have the same reference as segworm (frame 0)
         skeletons = np.pad(skeletons, [(frame_range[0],0), (0,0), (0,0)], 
                        'constant', constant_values = np.nan)
-    
+        
         #load segworm data
         fvars = loadmat(segworm_feat_file, struct_as_record=False, squeeze_me=True)
         segworm_x = -fvars['worm'].posture.skeleton.x.T
         segworm_y = -fvars['worm'].posture.skeleton.y.T
-        
-        #rotate data 
         segworm = np.stack((segworm_x,segworm_y), axis=2)
-        rotation_matrix_inv = rotation_matrix*[(1,-1),(-1,1)]
-        for ii in range(segworm.shape[0]):
-            segworm[ii] = np.dot(segworm[ii], rotation_matrix_inv)
-        segworm_x = segworm[:,:,0]
-        segworm_y = segworm[:,:,1]
-
         
         #correct in case the data has different size shape
         max_n_skel = min(segworm.shape[0], skeletons.shape[0])
         skeletons = skeletons[:max_n_skel]
         segworm = segworm[:max_n_skel]
         
-        #calculate the square root of the mean squared error
-        dX = skeletons[:,:,0] - segworm[:,:,0]
-        dY = skeletons[:,:,1] - segworm[:,:,1]
-        R_error = dX*dX + dY*dY
-        skel_error = np.sqrt(np.mean(R_error, axis=1))
-        bad_errors = np.isnan(skel_error)
+        #shift the skeletons coordinate system to one that diminushes the errors the most.
+        seg_shift = np.nanmedian(skeletons-segworm, axis = (0,1))
+        segworm += seg_shift
         
+        #calculate the square root of the mean squared error
+        R_error = np.sum((skeletons-segworm)**2, axis=2)
+        skel_error = np.sqrt(np.mean(R_error, axis=1))
+        
+        #find nan (frames without skeletons or where the stage was moving)
+        bad_errors = np.isnan(skel_error)
         if np.all(bad_errors):
             continue
         frame_numbers = np.where(~bad_errors)[0];
         skel_error = skel_error[frame_numbers]
         
-        dX_switched = skeletons[:,::-1,0] - segworm[:,:,0]
-        dY_switched = skeletons[:,::-1,1] - segworm[:,:,1]
-        switched_error = np.sqrt(np.mean(dX_switched**2 + dY_switched**2, axis=1))
+        #calculate the square root of the mean squared error of the inverted skeletons.
+        #the switched srme should be less than the original if old and new data disagree
+        R_error_switched = np.sum((skeletons[:,::-1,:]-segworm)**2, axis=2)
+        switched_error = np.sqrt(np.mean(R_error_switched, axis=1))
         switched_error = switched_error[frame_numbers]
         
+        #get percentails of error per movie
         er_05, er_50, er_95= np.percentile(skel_error, [0.05, 0.5, 0.95])
         n_mutual_skeletons = skel_error.size
         
+        #save data in the database and hdf5 file
         segworm_comparision_dict = {'experiment_id':expObj.id, \
         'segworm_feature_id':segwormObj.id, 'n_mutual_skeletons':n_mutual_skeletons,
         'error_05th':float(er_05), 'error_50th':float(er_50), 'error_95th':float(er_95)}

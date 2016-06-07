@@ -67,10 +67,16 @@ counts, errors = dd.values, dd.index
 plt.plot(errors, counts, '.')
 
 dd = dat[['error', 'error_switched']].min(axis=1).value_counts()
-counts, errors = dd.values, dd.index
+counts_switched, errors_switched = dd.values, dd.index
+
+plt.figure()
+plt.plot(errors_switched, counts_switched, '.')
+plt.xlim([0, 1000])
+#%%
+plt.figure()
 plt.plot(errors, counts, '.')
-
-
+plt.plot(errors_switched, counts_switched, '.')
+plt.ylim([0, np.max(counts[40:])])
 plt.xlim([0, 1000])
 
 #%%
@@ -94,10 +100,11 @@ join(Strain).\
 join(ProgressMask).join(ProgressTrack).\
 join(SegWormComparison, SegWormComparison.experiment_id == Experiment.id).\
 join(SegwormFeature, SegwormFeature.experiment_id==SegWormComparison.experiment_id).\
-filter(ProgressMask.total_time >= 60).\
 filter(ProgressTrack.exit_flag_id == 211).\
 filter(ProgressTrack.n_valid_skeletons != None).\
 all()
+
+
 
 all_data = pd.DataFrame(dd)#.fillna(0)
 
@@ -106,9 +113,23 @@ all_data['switch_frac'] = switch_frac.loc[all_data.index]
 
 conflict_HT = all_data[(all_data['switch_frac']>0.25) & (all_data['total_time'] > 888) &(all_data['total_time'] < 910)]
 #%%
-if True:
+#large errors
+if False:
+    save_dir = '/Users/ajaver/Desktop/Videos/single_worm/large_errors/'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    bad_ids = np.unique(dat.loc[dat['error']>1000, 'experiment_id'])
+    for bad_id in bad_ids:
+        row = all_data.loc[bad_id]
+        for fstr in ['mask_file', 'skeletons_file', 'features_file', 'segworm_file']:
+            fname = row[fstr]
+            shutil.copy(fname, save_dir)
+
+
+#%%
+if False:
     #copy sample files
-    sample_videos = conflict_HT.sample(1)
+    sample_videos = conflict_HT.sample(25)
     save_dir = '/Users/ajaver/Desktop/Videos/single_worm/switched_sample/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

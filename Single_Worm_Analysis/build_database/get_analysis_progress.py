@@ -169,8 +169,6 @@ if __name__ == '__main__':
             if current_point == 'FEAT_CREATE' and hasExpCntInfo(skeletons_file):
                 current_point = 'CONTOUR_ORIENT'
             
-            
-            
             track_progress_flag, _ = dict_track_flags[current_point]
             
             progress_track = {'experiment_id':exp_obj.id, 'exit_flag_id' : track_progress_flag}

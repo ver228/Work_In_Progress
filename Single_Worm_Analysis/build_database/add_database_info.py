@@ -92,22 +92,34 @@ if __name__ == '__main__':
                 
         if os.path.exists(masked_image_file) and os.path.exists(skeletons_file):
             if not isBadStageAligment(skeletons_file):
-                with tables.File(skeletons_file, 'r') as fid:
+                with tables.File(skeletons_file, 'r+') as fid:
                     rotation_matrix = fid.get_node('/stage_movement')._v_attrs['rotation_matrix']
-                    micronsPerPixel = fid.get_node('/stage_movement')._v_attrs['pixel_per_micron_scale']
+                    if 'pixel_per_micron_scale' in fid.get_node('/stage_movement')._v_attrs:
+                        micronsPerPixel = fid.get_node('/stage_movement')._v_attrs['pixel_per_micron_scale']
+                        fid.get_node('/stage_movement')._v_attrs['microns_per_pixel_scale'] = microns_per_pixel_scale
+                        fid.get_node('/stage_movement')._f_delattr('pixel_per_micron_scale')
+                        
+                    microns_per_pixel_scale = fid.get_node('/stage_movement')._v_attrs['microns_per_pixel_scale']
                     stage_vec_ori = fid.get_node('/stage_movement/stage_vec')[:]
                 
                 #%%
+                #rotation_matrix_inv = rotation_matrix*[(1,-1),(-1,1)]
+                #stage_position_pix = -np.dot(rotation_matrix_inv, (stage_vec_ori/micronsPerPixel).T).T
+                #micronsPerPixel_rot = np.dot(rotation_matrix_inv, micronsPerPixel)
                 
-                #%%
-                rotation_matrix_inv = rotation_matrix*[(1,-1),(-1,1)]
-                stage_position_pix = -np.dot(rotation_matrix_inv, (stage_vec_ori/micronsPerPixel).T).T
-                micronsPerPixel_rot = np.dot(rotation_matrix_inv, micronsPerPixel)
+                #let's rotate the stage movement    
+                assert np.abs(microns_per_pixel_scale[0]) == np.abs(microns_per_pixel_scale[1])
+                dd = np.sign(microns_per_pixel_scale)
+                rotation_matrix_inv = np.dot(rotation_matrix*[(1,-1),(-1,1)], [(dd[0], 0), (0, dd[1])])
+                microns_per_pixel_scale = np.abs(microns_per_pixel_scale[0])
+                
+                stage_position_pix = -np.dot(rotation_matrix_inv, stage_vec_ori.T/microns_per_pixel_scale).T
+                
                 with tables.File(masked_image_file, 'r+') as fid:
                     if '/stage_position_pix' in fid: fid.remove_node('/', 'stage_position_pix')
+                    if '/stage_position_microns' in fid: fid.remove_node('/', 'stage_position_microns')
                     fid.create_array('/', 'stage_position_pix', obj=stage_position_pix)
-                    fid.get_node('/stage_position_pix')._v_attrs['pixel_per_micron_scale'] = micronsPerPixel_rot
-                    fid.get_node('/stage_position_pix')._v_attrs['rotation_matrix'] = rotation_matrix_inv
+                    fid.get_node('/stage_position_pix')._v_attrs['microns_per_pixel_scale'] = microns_per_pixel_scale
         
         if os.path.exists(masked_image_file):
             with tables.File(masked_image_file, 'r+') as fid:

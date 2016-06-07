@@ -60,15 +60,15 @@ function alignStageMotionSegwormFun(masked_image_file,skeletons_file)
     delay_frames = ceil(delay_time * fps);
     
     %% Read the scale conversions, we would need this when we want to convert the pixels into microns
-    pixelPerMicronX = 1/h5readatt(masked_image_file, '/mask', 'pixels2microns_x');
-    pixelPerMicronY = 1/h5readatt(masked_image_file, '/mask', 'pixels2microns_y');
+    micronsPerPixelX = 1/h5readatt(masked_image_file, '/mask', 'pixels2microns_x');
+    micronsPerPixelY = 1/h5readatt(masked_image_file, '/mask', 'pixels2microns_y');
     
-    normScale = sqrt((pixelPerMicronX ^ 2 + pixelPerMicronX ^ 2) / 2);
-    pixelPerMicronScale =  normScale * [sign(pixelPerMicronX) sign(pixelPerMicronY)];
+    normScale = sqrt((micronsPerPixelX ^ 2 + micronsPerPixelX ^ 2) / 2);
+    micronsPerPixelScale =  normScale * [sign(micronsPerPixelX) sign(micronsPerPixelY)];
     
     % Compute the rotation matrix.
     %rotation = 1;
-    angle = atan(pixelPerMicronY / pixelPerMicronX);
+    angle = atan(micronsPerPixelY / micronsPerPixelX);
     if angle > 0
         angle = pi / 4 - angle;
     else
@@ -81,7 +81,7 @@ function alignStageMotionSegwormFun(masked_image_file,skeletons_file)
     %% save appropiated attributes into the hdf5
     h5writeatt(skeletons_file, '/stage_movement', 'fps', fps)
     h5writeatt(skeletons_file, '/stage_movement', 'delay_frames', delay_frames)
-    h5writeatt(skeletons_file , '/stage_movement',  'pixel_per_micron_scale',  pixelPerMicronScale)
+    h5writeatt(skeletons_file , '/stage_movement',  'microns_per_pixel_scale',  micronsPerPixelScale)
     h5writeatt(skeletons_file , '/stage_movement',  'rotation_matrix',  rotation_matrix)
     
     %% calculate the variance of the difference between frames
