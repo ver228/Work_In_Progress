@@ -7,7 +7,6 @@ Created on Wed Jun  8 16:24:28 2016
 
 import cv2
 import numpy as np
-import matplotlib.pylab as plt
 
 
 font = cv2.FONT_HERSHEY_SIMPLEX

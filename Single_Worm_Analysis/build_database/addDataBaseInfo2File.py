@@ -64,8 +64,6 @@ if __name__ == '__main__':
         
         mask_dir = dat_dict['original_directory'].replace('/thecus/', '/MaskedVideos/')
         results_dir = dat_dict['original_directory'].replace('/thecus/', '/Results/')
-        #mask_dir = '/Users/ajaver/Desktop/Videos/single_worm/switched_sample'
-        #results_dir = '/Users/ajaver/Desktop/Videos/single_worm/switched_sample/Results/'
         
         masked_image_file = os.path.join(mask_dir, dat_dict['base_name'] + '.hdf5')
         skeletons_file = os.path.join(results_dir, dat_dict['base_name'] + '_skeletons.hdf5')
@@ -95,17 +93,12 @@ if __name__ == '__main__':
                 with tables.File(skeletons_file, 'r+') as fid:
                     rotation_matrix = fid.get_node('/stage_movement')._v_attrs['rotation_matrix']
                     if 'pixel_per_micron_scale' in fid.get_node('/stage_movement')._v_attrs:
-                        micronsPerPixel = fid.get_node('/stage_movement')._v_attrs['pixel_per_micron_scale']
+                        microns_per_pixel_scale = fid.get_node('/stage_movement')._v_attrs['pixel_per_micron_scale']
                         fid.get_node('/stage_movement')._v_attrs['microns_per_pixel_scale'] = microns_per_pixel_scale
                         fid.get_node('/stage_movement')._f_delattr('pixel_per_micron_scale')
                         
                     microns_per_pixel_scale = fid.get_node('/stage_movement')._v_attrs['microns_per_pixel_scale']
                     stage_vec_ori = fid.get_node('/stage_movement/stage_vec')[:]
-                
-                #%%
-                #rotation_matrix_inv = rotation_matrix*[(1,-1),(-1,1)]
-                #stage_position_pix = -np.dot(rotation_matrix_inv, (stage_vec_ori/micronsPerPixel).T).T
-                #micronsPerPixel_rot = np.dot(rotation_matrix_inv, micronsPerPixel)
                 
                 #let's rotate the stage movement    
                 assert np.abs(microns_per_pixel_scale[0]) == np.abs(microns_per_pixel_scale[1])
