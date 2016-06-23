@@ -23,6 +23,8 @@ from MWTracker.trackWorms.segWormPython.cythonFiles.circCurvature import circCur
 from MWTracker.trackWorms.segWormPython.mainSegworm import resampleAll
 
 from MWTracker.trackWorms.segWormPython.mainSegworm import getSkeleton
+from MWTracker.trackWorms.getSkeletonsTables import binaryMask2Contour
+
 
 def getSkeletonHT(contour, head_ind, tail_ind):
     ske_worm_segments = 24.;
@@ -194,6 +196,13 @@ if __name__ == '__main__':
                     and not np.any(cnt[:,:,1] == IM_LIMX):
                         contour.append(cnt)
                         hierarchy.append(hier)
+            
+            if len(contour) > 0:
+                #select the largest area if there are more than one objects
+                cnt_areas = [cv2.contourArea(cnt) for cnt in contour]
+                valid_ind = np.argmax(cnt_areas)
+                
+                contour = contour[valid_ind]
             #%%
             if len(contour) == 1:
                 contour = np.squeeze(contour[0]).astype(np.float)

@@ -13,3 +13,5 @@ Single_Worm_Analysis/stage_correction/failed_files.txt
 *.dat
 
 work_in_progress/decode/tiff export.tiff
+
+Single_Worm_Analysis/build_database/~$problematic_strains.xlsx

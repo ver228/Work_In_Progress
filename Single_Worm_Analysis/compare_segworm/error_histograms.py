@@ -104,8 +104,6 @@ filter(ProgressTrack.exit_flag_id == 211).\
 filter(ProgressTrack.n_valid_skeletons != None).\
 all()
 
-
-
 all_data = pd.DataFrame(dd)#.fillna(0)
 
 all_data.index = all_data['id']
