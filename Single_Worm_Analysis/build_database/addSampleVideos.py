@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from MWTracker.featuresAnalysis.obtainFeatures import getFPS
 
 def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, size_factor = 4):
+    #%%
     if not sample_video_name:
         sample_video_name = mask_file_name.replace('.hdf5', '_sample.avi')
     with h5py.File(mask_file_name, 'r') as fid:
@@ -27,16 +28,16 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, si
         fps, is_default_timestamp = getFPS(mask_file_name, np.nan)
         
         tot_timestamps = int(timestamp_ind[-1])
-        
+        #%%
         #make sure to compensate for missing frames, so the video will have similar length.
         tt_vec = np.full(tot_timestamps+1, np.nan)
         current_frame = 0
-        for ii in range(tot_timestamps):
+        for ii in range(tot_timestamps+1):
             tt_vec[ii] = current_frame
             current_timestamp = timestamp_ind[current_frame]
             if current_timestamp <= ii:
                 current_frame += 1
-        
+        #%%
         vid_writer = cv2.VideoWriter(sample_video_name, \
                             cv2.VideoWriter_fourcc(*'XVID'), fps/2, (im_w,im_h), isColor=False)
     
@@ -47,7 +48,7 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, si
             vid_writer.write(im_new)
         vid_writer.release()
     
-
+#%%
 if __name__ == '__main__':
     main_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample_v2/'
     engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     
     all_mask_files = session_v2.query(ProgressMask.mask_file).all()
     
-    for ii, dd in enumerate(all_mask_files):
+    for ii, dd in enumerate(all_mask_files[40:]):
         fname, = dd
         if fname is not None:
             print(ii, os.path.split(fname)[-1])
