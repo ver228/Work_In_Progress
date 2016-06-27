@@ -60,7 +60,7 @@ if __name__ == '__main__':
     
     all_mask_files = session_v2.query(ProgressMask.mask_file).all()
     
-    for ii, dd in enumerate(all_mask_files[40:]):
+    for ii, dd in enumerate(all_mask_files[281:]):
         fname, = dd
         if fname is not None:
             print(ii, os.path.split(fname)[-1])
