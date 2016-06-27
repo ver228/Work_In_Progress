@@ -25,8 +25,12 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12,
         tot_frames, im_h, im_w = masks.shape
         im_h, im_w = im_h//size_factor, im_w//size_factor
         
-        timestamp_ind = fid['/timestamp/raw'][:]
         fps, is_default_timestamp = getFPS(mask_file_name, expected_fps)
+        if '/timestamp/raw' in fid:
+            timestamp_ind = fid['/timestamp/raw'][:]
+        else:
+            timestamp_ind = np.arange(tot_frames)
+        
         
         tot_timestamps = int(timestamp_ind[-1])
         #%%
@@ -61,7 +65,7 @@ if __name__ == '__main__':
     
     all_mask_files = session_v2.query(ProgressMask.mask_file).all()
     
-    for ii, dd in enumerate(all_mask_files[322:]):
+    for ii, dd in enumerate(all_mask_files[578:]):
         fname, = dd
         if fname is not None:
             print(ii, os.path.split(fname)[-1])
