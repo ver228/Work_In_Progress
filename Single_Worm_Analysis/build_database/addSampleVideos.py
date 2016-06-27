@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from MWTracker.featuresAnalysis.obtainFeatures import getFPS
 
-def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, size_factor = 4):
+def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, 
+                     size_factor = 4, expected_fps=30):
     #%%
     if not sample_video_name:
         sample_video_name = mask_file_name.replace('.hdf5', '_sample.avi')
@@ -25,7 +26,7 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, si
         im_h, im_w = im_h//size_factor, im_w//size_factor
         
         timestamp_ind = fid['/timestamp/raw'][:]
-        fps, is_default_timestamp = getFPS(mask_file_name, np.nan)
+        fps, is_default_timestamp = getFPS(mask_file_name, expected_fps)
         
         tot_timestamps = int(timestamp_ind[-1])
         #%%
@@ -40,7 +41,7 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, si
         #%%
         vid_writer = cv2.VideoWriter(sample_video_name, \
                             cv2.VideoWriter_fourcc(*'XVID'), fps/2, (im_w,im_h), isColor=False)
-    
+        
         for ii in range(0, tot_frames, time_factor*2):
             current_frame = tt_vec[ii]
             img = masks[current_frame]
@@ -60,7 +61,7 @@ if __name__ == '__main__':
     
     all_mask_files = session_v2.query(ProgressMask.mask_file).all()
     
-    for ii, dd in enumerate(all_mask_files[281:]):
+    for ii, dd in enumerate(all_mask_files[322:]):
         fname, = dd
         if fname is not None:
             print(ii, os.path.split(fname)[-1])
