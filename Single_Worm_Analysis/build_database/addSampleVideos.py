@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from MWTracker.featuresAnalysis.obtainFeatures import getFPS
 
-def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12, 
-                     size_factor = 4, expected_fps=30):
+def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 8, 
+                     size_factor = 5, expected_fps=30):
     #%%
     if not sample_video_name:
         sample_video_name = mask_file_name.replace('.hdf5', '_sample.avi')
@@ -55,21 +55,29 @@ def createSmallVideo(mask_file_name, sample_video_name ='', time_factor = 12,
     
 #%%
 if __name__ == '__main__':
-    main_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample_v2/'
-    engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
-    Base = automap_base()
-    Base.prepare(engine_v2, reflect=True)
-    ProgressMask = Base.classes.progress_masks
     
-    session_v2 = Session(engine_v2)
+    if True:
+        engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
+        Base = automap_base()
+        Base.prepare(engine_v2, reflect=True)
+        ProgressMask = Base.classes.progress_masks
+        
+        session_v2 = Session(engine_v2)
+        
+        all_mask_files = session_v2.query(ProgressMask.mask_file).all()
+        all_mask_files = [x for x, in all_mask_files]
+    else:
+        import glob
+        main_dir = '/Users/ajaver/Desktop/Videos/single_worm/global_sample_v2/'
+        all_mask_files = [x for x in glob.glob(main_dir + '*.hdf5')  \
+        if not any(y in x for y in ['_trajectories', '_skeletons', '_intensities', '_features'])]
     
-    all_mask_files = session_v2.query(ProgressMask.mask_file).all()
-    
-    for ii, dd in enumerate(all_mask_files[578:]):
-        fname, = dd
+    for ii, fname in enumerate(all_mask_files):
         if fname is not None:
             print(ii, os.path.split(fname)[-1])
             createSmallVideo(fname)
+        
+        
             
         
     
