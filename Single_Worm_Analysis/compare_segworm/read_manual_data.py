@@ -203,10 +203,11 @@ if __name__ == '__main__':
                 valid_ind = np.argmax(cnt_areas)
                 
                 contour = contour[valid_ind]
-            #%%
-            if len(contour) == 1:
-                contour = np.squeeze(contour[0]).astype(np.float)
-                
+            elif len(contour) == 1:
+                contour = contour[0]
+    
+            contour = np.squeeze(contour).astype(np.float)
+            if contour.size > 0:
                 #head_ind = np.argmin(np.sum((contour - head_coord)**2, axis=1))
                 #tail_ind = np.argmin(np.sum((contour - tail_coord)**2, axis=1))
                 #skeleton, cnt_side1, cnt_side2, cnt_widths = getSkeletonHT(contour, head_ind, tail_ind)

@@ -4,50 +4,35 @@ Created on Tue Mar  1 14:45:16 2016
 
 @author: ajaver
 """
-
-#import pymysql.cursors
-
-## Connect to the database
-#connection = pymysql.connect(host='localhost',
-#                             user='ajaver',
-#                             db='worm_db',
-#                             charset='utf8mb4',
-#                             cursorclass=pymysql.cursors.DictCursor)
-#
-#
-#with connection.cursor() as cursor:
-#    sql = "SELECT * FROM `experiments`"
-#    cursor.execute(sql)
-#    result = cursor.fetchall()
-
-
-
 #%%
 import os
 from glob import glob
-import sys
 from MWTracker.compressVideos.getAdditionalData import getAdditionalFiles
-    
 
-with open('single_worm_new.txt', 'r') as fid:
+
+CHECK_LIST_IS_EXISTING_AVI = False
+CHECK_FILES_ARE_NOT_CORRUPT = False
+
+with open('single_worm.txt', 'r') as fid:
     full_movie_files = fid.read().split('\n')
     full_movie_files = [fname for fname in full_movie_files if fname.endswith('.avi')]
 
+#full_movie_files = [x for x in full_movie_files if not '/extra/t' in x.lower()]
+#full_movie_files = [x.replace('/extra/', '/') for x in full_movie_files if '/extra/' in x]
+#%% filter files and make sure they exists 
+if CHECK_LIST_IS_EXISTING_AVI:    
+    good_movies = []
+    seg_movies = []
+    for ii, mf in enumerate(full_movie_files):
+        print(ii, len(full_movie_files))
+        if not '_seg.avi' in mf and os.path.exists(mf):
+            good_movies.append(mf)
+        else:
+            seg_movies.append(mf)
+    full_movie_files = good_movies
 
-good_movies = []
-seg_movies = []
-
-for ii, mf in enumerate(full_movie_files):
-    print(ii, len(full_movie_files))
-    if not '_seg.avi' in mf and os.path.exists(mf):
-        good_movies.append(mf)
-    else:
-        seg_movies.append(mf)
-full_movie_files = good_movies
-
-
-#%%
-if False:
+#%% Check if it is possible to read all the files
+if CHECK_FILES_ARE_NOT_CORRUPT:
     from MWTracker.compressVideos.compressVideo import selectVideoReader
     
     corrupt_videos = []
@@ -60,14 +45,11 @@ if False:
         except OSError:
             corrupt_videos.append(mf)
 
-
-
 #%%
-#dd = [x for x in errors_files if isinstance(x,FileNotFoundError)]
-#for x in dd: print(x)   
-#%%
+#look for duplicated files (files with the same file name)
+
 directories, movie_files = zip(*map(os.path.split, full_movie_files))
-#%%
+
 dir_dict = {x:[] for x in set(movie_files)}
 
 for mf, md in zip(movie_files, directories):
@@ -129,16 +111,16 @@ for x in duplicated_files:
         f2chosedir.append(x)
 
 #%%
-dirNoExtra = []
+dirNoAdditionalFiles = []
 for x in f2chosedir:
     for dd in dir_dict[x]:
         try:
             info_file, stage_file = getAdditionalFiles(os.path.join(dd, x))
         except (FileNotFoundError, IOError):
-            if not dd in dirNoExtra:
-                dirNoExtra.append(dd)
+            if not dd in dirNoAdditionalFiles:
+                dirNoAdditionalFiles.append(dd)
 
-assert len(dirNoExtra) == 0
+assert len(dirNoAdditionalFiles) == 0
         
 
 #%%
@@ -164,7 +146,7 @@ def getExtraFiles(video_name, video_dir):
     
     return otherfiles
 #%% Correct names
-if False:
+if True:
     for x in no_addfiles:
         dname, fname = os.path.split(x)
         #print(fname)
