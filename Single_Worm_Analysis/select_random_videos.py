@@ -40,7 +40,7 @@ all()
 
 all_data = pd.DataFrame(dd)#.fillna(0)
 #%%
-import shutils
+import shutil
 
 save_dir = '/Users/ajaver/Desktop/Videos/individual_feat_files'
 top_strains = all_data['strain_name'].value_counts()
@@ -51,7 +51,7 @@ for strain in top10_strains:
     feat_files = all_data.loc[all_data['strain_name'] == strain, 'features_file']
     
     for feat_file in feat_files.sample(10):
-        shutils.copy(feat_file, save_dir)
+        shutil.copy(feat_file, save_dir)
         
 
 
