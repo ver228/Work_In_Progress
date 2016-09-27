@@ -26,8 +26,8 @@ session_v2 = Session(engine_v2)
 dd = session_v2.query(Experiment.id, Strain.name.label('strain_name'), 
 ProgressMask.mask_file, ProgressMask.total_time, ProgressMask.n_valid_frames, 
 ProgressTrack.skeletons_file, ProgressTrack.features_file, ProgressTrack.n_valid_skeletons,
-SegwormFeature.file_name.label('segworm_file'),
-SegwormFeature.n_valid_skeletons.label('n_segworm_skeletons'),
+SegwormFeature.segworm_file,
+SegwormFeature.n_segworm_skeletons,
 SegWormComparison.n_mutual_skeletons
 ).\
 join(Strain).\

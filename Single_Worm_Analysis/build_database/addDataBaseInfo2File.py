@@ -44,6 +44,7 @@ if __name__ == '__main__':
     headers = ['base_name', 'original_directory', 'original_video_name', 'date', 'tracker', 
                 'sex', 'developmental_stage', 'ventral_side', 'food', 'arena', 
                 'habituation', 'experimenter', 'strain', 'genotype', 'gene', 'allele', 'original_video'];
+    
     all_data = session_v2.query(Experiment.base_name, OriginalVideo.directory,
                      OriginalVideo.name, Experiment.date,
                      Tracker.name,
@@ -58,10 +59,12 @@ if __name__ == '__main__':
                      all()
     
     for ii_dat, dat in enumerate(all_data):
+        #select extra variables that are going to be saved as experiment_info
         dat_dict = {x:y for x,y in zip(*(headers, dat))}
         dat_dict['date'] = dat_dict['date'].isoformat()
         variables2save = bytes(json.dumps(dat_dict), 'utf-8')
         
+
         mask_dir = dat_dict['original_directory'].replace('/thecus/', '/MaskedVideos/')
         results_dir = dat_dict['original_directory'].replace('/thecus/', '/Results/')
         
