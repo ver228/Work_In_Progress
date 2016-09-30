@@ -84,9 +84,6 @@ database_name <- '~/Documents/GitHub/Work_In_Progress/work_in_progress/compare_f
 #search the sqlite database
 my_db <- src_sqlite(database_name)
 
-
-
-
 #read db data
 experiments = get.experiments(my_db)
 features_means <- as.data.table(tbl(my_db, sql("SELECT * FROM features_means")))
@@ -128,9 +125,3 @@ read.pvals = function(feats_stats){
 }
 strains_pvals = do.call(rbind, lapply(strains_stats, read.pvals))
 strains_pvals_adj = apply(strains_pvals, 1, function(x) {p.adjust(x, 'BH')})
-
-
-
-
-
-#pvalues = 
