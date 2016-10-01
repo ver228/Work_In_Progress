@@ -57,11 +57,10 @@ class ReadFeaturesHDF5(object):
 
         return features_timeseries
     
-    def get_means(self, features_file):
+    def get_means(self, features_file, group_str = 'feat_means'):
         with pd.HDFStore(features_file, 'r') as fid:
-            features_means = fid['/features_means']
+            features_means = fid['/' + group_str]
         return features_means
-
 
         
 def get_path_df_control(file_list, main_dir):
@@ -110,16 +109,17 @@ def saveIntoDB(database_name, experiments):
     
     feat_reader = ReadFeaturesHDF5()
     for video_id, plate_row in experiments.iterrows():
-        plate_mean_features = feat_reader.get_means(plate_row['full_name'])
-        plate_mean_features = convertUnits(plate_mean_features, plate_row['microns_per_pixel'])
-        plate_mean_features['video_id'] = video_id
-
-        exists_type = 'replace' if video_id == 0 else 'append'
-        plate_mean_features.to_sql('features_means', 
-                              disk_engine,
-                              if_exists=exists_type,
-                              index = False)
-        
+        for feat_str in ['features_means', 'features_means_split']:
+            plate_mean_features = feat_reader.get_means(plate_row['full_name'], feat_str)
+            plate_mean_features = convertUnits(plate_mean_features, plate_row['microns_per_pixel'])
+            plate_mean_features['video_id'] = video_id
+    
+            exists_type = 'replace' if video_id == 0 else 'append'
+            plate_mean_features.to_sql(feat_str, 
+                                  disk_engine,
+                                  if_exists=exists_type,
+                                  index = False)
+            
         print(plate_row['base_name'])
     
 #plate_mean_features
@@ -130,7 +130,8 @@ if __name__ == '__main__':
     with open('controlset_feat_list.txt', 'r') as fid:
         all_feat_list = [x for x in fid.read().split('\n') if x]
     
-    database_name = 'control_experiments.db'
+    database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
+    database_name = os.path.join(database_dir, 'control_experiments.db')
     
     experiments = get_path_df_control(all_feat_list, main_dir)
     
