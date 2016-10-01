@@ -109,6 +109,9 @@ def saveIntoDB(database_name, experiments):
     
     feat_reader = ReadFeaturesHDF5()
     for video_id, plate_row in experiments.iterrows():
+        if not os.path.exists(plate_row['full_name']):
+                continue
+            
         for feat_str in ['features_means', 'features_means_split']:
             plate_mean_features = feat_reader.get_means(plate_row['full_name'], feat_str)
             plate_mean_features = convertUnits(plate_mean_features, plate_row['microns_per_pixel'])

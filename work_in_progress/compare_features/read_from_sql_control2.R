@@ -13,8 +13,7 @@ library(doParallel)
 RANDOM_EFFECTS = '(1+strain_cmp | plate_id)'
 
 get.model = function(pred_feat, comp_data, frac_thresh = 0.05){
-  feat_dat = comp_data[, pred_feat, with=FALSE]
-  good_frac = 1 - sum(is.na(feat_dat))/dim(comp_data)[1]
+  good_frac = 1 - sum(is.na(comp_data[[pred_feat]]))/dim(comp_data)[1]
   
   if(good_frac > frac_thresh)
     {
@@ -75,29 +74,12 @@ get.experiments = function(my_db) {
 get.features.names <- function(my_db){
   #get list of features to be predicted
   pred_feats = colnames(tbl(my_db, sql("SELECT * FROM features_means LIMIT 1")))
-  pred_feats = pred_feats[-which(pred_feats %in% c("worm_index", "n_frames", "n_valid_skel", "video_id"))]
+  pred_feats = pred_feats[-which(pred_feats %in% c("worm_index", "n_frames", "n_valid_skel", "video_id", "first_frame"))]
   return(pred_feats)  
 }
 
 
-database_name <- '~/Documents/GitHub/Work_In_Progress/work_in_progress/compare_features/control_experiments.db'
-#search the sqlite database
-my_db <- src_sqlite(database_name)
-
-#read db data
-experiments = get.experiments(my_db)
-features_means <- as.data.table(tbl(my_db, sql("SELECT * FROM features_means")))
-
-#select only the first video of each experiment (we want to reduce extra data)
-exp_tt = experiments[, .SD[1,], by=plate_id]
-
-#merge experiments data with the features table
-feat_table = as.data.table(merge(exp_tt, features_means, by="video_id"))
-#make strain a key to allow us to search
-setkeyv(feat_table, "strain");
-
-
-get.model.strain = function(strain, ctr_strain='WT', pred_feats = pred_feats){
+get.model.strain = function(strain, ctr_strain, pred_feats){
   comp_data <- rbind(feat_table[ctr_strain], feat_table[strain])
   n_strains_to_compare = length(levels(comp_data$strain))
   stopifnot(n_strains_to_compare==2)
@@ -113,15 +95,36 @@ get.model.strain = function(strain, ctr_strain='WT', pred_feats = pred_feats){
   return(feats_stats)
 }
 
-ctr_strain = 'WT' #here the control strain is "WT"
-strains = levels(feat_table$strain)
-strains = strains[-which(strains == ctr_strain)]
-strains_stats = sapply(strains, get.model.strain)
-names(strains_stats) = strains
-
 read.pvals = function(feats_stats){
   read.pval = function(x){if(! is.na(x)) x$likelihood$`Pr(>Chisq)`[2] else NA}
   sapply(feats_stats, read.pval)
 }
+
+database_name <- '~/Documents/GitHub/Work_In_Progress/work_in_progress/compare_features/control_experiments.db'
+#'/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB/control_experiments.db'
+
+#search the sqlite database
+my_db <- src_sqlite(database_name)
+
+#read db data
+experiments = get.experiments(my_db)
+features_means <- as.data.table(tbl(my_db, sql("SELECT * FROM features_means_split")))
+pred_feats = get.features.names(my_db)
+
+#select only the first video of each experiment (we want to reduce extra data)
+exp_tt = experiments[, .SD[1,], by=plate_id]
+
+#merge experiments data with the features table
+feat_table = as.data.table(merge(exp_tt, features_means, by="video_id"))
+#make strain a key to allow us to search
+setkeyv(feat_table, "strain");
+
+
+ctr_strain = 'WT' #here the control strain is "WT"
+strains = levels(feat_table$strain)
+strains = strains[-which(strains == ctr_strain)]
+strains_stats = sapply(strains, function(x){get.model.strain(x, ctr_strain, pred_feats)})
+names(strains_stats) = strains
+
 strains_pvals = do.call(rbind, lapply(strains_stats, read.pvals))
 strains_pvals_adj = apply(strains_pvals, 1, function(x) {p.adjust(x, 'BH')})
