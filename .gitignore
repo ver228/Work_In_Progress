@@ -1,6 +1,7 @@
 
 *.pyc
 *.hdf5
+*.DS_Store
 
 Single_Worm_Analysis/stage_correction/failed_files.txt
 
@@ -17,3 +18,7 @@ Single_Worm_Analysis/build_database/~$problematic_strains.xlsx
 *.zip
 
 work_in_progress/WCON/test.json
+
+
+
+*.pyc
