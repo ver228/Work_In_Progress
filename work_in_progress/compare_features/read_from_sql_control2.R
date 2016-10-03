@@ -10,9 +10,9 @@ library(foreach)
 #                  (1+strain_cmp | experiment_timestamp) + 
 #                  (1+strain_cmp | plate_id)'
 
-RANDOM_EFFECTS = '(1+strain_cmp | plate_id)'
+RANDOM_EFFECTS = '(1+experiment_id | plate_id) + (1+strain_cmp | experiment_id)'
 
-get.model = function(pred_feat, comp_data, frac_thresh = 0.0){
+get.model = function(pred_feat, comp_data, frac_thresh = 0.1){
   good_frac = 1 - sum(is.na(comp_data[[pred_feat]]))/dim(comp_data)[1]
   
   if(good_frac > frac_thresh)
@@ -32,13 +32,6 @@ get.model = function(pred_feat, comp_data, frac_thresh = 0.0){
   return(output)
 }
 
-progress_wrapper = function(progress_txt, FUNC, ...){
-  start.time <- Sys.time()
-  output = FUNC(...)
-  print(paste(progress_txt, Sys.time() - start.time))
-  return(output)
-}
-
 get.mod.linear = function(pred_feats, comp_data){
   get.model.comp = function(feat) {
     progress_wrapper(feat, get.model, feat, comp_data)
@@ -47,11 +40,32 @@ get.mod.linear = function(pred_feats, comp_data){
   return(feats_stats)
 }
 
-get.mod.parallel = function(pred_feats, comp_data, n_cores = detectCores() - 1){
-  registerDoParallel(n_cores)
-  feats_stats <- foreach(pred_feat = pred_feats, .combine=list) %dopar%  get.model(pred_feat, comp_data)
-  stopImplicitCluster()
+get.model.strain = function(strain, ctr_strain, pred_feats){
+  comp_data <- rbind(feat_table[ctr_strain], feat_table[strain])
+  
+  #check if i am really selecting two strains...
+  n_strains_to_compare = length(levels(comp_data$strain))
+  stopifnot(n_strains_to_compare==2)
+  
+  #drop extra levels
+  comp_data <- within(comp_data, {
+    strain_cmp <- strain != ctr_strain
+    plate_id <- droplevels(plate_id)
+    video_id <- droplevels(video_id)
+    experiment_id <- droplevels(experiment_id)
+  })
+  
+  #calculate the linear model, displaying the time per feature
+  feats_stats = progress_wrapper('T1', get.mod.linear, pred_feats, comp_data)
   return(feats_stats)
+}
+
+
+progress_wrapper = function(progress_txt, FUNC, ...){
+  start.time <- Sys.time()
+  output = FUNC(...)
+  print(paste(progress_txt, Sys.time() - start.time))
+  return(output)
 }
 
 get.experiments = function(my_db) { 
@@ -76,27 +90,6 @@ get.features.names <- function(my_db){
   pred_feats = colnames(tbl(my_db, sql("SELECT * FROM features_means LIMIT 1")))
   pred_feats = pred_feats[-which(pred_feats %in% c("worm_index", "n_frames", "n_valid_skel", "video_id", "first_frame"))]
   return(pred_feats)  
-}
-
-
-get.model.strain = function(strain, ctr_strain, pred_feats){
-  comp_data <- rbind(feat_table[ctr_strain], feat_table[strain])
-  
-  #check if i am really selecting two strains...
-  n_strains_to_compare = length(levels(comp_data$strain))
-  stopifnot(n_strains_to_compare==2)
-  
-  #drop extra levels
-  comp_data <- within(comp_data, {
-    strain_cmp <- strain != ctr_strain
-    plate_id <- droplevels(plate_id)
-    video_id <- droplevels(video_id)
-    experiment_id <- droplevels(experiment_id)
-  })
-  
-  #calculate the linear model, displaying the time per feature
-  feats_stats = progress_wrapper('T1', get.mod.linear, pred_feats, comp_data)
-  return(feats_stats)
 }
 
 read.pvals = function(feats_stats){
@@ -136,17 +129,13 @@ setkeyv(feat_table, "strain");
 ctr_strain = 'WT' #here the control strain is "WT"
 strains = levels(feat_table$strain)
 strains = strains[-which(strains == ctr_strain)]
+
 strains_stats = lapply(strains, function(x){get.model.strain(x, ctr_strain, pred_feats)})
 names(strains_stats) = strains
-
 
 strains_pvals = do.call(rbind, lapply(strains_stats, read.pvals))
 strains_pvals = t(as.data.frame(strains_pvals))
 strains_pvals_adj = apply(strains_pvals, 2, function(x) {p.adjust(x, 'BH')})
-
-
 #%%
-
-
-
-
+dd = feat_table['tpr-4']
+plot(length~plate_id, data=dd)
