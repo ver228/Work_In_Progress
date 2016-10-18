@@ -87,8 +87,8 @@ pred_feats = c('midbody_speed') #read.features.names(my_db)
 features_means <- read.features(my_db)
 
 #select only the first video of each experiment (we want to reduce extra data)
-exp_tt = experiments[, .SD[2,], by=plate_id]
-exp_tt = filter(exp_tt, as.integer(experiment_id)<=4)
+exp_tt = experiments[, .SD[5 ,], by=plate_id]
+#exp_tt = filter(exp_tt, as.integer(experiment_id)<=4)
 
 exp_tt <- within(exp_tt, {
   strain <- droplevels(strain)
@@ -106,8 +106,11 @@ fit.full <- lmer(log10(abs(midbody_speed_abs)+1) ~ strain_cmp + (1 + strain_cmp 
 anova(fit.full)
 
 library(ggplot2)
-#ggplot( aes(x = experiment_id, y = log10(abs(midbody_speed_abs+1)), fill=strain), data=feat_table) + geom_boxplot()
+ggplot( aes(x = experiment_id, y = log10(abs(midbody_speed_abs+1)), fill=strain), data=feat_table) + geom_boxplot()
 ggplot( aes(x = experiment_id, y = (midbody_width), fill=strain), data=feat_table) + geom_boxplot()
+
+ggplot( aes(x = plate_id, y = midbody_speed_pos, fill=strain), data=feat_table) + geom_boxplot()
+
 
 #fit.null <- lmer(log2(abs(midbody_speed) + 1) ~ (strain_cmp | plate_id),
 #                 data = comp_data, REML=FALSE)
