@@ -15,6 +15,7 @@ import json
 
 from MWTracker.helperFunctions.timeCounterStr import timeCounterStr
 from MWTracker.compressVideos.compressVideo import initMasksGroups
+from MWTracker.helperFunctions.miscFun import print_flush
 
 def getWormEnconderParams(fname):
     def numOrStr(x):
@@ -28,19 +29,21 @@ def getWormEnconderParams(fname):
           [x.split('=') for x in fid.read().split('\n') if x[0].isalpha()]}
 
 
-plugin_param_file = r'.\wormencoder.ini'
+plugin_param_file = 'wormencoder.ini'
 assert os.path.exists(plugin_param_file)
 
 plugin_params = getWormEnconderParams(plugin_param_file)
 
-#fullname = 'D:\\Test_14102016\\N2_Adult_Test_Ch1_12102016_191719.hdf5'
-original_file = 'D:\\Test_14102016\\Capture_Ch1_12102016_191719.hdf5'
-new_file = 'D:\\Test.hdf5'
+#original_file = 'D:\\Test_14102016\\Capture_Ch1_12102016_191719.hdf5'
+#new_file = 'D:\\Test.hdf5'
+original_file = '/Users/ajaver/Documents/Data/Test_14102016/Capture_Ch1_12102016_191719.hdf5'
+new_file = '/Users/ajaver/Documents/Data/Test_14102016/Test.hdf5'   
+
 expected_fps = 25
 
 
-buffer_size = plugin_params['UNMASKEDFRAMES']
-save_full_interval = plugin_params['MASK_RECALC_RATE']
+save_full_interval = plugin_params['UNMASKEDFRAMES']
+buffer_size = plugin_params['MASK_RECALC_RATE']
 
 mask_params = {'min_area' : plugin_params['MINBLOBSIZE'],
 'max_area' : plugin_params['MAXBLOBSIZE'],
@@ -70,26 +73,19 @@ with tables.File(original_file, 'r') as fid_old, \
     img_buff_ini = mask_old[:buffer_size]
     full_new[0] = img_buff_ini[0]
     
-    mask = img_buff_ini[buffer_size] != 0
+    mask = mask_old[buffer_size] != 0
     mask_new[:buffer_size] = img_buff_ini*mask
     
     
-    for frame in tot_frames:
+    for frame in range(buffer_size, tot_frames):
         mask_new[frame] = mask_old[frame]
         
         if frame % 500 == 0:
             # calculate the progress and put it in a string
             progress_str = progressTime.getStr(frame)
-            print(base_name + ' ' + progress_str)
-            sys.stdout.flush()
+            print_flush(base_name + ' ' + progress_str)
+        
+    #tag as finished reformatting
+    mask_new.attrs['has_finished'] = 1
 
 
-    
-
-#%%    
-#import matplotlib.pylab as plt
-#plt.figure()
-#plt.imshow(image)
-#plt.figure()
-#plt.imshow(image*mask)
-    
