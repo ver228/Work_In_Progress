@@ -8,7 +8,6 @@ Created on Fri Oct 14 15:30:11 2016
 import os
 import tables
 import h5py
-import numpy as np
 import json
 
 
@@ -40,11 +39,27 @@ def getReformatParams(plugin_params):
     return save_full_interval, buffer_size, mask_params
     
            
-
-def reformatMaskedVideo(original_file, new_file, plugin_params, expected_fps):
-    base_name = new_file.rpartition('.')[0].rpartition(os.sep)[-1]
-    progressTime = timeCounterStr('Reformating Gecko plugin hdf5 video.')
+def _isValidSource(original_file):
+    try:
+        with tables.File(original_file, 'r') as fid:
+            fid.get_node('/mask')
+            return True
+    except tables.exceptions.HDF5ExtError:
+        return False
+        
     
+def reformatMaskedVideo(original_file, new_file, plugin_param_file, expected_fps):
+    plugin_params = getWormEnconderParams(plugin_param_file)
+     
+    base_name = original_file.rpartition('.')[0].rpartition(os.sep)[-1]
+    
+    if not _isValidSource(original_file):
+        print_flush(new_file + ' ERROR. File might be corrupt. ' + original_file)
+        
+        return
+    
+    
+    progress_timer = timeCounterStr('Reformating Gecko plugin hdf5 video.')
     
     save_full_interval, buffer_size, mask_params = getReformatParams(plugin_params)
 
@@ -52,7 +67,7 @@ def reformatMaskedVideo(original_file, new_file, plugin_params, expected_fps):
         h5py.File(new_file, 'w') as fid_new:
         
         mask_old = fid_old.get_node('/mask')
-    
+        
         tot_frames, im_height, im_width = mask_old.shape
     
         
@@ -82,25 +97,36 @@ def reformatMaskedVideo(original_file, new_file, plugin_params, expected_fps):
             
             if frame % 500 == 0:
                 # calculate the progress and put it in a string
-                progress_str = progressTime.getStr(frame)
+                progress_str = progress_timer.getStr(frame)
                 print_flush(base_name + ' ' + progress_str)
             
         #tag as finished reformatting
         mask_new.attrs['has_finished'] = 1
 
-    
+        print_flush(
+            base_name +
+            ' Compressed video done. Total time:' +
+            progress_timer.getTimeStr())
+
 
 if __name__ == '__main__':        
-    plugin_param_file = 'wormencoder.ini'
-    assert os.path.exists(plugin_param_file)
-    original_file = '/Users/ajaver/Documents/Data/Test_14102016/Capture_Ch1_12102016_191719.hdf5'
-    new_file = '/Users/ajaver/Documents/Data/Test_14102016/Test.hdf5'   
     
-    #original_file = 'D:\\Test_14102016\\Capture_Ch1_12102016_191719.hdf5'
-    #new_file = 'D:\\Test.hdf5'
-    expected_fps = 25
+    import argparse
     
-    plugin_params = getWormEnconderParams(plugin_param_file)
-    reformatMaskedVideo(original_file, new_file, plugin_params, expected_fps)
-    
+    fname_wenconder = os.path.join(os.path.split(__file__)[0], 'wormencoder.ini')
+    parser = argparse.ArgumentParser(description='Reformat the files produced by the Gecko plugin in to the format of MWTracker.')
+    parser.add_argument('original_file', help='path of the original file produced by the plugin')
+    parser.add_argument('new_file', help='new file name')
+    parser.add_argument(
+            '--plugin_param_file',
+            default = fname_wenconder,
+            help='wormencoder file used by the Gecko plugin.')
 
+    parser.add_argument(
+            '--expected_fps',
+            default=25,
+            help='Expected recording rate in frame per seconds.')
+
+    args = parser.parse_args()
+    reformatMaskedVideo(**vars(args))
+    
