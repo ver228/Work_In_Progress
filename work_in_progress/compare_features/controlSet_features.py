@@ -5,11 +5,8 @@ Created on Tue Sep  6 17:17:43 2016
 @author: ajaver
 """
 import os
-import glob
 import numpy as np
 import pandas as pd
-import tables
-import datetime
 
 from sqlalchemy import create_engine
 from MWTracker.featuresAnalysis.obtainFeaturesHelper import WormStatsClass
