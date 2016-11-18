@@ -6,15 +6,14 @@ Created on Mon Apr 18 23:23:09 2016
 """
 import os
 import re
-import time
 import datetime
 import csv
 
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.schema import Table
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence, ForeignKey, DateTime, distinct, func
+from sqlalchemy import Column, Integer, String, Sequence, DateTime, distinct
 
 #%%
 Base = declarative_base()
@@ -54,15 +53,11 @@ class ExperimentsFullNew(Base):
 #%%
 def get_file_parts():
     #%%
-    agar_file = '/Users/ajaver/Documents/GitHub/Work_In_Progress/Single_Worm_Analysis/all_files/all_agar.txt'
-    swim_file = '/Users/ajaver/Documents/GitHub/Work_In_Progress/Single_Worm_Analysis/all_files/all_swimming.txt'
-    #%%
-    with open(agar_file, 'r') as fid:
-        all_data = fid.read()
-    with open(swim_file, 'r') as fid:
-        all_data += fid.read()
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    videos_file = os.path.join(script_dir, 'extra_files', 'all_single_worm_videos.txt')
+    with open(videos_file, 'r') as fid:
+        data = [os.path.split(x) for x in fid.read().split('\n') if x]
     
-    data = [os.path.split(x) for x in all_data.split('\n') if x]
     #%%
     #do not include any file that has test in the name
     data = [(d,f) for d, f in data if not 'test' in f.lower()] 
@@ -135,7 +130,7 @@ def create_base_table(myengine, session):
     session.add_all([DataFromNames(**x)for x in data2insert])
     session.commit()
     
-def getExperimenter(directory):
+def get_experimenter(directory):
     d = directory.lower()
     if 'laura' in d:
         return 'Laura Grundy'
@@ -148,14 +143,14 @@ def getExperimenter(directory):
         
     return None
 
-def getTracker(directory):
+def get_tracker(directory):
     d = re.findall('/Tracker \d+/', directory, re.I)
     if len(d) == 1:
         return d[0].lower().replace('/', '').replace(' ', '_')
     else:
         return None
 
-def getVentralSide(side_str):
+def get_ventral_side(side_str):
     #remove everything but L and R
     sub_str = re.sub('[^LRlr]', '', side_str).upper() 
     if sub_str == 'R':
@@ -165,13 +160,13 @@ def getVentralSide(side_str):
     else:
         return None
 
-def getSex(base_name):
+def get_sex(base_name):
     if 'male' in base_name.lower():
         return 'male'
     else:
         return 'hermaphrodite'
 
-def getDevelpStage(base_name, food_str):
+def get_develp_stage(base_name, food_str):
     if 'PS312' in base_name:
         return 'young adult'
     elif 'dauer' in base_name and not 'dauer' in food_str:
@@ -183,13 +178,13 @@ def getDevelpStage(base_name, food_str):
     else:
         return 'young adult'
 
-def getHabituation(base_name):
+def get_habituation(base_name):
     if 'no wait' in base_name:
         return 'NONE'
     else:
         return '30 minutes'
 
-def getFoodArena(media_str):
+def get_food_arena(media_str):
     SWIM_MATCH = re.compile('s?wim.*')
     ONFOOD_MATCH = re.compile('^_*((o?(n|m)|all)[ _]*?\w?oo\w?)|(on)$', re.I|re.M)
     FOOD2CHANGE = {'food':'OP50', 'N2-LL2':'N2-L2', 'N2_LL2':'N2-L2',
@@ -213,13 +208,38 @@ def getFoodArena(media_str):
             food = '+'.join(DD)
     
     return arena, food
-            
+#%%
+def FIND_DUPLICATES():
+    from MWTracker.compressVideos.getAdditionalData import hasAdditionalFiles
+    all_dat = {}
+    for key, dat in zip(base_names, directories):
+        #if not os.path.exists(os.path.join(dat,key + '.avi')):
+        #    continue
+        
+        if not key in all_dat:
+            all_dat[key] = [dat]
+        else:
+            all_dat[key].append(dat)
+    
+    rep_bn = [x for x in all_dat if len(all_dat[x])>1]
+    
+    for x in rep_bn:
+        print(x)
+        for d in all_dat[x]:
+            if hasAdditionalFiles(os.path.join(d,x + '.avi')):
+                print(':D {}'.format(d))
+            else:
+                print(':( {}'.format(d))
+        print('%%%%%%%%%%%%%')
+
+#%%
 if __name__ == '__main__':
+    #%%
     myengine = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_old')
     meta = MetaData()
     meta.reflect(bind=myengine, views=True)
-    experiments_full =Table('exp_annotation_full', meta, autoload=True)
-    experiments =Table('experiments', meta, autoload=True)
+    experiments_full = Table('exp_annotation_full', meta, autoload=True)
+    experiments = Table('experiments', meta, autoload=True)
     session = Session(myengine)
 
     ExperimentsFullNew.__table__.drop(myengine, checkfirst=True)
@@ -241,21 +261,21 @@ if __name__ == '__main__':
         filter(experiments_full.c.file_name == base_name).one_or_none()
         
         if old_data is None:
-            experimenter = getExperimenter(directory);
+            experimenter = get_experimenter(directory);
             strain, gene, allele, chromosome, genotype = 5*[None]
             
-            habituation = getHabituation(base_name)
-            ventral_side = getVentralSide(side_str)
-            tracker = getTracker(directory)
-            sex = getSex(base_name)
+            habituation = get_habituation(base_name)
+            ventral_side = get_ventral_side(side_str)
+            tracker = get_tracker(directory)
+            sex = get_sex(base_name)
         else:
             _, base_name_old, strain, allele, gene, chromosome, tracker, \
             _, _, ventral_side, food_old, habituation, experimenter, \
             _, genotype, _ = old_data
             
-        sex = getSex(base_name)
-        arena, food = getFoodArena(media_str)
-        developmental_stage = getDevelpStage(base_name, food)
+        sex = get_sex(base_name)
+        arena, food = get_food_arena(media_str)
+        developmental_stage = get_develp_stage(base_name, food)
         
         #if food_old != food and not old_data is None:
         #    print('{} | {} |O-{} | {}'.format(base_name, media_str,food_old,food))
@@ -311,55 +331,55 @@ if __name__ == '__main__':
     filter(ExperimentsFullNew.genotype == None).\
     filter(ExperimentsFullNew.directory.contains('Laura-phase2')).all()
 
-#%%
-    new_genes = {}
-    new_allele = {}
-    with open('laura_phase2_strains.csv', 'r') as fid:
-        reader = csv.DictReader(fid)
-        for row in reader:
-            new_genes[row['gene']] = (row['allele'], row['strain'])
-            new_allele[row['allele']] = (row['gene'], row['strain'])
-    
-    
-    str2change = {
-    'ins-33 (tm3608)' : 'ins-3 (tm3608)',
-    'ins-13 (tm1875)' : 'ins-23 (tm1875)',
-    'ins-21 (ok2474)' : 'ins-27 (ok2474)',
-    'ins-ok2343)': 'ins-30 (ok2343)'
-    }
-    
-    for p2_strain in laura_p2_strains:
-        strain_str = session.query(DataFromNames.strain_str).\
-        filter(DataFromNames.file_name == p2_strain.base_name).one_or_none()[0]
-        
-        strain_str = strain_str.strip()
-        if strain_str in str2change:
-            strain_str =str2change[strain_str]
-        
-        
-        d_match = re.match('^(?P<gene>ins-\d+|daf-28) \((?P<allele>.*?)\)?$', strain_str)
-        
-        if 'ins' in strain_str and d_match is None:
-            print('B', p2_strain.base_name)
-        
-        if d_match:
-            gene = d_match.group('gene')
-            a_str = d_match.group('allele')
-            allele, strain = new_genes[gene]
-            
-            if (allele != a_str) and a_str in new_allele:
-                if strain_str in str2change:
-                    gene, allele, strain = str2change[strain_str]
-                else:
-                    gene2, strain2 = new_allele[a_str]
-                    print('{} | {} {} | {} {}'.format(p2_strain.base_name, gene, allele, gene2, a_str))
-                    continue
-            
-            p2_strain.gene = gene;
-            p2_strain.allele = allele;
-            p2_strain.strain = strain;
-            p2_strain.genotype = '%s (%s)' % (gene, allele)
-    session.commit()
+##%%
+#    new_genes = {}
+#    new_allele = {}
+#    with open('laura_phase2_strains.csv', 'r') as fid:
+#        reader = csv.DictReader(fid)
+#        for row in reader:
+#            new_genes[row['gene']] = (row['allele'], row['strain'])
+#            new_allele[row['allele']] = (row['gene'], row['strain'])
+#    
+#    
+#    str2change = {
+#    'ins-33 (tm3608)' : 'ins-3 (tm3608)',
+#    'ins-13 (tm1875)' : 'ins-23 (tm1875)',
+#    'ins-21 (ok2474)' : 'ins-27 (ok2474)',
+#    'ins-ok2343)': 'ins-30 (ok2343)'
+#    }
+#    
+#    for p2_strain in laura_p2_strains:
+#        strain_str = session.query(DataFromNames.strain_str).\
+#        filter(DataFromNames.file_name == p2_strain.base_name).one_or_none()[0]
+#        
+#        strain_str = strain_str.strip()
+#        if strain_str in str2change:
+#            strain_str =str2change[strain_str]
+#        
+#        
+#        d_match = re.match('^(?P<gene>ins-\d+|daf-28) \((?P<allele>.*?)\)?$', strain_str)
+#        
+#        if 'ins' in strain_str and d_match is None:
+#            print('B', p2_strain.base_name)
+#        
+#        if d_match:
+#            gene = d_match.group('gene')
+#            a_str = d_match.group('allele')
+#            allele, strain = new_genes[gene]
+#            
+#            if (allele != a_str) and a_str in new_allele:
+#                if strain_str in str2change:
+#                    gene, allele, strain = str2change[strain_str]
+#                else:
+#                    gene2, strain2 = new_allele[a_str]
+#                    print('{} | {} {} | {} {}'.format(p2_strain.base_name, gene, allele, gene2, a_str))
+#                    continue
+#            
+#            p2_strain.gene = gene;
+#            p2_strain.allele = allele;
+#            p2_strain.strain = strain;
+#            p2_strain.genotype = '%s (%s)' % (gene, allele)
+#    session.commit()
     #%%
     #functions to check if a given allele/gene differs by how many characters from the expected allele/gene
     def char_diff(s1, s2):
@@ -409,7 +429,6 @@ if __name__ == '__main__':
     'tsp-17(tm4995)':['tsp-17(tm1995)', 'tsp-17 (tm4995)', 'tsp-17 (tm4994)'],
     'tsp-17(gt1681)':['tsp-17(gt1686)', 'tsp-17(tmgt1681)', 'tsp-17(gt1868)',
      'tsp-17(g1681)', 'tsp-17(gt1691)', 'tsp-17 (gt1681)'],
-    'unc-73 (lf) nca-1 (gf)':['unc-73 (gf) nca-1 (gf)'],
     'unc-73 (lf)':['unc-73 (gf)', 'unc-73'],
     'tcht-1':['tcht-1-1', 'tcht-', 'tcht'],
     'pdr-1(gk448)':['pdr-17(gk448)', 'pdr-1', 'pdr-1(gk448))'],

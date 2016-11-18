@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Apr 27 08:52:54 2016
+Created on Thu Jul 28 18:54:08 2016
 
 @author: ajaver
 """
-from sqlalchemy import create_engine, MetaData, UniqueConstraint
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import relationship
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Float, Integer, String, Sequence, ForeignKey, DateTime, distinct, func
-from sqlalchemy.schema import Table
+from sqlalchemy import Column, Float, Integer, String, Sequence, ForeignKey, DateTime
 
-import os
+#from sqlalchemy.ext.declarative import declarative_base
 
-#%%
+engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
 Base = declarative_base()
 
+#### experiments table core
 class Allele(Base):
     __tablename__ = 'alleles'
     id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
@@ -39,9 +39,6 @@ class Strain(Base):
     allele = relationship(Allele, primaryjoin="Strain.allele_id == Allele.id")
     experiments = relationship('Experiment', backref="strains")
     
-    #__table_args__ = (UniqueConstraint('id', 'gene_id', 'allele_id',
-    #                                   name='_strain_uc'),)
-
 class Tracker(Base):
     __tablename__ = 'trackers'
     id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
@@ -118,7 +115,7 @@ class Experiment(Base):
     habituation = relationship(Habituation, primaryjoin="Experiment.habituation_id == Habituation.id")
     experimenter = relationship(Experimenter, primaryjoin="Experiment.experimenter_id == Experimenter.id")
 
-
+#### link with the original videos
 class OriginalVideo(Base):
     __tablename__ = 'original_videos'
     experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
@@ -127,112 +124,78 @@ class OriginalVideo(Base):
     sizeMB = Column(Float)
     experiment = relationship(Experiment, primaryjoin="Experiment.id == OriginalVideo.id")
 
-#%%
-if __name__ == '__main__':
-    engine_old = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_old')
-    engine_v2 = create_engine(r'mysql+pymysql://ajaver:@localhost/single_worm_db_v2')
+
+#### progress table
+dict_mask_flags = {'Missed auxiliary files':101, 'Incomplete mask file':102, 'Finished mask file':103}
+
+dict_track_flags = {
+'TRAJ_CREATE':(201, 'Create trajectories'), 
+'TRAJ_JOIN':(202, 'Join trajectories'), 'SKE_CREATE':(203, 'Create skeletons'), 
+'SKE_ORIENT':(204, 'Orient skeletons movement'), 'SKE_FILT':(205, 'Filter skeletons'),
+'STAGE_ALIGMENT':(206,'Strage aligment'), 
+'INT_PROFILE':(207, 'Intensity profile'), 'INT_SKE_ORIENT':(208, 'Orient skeletons intensity'), 
+'CONTOUR_ORIENT':(209, 'Orient ventral side'),
+'FEAT_CREATE':(210, 'Obtain features'), 'END':(211, 'Finished'), 
+}
+
+class ExitFlag(Base):
+    __tablename__ = 'exit_flags'
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    track_checkpoint = Column(String(20))
     
-    all_tables = [Allele, Gene, Strain, Tracker, Sex, DevelopmentalStage, 
-                  VentralSide, Food, Arena, Habituation, Experimenter, 
-                  Strain, Experiment, OriginalVideo, ExitFlag, ProgressMask]
-    #%%
-    for new_table in all_tables[::-1]:
-        new_table.__table__.drop(engine_v2, checkfirst=True)
-    #%%
-    for new_table in all_tables:
-        new_table.__table__.create(engine_v2, checkfirst=True)
+class ProgressMask(Base):
+    __tablename__ = 'progress_masks'
+    __table_args__ = {'extend_existing': True}
+    experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    exit_flag_id = Column(Integer, ForeignKey('exit_flags.id'))
+    mask_file = Column(String(500))
+    n_valid_frames = Column(Integer)
+    n_missing_frames = Column(Integer)
+    fps = Column(Float)
+    total_time = Column(Float)
+    exit_flag = relationship(ExitFlag, primaryjoin="ProgressMask.exit_flag_id == ExitFlag.id")
     
+class ProgressTrack(Base):
+    __table_args__ = {'extend_existing': True}
+    __tablename__ = 'progress_tracks'
+    experiment_id = Column(Integer, ForeignKey('experiments.id'), primary_key=True)
+    exit_flag_id = Column(Integer, ForeignKey('exit_flags.id'))
+    skeletons_file = Column(String(500))
+    features_file = Column(String(500))
+    n_segmented_skeletons = Column(Integer)
+    n_filtered_skeletons = Column(Integer)
+    n_valid_skeletons = Column(Integer)
+    n_timestamps = Column(Integer)
+    first_frame = Column(Integer)
+    last_frame = Column(Integer)
     
-    session_old = Session(engine_old)
-    session_v2 = Session(engine_v2)
-    
-    meta = MetaData()
-    meta.reflect(bind = engine_old, views=True)
-    experiments_full_new =Table('experiments_full_new', meta, autoload=True)
-    
-    #%%
-    
-    singleTables = [('allele',Allele), ('gene',Gene), ('tracker',Tracker),('sex',Sex),
-     ('developmental_stage',DevelopmentalStage), ('ventral_side',VentralSide), 
-    ('food',Food),('arena',Arena), ('habituation',Habituation),('experimenter',Experimenter)]
-    
-    for old_col_str, obj_new in singleTables:
-        dat = session_old.query(distinct(experiments_full_new.c[old_col_str])).all()
-        dat_obj = [obj_new(name = x[0]) for x in dat]
-        session_v2.add_all(dat_obj)
-    
-    #%%
-    def get_table_keys(Obj):
-        dat = session_v2.query(getattr(Obj, 'id'), getattr(Obj, 'name')).all()
-        return {n:i for i,n in dat}
-    #%%
-    #create strain to insert
-    dd = [experiments_full_new.c.strain, experiments_full_new.c.allele, 
-          experiments_full_new.c.gene, experiments_full_new.c.genotype]
-    strains = session_old.query(*dd).distinct(*dd).all()
-    
-    genes_d = get_table_keys(Gene)
-    alleles_d = get_table_keys(Allele)
-    
-    strains_k = [(s,alleles_d[a],genes_d[g],gt) for (s,a,g,gt) in strains]
-    #%%
-    strains_obj = [Strain(name=s, allele_id=a, gene_id=g, genotype=gt) for (s,a,g,gt) in strains_k]
-    session_v2.add_all(strains_obj)
-    
-    #%%
-    dd = [experiments_full_new.c.base_name, 
-          experiments_full_new.c.date, 
-          experiments_full_new.c.strain, experiments_full_new.c.tracker, 
-          experiments_full_new.c.sex, experiments_full_new.c.developmental_stage, 
-          experiments_full_new.c.ventral_side,
-          experiments_full_new.c.food, experiments_full_new.c.arena, 
-          experiments_full_new.c.habituation, experiments_full_new.c.experimenter]
-    experiments = session_old.query(*dd).distinct(*dd).all()
-    
-    #%%
-    experiments_obj = []
-    exp_fields = ['base_name', 'date',
-                'strain_id', 'tracker_id', 'sex_id',
-                'developmental_stage_id', 'ventral_side_id', 'food_id','arena_id',
-                'habituation_id','experimenter_id']
-    
-    obj4keys = {'strain_id':Strain, 'tracker_id':Tracker, 'sex_id':Sex,
-                'developmental_stage_id':DevelopmentalStage, 'ventral_side_id':VentralSide,
-                'food_id':Food, 'arena_id':Arena, 'habituation_id':Habituation,
-                'experimenter_id':Experimenter}
-    dict4keys = {x:get_table_keys(obj4keys[x]) for x in obj4keys}
-    #%%
-    exp_rows = []
-    for exp_dat in experiments:
-        exp_dict = {}
-        for ii, key in enumerate(exp_fields):
-            if key in obj4keys:
-                id_dict = dict4keys[key]
-                exp_dict[key] = id_dict[exp_dat[ii]]
-            else:
-                exp_dict[key] = exp_dat[ii]
-        
-        exp_rows.append(Experiment(**exp_dict))
-       
-    session_v2.add_all(exp_rows)
-    session_v2.commit()
-    #%% Let's add the fields from the original videos
-    dd = [experiments_full_new.c.base_name, experiments_full_new.c.directory]
-    base2dir = {x:d for x,d in session_old.query(*dd).distinct(*dd).all()}
-    
-    #%%
-    video_rows = []
-    for ii, exp in enumerate(exp_rows):
-        if ii % 100 == 0: 
-            print('Getting original video file size {}/{}'.format(ii,len(exp_rows)))
-        vid_dict = {'experiment_id':exp.id,
-        'directory':base2dir[exp.base_name], 
-        'name': exp.base_name + '.avi'}
-        
-        video_file = os.path.join(vid_dict['directory'], vid_dict['name'])
-        vid_dict['sizeMB'] = os.path.getsize(video_file)/(1024*1024.0)
-        
-        video_rows.append(OriginalVideo(**vid_dict))
-    session_v2.add_all(video_rows)
-    #%%
-    session_v2.commit()
+    exit_flag = relationship(ExitFlag, primaryjoin="ProgressTrack.exit_flag_id == ExitFlag.id")
+
+#### link to old segworm features
+class SegwormFeature(Base):
+    __tablename__ = 'segworm_features'
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key = True)
+    segworm_file = Column(String(500), nullable = False) #before file_name
+    experiment_id = Column(Integer, ForeignKey('experiments.id'))
+    fps = Column(Float)
+    total_time = Column(Float)
+    n_segworm_skeletons = Column(Integer) #before n_valid_skeletons
+    n_timestamps = Column(Integer)
+    experiment = relationship(Experiment, backref= 'segworm_features', 
+                              primaryjoin="SegwormFeature.experiment_id == experiments.id")
+
+#### segworm comparision
+class SegWormComparison(Base):
+    __tablename__ = 'segworm_comparisons'
+    __table_args__ = {'extend_existing': True}
+    id = Column(Integer, primary_key = True)
+    experiment_id = Column(Integer, ForeignKey('experiments.id'))
+    segworm_feature_id = Column(Integer, ForeignKey('segworm_features.id'))
+    n_mutual_skeletons = Column(Integer)
+    error_05th = Column(Float)
+    error_50th = Column(Float)
+    error_95th = Column(Float)
+
