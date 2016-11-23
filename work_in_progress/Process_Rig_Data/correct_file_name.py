@@ -125,7 +125,7 @@ def read_extra_data(output_root_d, original_root_d):
         if not os.path.exists(fname):
             fname_original = os.path.join(old_location, os.path.basename(fname))
             if not os.path.exists(fname_original):
-                raise FileNotFoundError(csv_file)
+                raise FileNotFoundError(fname_original)
             os.rename(fname_original, fname)
     
             
@@ -194,9 +194,9 @@ def get_new_names(movie_dir, pc_n, f_ext, db, db_ind, rig_move_times, output_dir
         new_prefix = new_prefix_fun(db_row)
 
         new_base = '{}_Set{}_Pos{}_Ch{}_{}{}{}'.format(new_prefix,
-                                               row['set_n'], 
-                                               row['stage_pos'], 
-                                               row['channel'],
+                                               int(row['set_n']), 
+                                               int(row['stage_pos']), 
+                                               int(row['channel']),
                                                row['video_timestamp'].strftime(GECKO_DT_FMT),
                                                row['postfix'], 
                                                row['ext'])
@@ -307,17 +307,16 @@ if __name__ == '__main__':
     def TEST_FOOD_name_fun(db_row):
         return '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
-    #f_ext = '*.mjpg'
-    #exp_name = 'Agar_Screening_101116'
     
-    f_ext = '*hdf5'
-    exp_name = 'L4_Long_Rec_151116'
+    #f_ext = '*hdf5'
+    f_ext = '*.mjpg'
+    exp_name = 'Agar_Screening_181116'
     
     raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
-    
+    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
+    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Agar_Test"
     
     new_prefix_fun = TEST_FOOD_name_fun
     
@@ -330,10 +329,12 @@ if __name__ == '__main__':
                                        output_root, 
                                        f_ext, 
                                        new_prefix_fun)
+    #%%
     #rename files
     for x in files_to_rename:
+        print(*x)
         os.rename(*x)
-
+    #%%
     #f_ext = '*.hdf5'
     #dd = rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun)
     #wrong_naming = [[y for y in map(os.path.basename, x)] for x in dd if x[0]!=x[1]]

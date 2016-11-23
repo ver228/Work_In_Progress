@@ -72,11 +72,14 @@ def save_into_db(database_name, experiments):
     
     feat_reader = ReadFeaturesHDF5()
     for video_id, plate_row in experiments.iterrows():
+        
         feat_file = os.path.join(plate_row['directory'], plate_row['base_name'] + '_features.hdf5')
         if not os.path.exists(feat_file):
                 continue
-            
-        for feat_str in ['features_means', 'features_means_split']:
+        
+        feat_types = ['features_P10th', 'features_P90th', 'features_medians', 'features_means']
+        feat_types = feat_types + [x + '_split' for x in feat_types]
+        for feat_str in feat_types:
             plate_mean_features = feat_reader.get_means(feat_file, feat_str)
             plate_mean_features = convertUnits(plate_mean_features, plate_row['microns_per_pixel'])
             plate_mean_features['video_id'] = video_id
@@ -87,7 +90,7 @@ def save_into_db(database_name, experiments):
                                   if_exists=exists_type,
                                   index = False)
             
-        print(plate_row['base_name'])
+        print('{} of {} {}'.format(video_id+1, len(experiments),plate_row['base_name']))
 
 def get_rig_experiments_df(feats_dir, csv_dir):
     '''
@@ -120,7 +123,7 @@ if __name__ == '__main__':
     database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
     root_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/'
     
-    exp_set = 'Agar_Test'#'Test_Food' #'Test_20161027' #
+    exp_set =  'Agar_Test' #'Test_20161027' # 'L4_Long_Rec' # 'Test_Food'#
     exp_set_dir = os.path.join(root_dir, exp_set)
     
     database_name = os.path.join(database_dir, 'control_experiments_{}.db'.format(exp_set))

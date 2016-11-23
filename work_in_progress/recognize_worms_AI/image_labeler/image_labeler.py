@@ -35,14 +35,17 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 	def __init__(self, mask_file=''):
 		super().__init__(d_Ui_image_labeler())
 		
-		self.btn_colors = {1:'red', 2:'green', 3:'yellow', 4:'blue'}
+		self.btn_colors = {1:'darkRed', 2:'green', 3:'yellow', 4:'blue', 5:'magenta', 6:'darkCyan'}
 		self.buttons = {1:self.ui.pushButton_bad, 
 						2:self.ui.pushButton_worm,
 						3:self.ui.pushButton_worm_hard,
-						4:self.ui.pushButton_aggregate}
+						4:self.ui.pushButton_aggregate,
+						5:self.ui.pushButton_eggs,
+						6:self.ui.pushButton_larvae}
 
 		self._setup_buttons()
 		self.ui.spinBox_samp_ord.valueChanged.connect(self.updateSampleNumber)
+		self.ui.pushButton_save.clicked.connect(self.saveData)
 
 		self.sample_number = 0
 		self.ui.spinBox_samp_ord.setValue(0)
@@ -51,6 +54,7 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 		mask_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samples.hdf5'
 		if mask_file:
 			self.updateVideoFile(mask_file)
+			#self.mainImage.zoomFitInView()
 
 	def updateVideoFile(self, vfilename):
 		if self.fid != -1:
@@ -70,7 +74,17 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 		#i want to use the father of TrackerViewerAux_GUI (i do not need the skeleton file updates)
 		super(TrackerViewerAux_GUI, self).updateVideoFile(vfilename)
 		self.ui.spinBox_samp_ord.setMaximum(self.tot_frames - 1)
-		
+
+		#move the the next unanalyzed frame 
+		self.moveNextNotAnalyzed()
+	
+	def moveNextNotAnalyzed(self):
+		next_f = self.sample_data.loc[self.sample_data['label_id']==0, 'resampled_index'].min()
+		if next_f != next_f:
+			next_f = self.sample_data.shape[0]
+
+		self.ui.spinBox_samp_ord.setValue(next_f)
+
 	def updateImGroup(self):
 		super().updateImGroup()
 		self.updateSampleNumber()
@@ -84,28 +98,22 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 
 		key = event.key()
 
+		for btn_id, btn in self.buttons.items():
+			if key == (Qt.Key_0+btn_id):
+				btn.toggle()
+				return
 		# Move backwards when  are pressed
-		if key == Qt.Key_Left:
+		if key in [Qt.Key_Left, Qt.Key_Less, Qt.Key_Comma]:
 			self.ui.spinBox_samp_ord.setValue(self.sample_number - 1)
 		# Move forward when  are pressed
-		elif key == Qt.Key_Right:
+		elif key in [Qt.Key_Right, Qt.Key_Greater, Qt.Key_Period]:
 			self.ui.spinBox_samp_ord.setValue(self.sample_number + 1)
 		
 		elif key == Qt.Key_Minus:
 			self.mainImage.zoom(-1)
 		elif key == Qt.Key_Plus:
 			self.mainImage.zoom(1)
-		elif key == Qt.Key_1:
-			self.ui.pushButton_bad.toggle()
-		elif key == Qt.Key_2:
-			self.ui.pushButton_worm.toggle()
-		elif key == Qt.Key_3:
-			self.ui.pushButton_worm_hard.toggle()
-		elif key == Qt.Key_4:
-			self.ui.pushButton_aggregate.toggle()
-
 		else:
-			print(key)
 			QtWidgets.QMainWindow.keyPressEvent(self, event)
 
 
@@ -120,6 +128,42 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 		else:
 			for btn in self.buttons.values():
 				btn.setChecked(False)
+
+	def updateImage(self):
+		self.readCurrentFrame()
+		#self.drawSkelSingleWorm()
+
+
+		self.mainImage.setPixmap(self.frame_qimg)
+
+	def saveData(self):
+		'''save data from manual labelling. pytables saving format is more convenient than pandas'''
+
+		if os.name == 'nt':
+			# I Windows the paths return by QFileDialog use / as the file
+			# separation character. We need to correct it.
+			self.vfilename = self.vfilename.replace('/', os.sep)
+			
+
+		#close data before reopen in a write mode
+		self.fid.close()
+		with tables.File(self.vfilename, "r+") as fid:
+			# pytables filters.
+			table_filters = tables.Filters(
+				complevel=5, complib='zlib', shuffle=True, fletcher32=True)
+
+			newT = fid.create_table(
+				'/',
+				'sample_data_d',
+				obj=self.sample_data.to_records(index=False),
+				filters=table_filters)
+
+			fid.remove_node('/', 'sample_data')
+			newT.rename('sample_data')
+
+		#re-reopen the video file
+		self.updateVideoFile(self.vfilename)
+
 
 	def _setup_buttons(self):
 		stylesheet_str = "QPushButton:checked {border: 2px solid; border-radius: 6px; background-color: %s }"
@@ -144,6 +188,20 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 			btn.setCheckable(True)
 			btn.setStyleSheet(stylesheet_str % self.btn_colors[btn_id])
 			btn.toggled.connect(partial(_make_label, btn_id))
+
+	def closeEvent(self, event):
+		quit_msg = "Do you want to save the current progress before exiting?"
+		reply = QtWidgets.QMessageBox.question(self, 
+											   'Message',
+											   quit_msg, 
+											   QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Yes,
+											   QtWidgets.QMessageBox.Yes)
+		
+
+		if reply == QtWidgets.QMessageBox.Yes:
+			self.saveData()
+
+		super().closeEvent(event)
 
 if __name__ == '__main__':
 	app = QtWidgets.QApplication(sys.argv)

@@ -17,9 +17,9 @@ import numpy as np
 
 #%%
 
-def _filter_feats(con, feats, filt_path_range = 10, filt_frac_good = 0.75):
+def _filter_feats(con, feats, filt_path_range = 10, filt_frac_good = 0.75, tab_name = 'features_means'):
     #
-    feats_ind = pd.read_sql_query('SELECT worm_index, n_frames, n_valid_skel, path_range, video_id FROM features_90th', con)
+    feats_ind = pd.read_sql_query('SELECT worm_index, n_frames, n_valid_skel, path_range, video_id FROM %s' % tab_name, con)
     feats_ind['frac_good'] = feats_ind['n_valid_skel']/feats_ind['n_frames']
     good = (feats_ind['path_range'] > filt_path_range) & (feats_ind['frac_good']>filt_frac_good)
     good_ind = feats_ind.loc[good, ['worm_index', 'video_id']]
@@ -47,7 +47,10 @@ def get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.75,
     con = create_engine('sqlite:///' + database_name)
     
     feats = _read_feats(con, tab_name)
-    good_rows = _filter_feats(con, feats, filt_path_range, filt_frac_good)
+    
+    #let's use the full features to do the filtering
+    tab_name_c = tab_name.replace('_split', '')
+    good_rows = _filter_feats(con, feats, filt_path_range, filt_frac_good, tab_name = tab_name_c)
     
     return feats.loc[good_rows, :]
     
@@ -77,89 +80,111 @@ def plot_boxes_group(feats, feat_str, main_div, sub_div, group_div, feat_ylim=[]
             
         if len(feat_ylim) == 2:
             ff.set_ylim(feat_ylim)
+
+def first_test(database_dir, tab_name):
+    #%%
+    
+    database_name = os.path.join(database_dir, 'control_experiments_Test_20161027.db')
+    feats = get_feats_db(database_name, 
+                         filt_path_range = 10, 
+                         filt_frac_good = 0.5,
+                         tab_name = tab_name)
+    #%%
+    #feat_str = 'length'
+    #feat_ylim = (400, 1600)
+    
+    feat_str = 'midbody_speed_pos'
+    feat_ylim = []
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'Picker')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plot_boxes_group(feats, feat_str, 'Strain', 'N_Worms', 'Picker', feat_ylim)
+
+def test_food(database_dir, tab_name):
+    #%%
+    database_name = os.path.join(database_dir, 'control_experiments_Test_Food.db')
+    feats = get_feats_db(database_name, 
+                         filt_path_range = 10, 
+                         filt_frac_good = 0.5,
+                         tab_name = tab_name)
+    good = feats['N_Worms'].isin((3,10))
+    feats = feats[good]
+    #%%
+    #feat_str = 'length'
+    #feat_ylim = (400, 1600)
+    
+    feat_str = 'midbody_speed_pos'
+    feat_ylim = [0, 500]
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'Picker')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'Food_Conc')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
         
+    plot_boxes_group(feats, feat_str, 'Strain', 'N_Worms', 'Picker', feat_ylim)
     
+    plot_boxes_group(feats, feat_str, 'Strain', 'Food_Conc', 'N_Worms', feat_ylim)
     
-#%%
-database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
-database_name = os.path.join(database_dir, 'control_experiments_Test_20161027.db')
-feats = get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.5)
-
-#%%
-#feat_str = 'length'
-#feat_ylim = (400, 1600)
-
-feat_str = 'midbody_speed_pos'
-feat_ylim = []
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'Picker')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plot_boxes_group(feats, feat_str, 'Strain', 'N_Worms', 'Picker', feat_ylim)
-
-#%%
-database_name = os.path.join(database_dir, 'control_experiments_Test_Food.db')
-feats = get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.5)
-good = feats['N_Worms'].isin((3,10))
-feats = feats[good]
-#%%
-#feat_str = 'length'
-#feat_ylim = (400, 1600)
-
-feat_str = 'midbody_speed_pos'
-feat_ylim = [0, 500]
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'Picker')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'Food_Conc')
-if feat_ylim:
-    plt.ylim(feat_ylim)
+def agar_test(database_dir, tab_name):
+    database_name = os.path.join(database_dir, 'control_experiments_Agar_Test.db')
+    feats = get_feats_db(database_name, 
+                         filt_path_range = 10, 
+                         filt_frac_good = 0.5,
+                         tab_name = tab_name)
+    #%%
+    #feat_str = 'length'
+    #feat_ylim = (400, 1600)
     
-plot_boxes_group(feats, feat_str, 'Strain', 'N_Worms', 'Picker', feat_ylim)
+    feat_str = 'midbody_speed_pos'
+    feat_ylim = [0, 500]
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'Picker')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Strain', 'Old/New Agar')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    
+    plot_boxes_group(feats, feat_str, 'Strain', 'Old/New Agar', 'Picker', feat_ylim)   
+#%%    
+if __name__ == '__main__':
+    database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
+    #first_test(database_dir)
+    #test_food(database_dir)
+    #agar_test(database_dir)
+    
+    database_name = os.path.join(database_dir, 'control_experiments_L4_Long_Rec.db')
+    feats = get_feats_db(database_name, 
+                         filt_path_range = 10, 
+                         filt_frac_good = 0.5,
+                         tab_name = 'features_P90th_split')
 
-plot_boxes_group(feats, feat_str, 'Strain', 'Food_Conc', 'N_Worms', feat_ylim)
-#%%
-database_name = os.path.join(database_dir, 'control_experiments_Agar_Test.db')
-feats = get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.5)
-#%%
-#feat_str = 'length'
-#feat_ylim = (400, 1600)
-
-feat_str = 'midbody_speed_pos'
-feat_ylim = [0, 500]
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'Picker')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'N_Worms')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Strain', 'Old/New Agar')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-#%%
-plot_boxes_group(feats, feat_str, 'Strain', 'Old/New Agar', 'Picker', feat_ylim)
 #%%
 
 #database_name = os.path.join(database_dir, 'control_single.db')
