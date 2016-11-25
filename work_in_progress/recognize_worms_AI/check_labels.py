@@ -13,14 +13,11 @@ import pickle
 import gzip
 #from sklearn import cross_validation
 
-all_samples_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samples.hdf5'
+all_samples_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samplesI.hdf5'
 
 
 with pd.HDFStore(all_samples_file) as fid:
     sample_data = fid['/sample_data']
-    
-
-
 
 valid_data = sample_data.loc[sample_data['label_id']>0]
 print(valid_data['label_id'].value_counts())
@@ -48,21 +45,25 @@ all_ind = np.random.permutation(tot_samples)
 
 
 
-test_size = 500
-val_size = 500
+test_size = 1000
+val_size = 1000
 
 test_ind = all_ind[:test_size]
 val_ind = all_ind[test_size:(val_size+test_size)]
 train_ind = all_ind[(val_size+test_size):]
 
 
-sample_data = [(masks[x], is_worms[x]) for x in [train_ind, train_ind, test_ind]]
+sample_data = [(masks[x], is_worms[x]) for x in [train_ind, val_ind, test_ind]]
 
 
 with gzip.open( "sample.pkl.gz", "wb" ) as fid:
     pickle.dump( sample_data,  fid)
+#%%
+with gzip.open( "sample.npz.gz", "wb" ) as fid:
+    pickle.dump( sum(map(list, sample_data), []),  fid)
 
 
+    
 
 
 #%%

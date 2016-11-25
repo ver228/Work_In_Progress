@@ -160,7 +160,9 @@ def read_extra_data(output_root_d, original_root_d):
         rig_move_times = read_rig_log_file(log_files)
     else:
         rig_move_times = pd.DataFrame()
-        assert db['Rig_Pos'].unique().size==1
+        
+        unique_triples = set(tuple(row[col] for col in ['Rig_Pos', 'Camera_N', 'Set_N']) for ii, row in db.iterrows())
+        assert len(unique_triples) == len(db)
         
     return rig_move_times, db, db_ind
     
@@ -178,8 +180,14 @@ def get_new_names(movie_dir, pc_n, f_ext, db, db_ind, rig_move_times, output_dir
     if rig_move_times.size > 0:
         fparts_table['stage_pos'] = fparts_table['video_timestamp'].apply(partial(get_rig_pos, rig_move_times=rig_move_times))
     else:
-        assert db['Rig_Pos'].unique().size==1
-        fparts_table['stage_pos'] = db.loc[0, 'Rig_Pos']
+        
+        for ii, row in fparts_table.iterrows():
+            good = (db['Camera_N'] == row['channel']) & (db['Set_N'] == row['set_n'])
+            ind = np.where(good)[0]
+            assert ind.size==1
+            
+            fparts_table.loc[ii, 'stage_pos'] = db.loc[ind[0], 'Rig_Pos']
+            
     #%%
     dir_files_to_rename = []
     for old_fname, (irow, row) in zip(fnames, fparts_table.iterrows()):
@@ -308,15 +316,15 @@ if __name__ == '__main__':
         return '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
     
-    #f_ext = '*hdf5'
-    f_ext = '*.mjpg'
-    exp_name = 'Agar_Screening_181116'
+    f_ext = '*hdf5'
+    #f_ext = '*.mjpg'
+    exp_name = 'L4_Long_Rec_211116_OldPlate'
     
     raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
-    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Agar_Test"
+    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
+    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/single_worm_protocol"
     
     new_prefix_fun = TEST_FOOD_name_fun
     
@@ -344,6 +352,5 @@ if __name__ == '__main__':
 
     
     
-    
-    
+    #[tuple(row[col] for col in ['Rig_Pos', 'Camera_N', 'Set_N']) for ii, row in db.iterrows()]
     

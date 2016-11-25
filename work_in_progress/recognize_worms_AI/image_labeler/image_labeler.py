@@ -51,7 +51,7 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 		self.ui.spinBox_samp_ord.setValue(0)
 
 
-		mask_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samples.hdf5'
+		mask_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samplesI.hdf5'
 		if mask_file:
 			self.updateVideoFile(mask_file)
 			#self.mainImage.zoomFitInView()
