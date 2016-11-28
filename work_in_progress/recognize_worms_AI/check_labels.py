@@ -56,13 +56,34 @@ val_ind = all_ind[test_size:(val_size+test_size)]
 train_ind = all_ind[(val_size+test_size):]
 
 
-sample_data = [(masks[x], is_worms[x]) for x in [train_ind, train_ind, test_ind]]
+sample_data = [(masks[x], is_worms[x]) for x in [train_ind, val_ind, test_ind]]
 
 
 with gzip.open( "sample.pkl.gz", "wb" ) as fid:
     pickle.dump( sample_data,  fid)
 
+#%%
+import gzip
+import pickle
+ff = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.pkl.gz'
+with gzip.open(ff, "rb" ) as fid:
+    sample_data = pickle.load(fid)
 
+#%%
+import tables
+field_names = ['train_x', 'train_y', 
+             'val_x', 'val_y',
+             'test_x', 'test_y']
+sample_data_l = sum(map(list, sample_data), [])
+table_filters = tables.Filters(complevel=5, complib='zlib', shuffle=True, fletcher32=True)
+    
+with tables.File('sample.hdf5', 'w') as fid:
+    for field, dat in zip(field_names, sample_data_l):
+        fid.create_earray('/',
+                 field, 
+                 obj = dat,
+                 filters=table_filters)
+    
 
 
 #%%
