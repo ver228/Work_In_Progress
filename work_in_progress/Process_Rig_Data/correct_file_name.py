@@ -316,15 +316,15 @@ if __name__ == '__main__':
         return '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
     
-    f_ext = '*hdf5'
-    #f_ext = '*.mjpg'
-    exp_name = 'L4_Long_Rec_211116_OldPlate'
+    #f_ext = '*hdf5'
+    f_ext = '*.mjpg'
+    exp_name = 'double_pick_251116'
     
     raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
-    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/single_worm_protocol"
+    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
+    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/single_worm_protocol"
     
     new_prefix_fun = TEST_FOOD_name_fun
     
@@ -339,9 +339,9 @@ if __name__ == '__main__':
                                        new_prefix_fun)
     #%%
     #rename files
-    for x in files_to_rename:
-        print(*x)
-        os.rename(*x)
+    for fnames in files_to_rename:
+        print(tuple(os.path.basename(f) for f in fnames))
+        os.rename(*fnames)
     #%%
     #f_ext = '*.hdf5'
     #dd = rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun)
