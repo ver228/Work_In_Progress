@@ -122,7 +122,7 @@ if __name__ == '__main__':
     database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
     root_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/'
     
-    exp_set =  'single_worm_protocol' #'Test_20161027' # 'L4_Long_Rec' # 'Test_Food'#
+    exp_set =  'L4_Long_Rec' # 'Test_Food'# 'single_worm_protocol' #'Test_20161027' # 
     exp_set_dir = os.path.join(root_dir, exp_set)
     
     database_name = os.path.join(database_dir, 'control_experiments_{}.db'.format(exp_set))
