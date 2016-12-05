@@ -19,45 +19,8 @@ from sklearn.utils.linear_assignment_ import linear_assignment  # hungarian algo
 
 from MWTracker.analysis.compress.extractMetaData import readAndSaveTimestamp
 from MWTracker.helper.timeCounterStr import timeCounterStr
-from MWTracker.helper.misc import TABLE_FILTERS
+from MWTracker.helper.misc import TABLE_FILTERS, print_flush
 
-class plate_worms_(tables.IsDescription):
-    # class for the pytables
-    worm_index_blob = tables.Int32Col(pos=0)
-    frame_number = tables.Int32Col(pos=1)
-    coord_x = tables.Float32Col(pos=2)
-    coord_y = tables.Float32Col(pos=3)
-    threshold = tables.Int32Col(pos=4)
-    area = tables.Float32Col(pos=5)
-    bounding_box_xmin = tables.Int32Col(pos=6)
-    bounding_box_xmax = tables.Int32Col(pos=7)
-    bounding_box_ymin = tables.Int32Col(pos=8)
-    bounding_box_ymax = tables.Int32Col(pos=9)
-
-def _getWormsLocations(worm_cnt, ROI_bbox):
-    
-    area = float(cv2.contourArea(worm_cnt))
-    
-    worm_bbox = cv2.boundingRect(worm_cnt)
-    bounding_box_xmin = ROI_bbox[0] + worm_bbox[0]
-    bounding_box_xmax = bounding_box_xmin + worm_bbox[2]
-    bounding_box_ymin = ROI_bbox[1] + worm_bbox[1]
-    bounding_box_ymax = bounding_box_ymin + worm_bbox[3]
-
-    # save everything into the the proper output format
-    bbox =(bounding_box_xmin, 
-                bounding_box_xmax,
-                bounding_box_ymin,
-                bounding_box_ymax)
-
-
-    (CMx, CMy), (L, W), angle = cv2.minAreaRect(worm_cnt)
-    #adjust CM from the ROI reference frame to the image reference
-    CMx += ROI_bbox[0]
-    CMy += ROI_bbox[1]
-
-
-    return area, (CMx, CMy), bbox
 
 
 def _getBWThreshold(pix_valid):
@@ -96,7 +59,7 @@ def _getBWThreshold(pix_valid):
 
     return thresh
 
-def _getBufferThresh(ROI_buffer, worm_bw_thresh_factor, is_light_background):
+def getBufferThresh(ROI_buffer, worm_bw_thresh_factor, is_light_background):
     # calculate threshold using the nonzero pixels.  Using the
     # buffer instead of a single image, improves the threshold
     # calculation, since better statistics are recoverd
@@ -119,7 +82,7 @@ def _getBufferThresh(ROI_buffer, worm_bw_thresh_factor, is_light_background):
     return thresh
 
 
-def _removeExtraBlobs(ROI_image):
+def _removeCornerBlobs(ROI_image):
     #remove blobs specially in the corners that could be part of other ROI
     # get the border of the ROI mask, this will be used to filter for valid
     # worms
@@ -161,7 +124,7 @@ def _getBlobMask(ROI_image, thresh, is_light_background):
 
 
 
-def _getWormContours(ROI_image, 
+def _getBlobContours(ROI_image, 
                     threshold, 
                     strel_size=(5, 5), 
                     is_light_background=True, 
@@ -182,13 +145,56 @@ def _getWormContours(ROI_image,
     return ROI_worms, hierarchy, thresh
 
 
-def _getWormFeatures2(
+class plate_worms_(tables.IsDescription):
+    # class for the pytables
+    worm_index_blob = tables.Int32Col(pos=0)
+    frame_number = tables.Int32Col(pos=1)
+    coord_x = tables.Float32Col(pos=2)
+    coord_y = tables.Float32Col(pos=3)
+    length = tables.Float32Col(pos=4)
+    width = tables.Float32Col(pos=5)
+    angle = tables.Float32Col(pos=6)
+    area = tables.Float32Col(pos=7)
+    bounding_box_xmin = tables.Int32Col(pos=8)
+    bounding_box_xmax = tables.Int32Col(pos=9)
+    bounding_box_ymin = tables.Int32Col(pos=10)
+    bounding_box_ymax = tables.Int32Col(pos=11)
+    threshold = tables.Int32Col(pos=12)
+    
+
+def _getBlobDimesions(worm_cnt, ROI_bbox):
+    
+    area = float(cv2.contourArea(worm_cnt))
+    
+    worm_bbox = cv2.boundingRect(worm_cnt)
+    bounding_box_xmin = ROI_bbox[0] + worm_bbox[0]
+    bounding_box_xmax = bounding_box_xmin + worm_bbox[2]
+    bounding_box_ymin = ROI_bbox[1] + worm_bbox[1]
+    bounding_box_ymax = bounding_box_ymin + worm_bbox[3]
+
+    # save everything into the the proper output format
+    blob_bbox =(bounding_box_xmin, 
+                bounding_box_xmax,
+                bounding_box_ymin,
+                bounding_box_ymax)
+
+
+    (CMx, CMy), (L, W), angle = cv2.minAreaRect(worm_cnt)
+    #adjust CM from the ROI reference frame to the image reference
+    CMx += ROI_bbox[0]
+    CMy += ROI_bbox[1]
+
+    if W > L:
+        L, W = W, L  # switch if width is larger than length
+    
+    blob_dims = (CMx, CMy, L, W, angle)
+    return blob_dims, area, blob_bbox
+
+def _getBlobFeatures(
         worm_cnt,
         ROI_image,
         ROI_bbox,
-        current_frame,
-        thresh,
-        min_area):
+        current_frame):
     
     area = float(cv2.contourArea(worm_cnt))
     worm_bbox = cv2.boundingRect(worm_cnt)
@@ -331,8 +337,7 @@ def getWormTrajectories(masked_image_file,
         
         # initialized variables
         tot_worms = 0
-        buff_last_coord, buff_last_index, buff_last_area = (np.empty([0]),) * 3
-
+        
         for frame_number in range(0, mask_dataset.shape[0], buffer_size):
 
             # load image buffer
@@ -377,7 +382,7 @@ def getWormTrajectories(masked_image_file,
                         curr_ROI = ROI_buffer[buff_ind, :, :]
 
                         # get the contour of possible worms
-                        ROI_worms, hierarchy, thresh = _getWormContours(curr_ROI, 
+                        ROI_worms, hierarchy, thresh = _getBlobContours(curr_ROI, 
                                                                         thresh_buff, 
                                                                         strel_size, 
                                                                         is_light_background, 
@@ -387,38 +392,31 @@ def getWormTrajectories(masked_image_file,
                         frame_features = []
                         for worm_ind, worm_cnt in enumerate(ROI_worms):
                             # ignore contours from holes. This shouldn't occur with the flag RETR_EXTERNAL
-                            if hierarchy[0][worm_ind][3] != -1:
-                                continue
+                            assert hierarchy[0][worm_ind][3] == -1:
+                                
 
                             # obtain features for each worm
-                            area, CM, blob_bbox = _getWormsLocations(worm_cnt,
+                            blob_dims, area, blob_bbox = _getBlobDimesions(worm_cnt,
                                                                 ROI_buffer[buff_ind, :, :],
                                                                 ROI_bbox,
                                                                 thresh,
                                                                 min_area)
                             if area >= min_area:
-                                # append data to pytables
-                                row = (-1, current_frame, *CM, thresh, area, *blob_bbox)
+                                # append data to pytables only if the object is larget than min_area
+                                row = (-1, current_frame, *blob_dims, area, *blob_bbox, thresh)
                                 plate_worms.append(row)     
            
-            if frame_number % 1000 == 0:
+            if frame_number % 500 == 0:
+                #flush progress into disk. Data is automatically saved when the file is closed.
                 traj_fid.flush()
 
-            if frame_number % 500 == 0:
                 # calculate the progress and put it in a string
                 progress_str = progressTime.getStr(frame_number)
-                print(base_name + ' ' + progress_str)
-                sys.stdout.flush()
-        # flush any remaining and create indexes
-        plate_worms.flush()
-        plate_worms.cols.frame_number.create_csindex()  # make searches faster
-        plate_worms.cols.worm_index_blob.create_csindex()
-        plate_worms.flush()
+                print_flush(progress_str)
 
     readAndSaveTimestamp(masked_image_file, trajectories_file)
-    with tables.open_file(trajectories_file, mode='r+') as traj_fid:
-        # flag used to determine if the function finished correctly
-        traj_fid.get_node('/plate_worms')._v_attrs['has_finished'] = 1
+    
+    print_flush(progress_str)
 
-    print(base_name + ' ' + progress_str)
-    sys.stdout.flush()
+if __name__ == '__main__':
+    pass
