@@ -87,11 +87,11 @@ def plot_boxes_group(feats, feat_str, main_div, sub_div, group_div, feat_ylim=[]
 #%%
 def first_test(database_dir, tab_name):
     #%%
-    
+    tab_name = 'features_medians'
     database_name = os.path.join(database_dir, 'control_experiments_Test_20161027.db')
     feats = get_feats_db(database_name, 
-                         filt_path_range = 10, 
-                         filt_frac_good = 0.5,
+                         filt_path_range = 0, 
+                         filt_frac_good = 0,
                          tab_name = tab_name)
     #%%
     #feat_str = 'length'
@@ -111,13 +111,13 @@ def first_test(database_dir, tab_name):
         plt.ylim(feat_ylim)
     
     plot_boxes_group(feats, feat_str, 'Strain', 'N_Worms', 'Picker', feat_ylim)
-
+#%%
 def test_food(database_dir, tab_name):
     #%%
     database_name = os.path.join(database_dir, 'control_experiments_Test_Food.db')
     feats = get_feats_db(database_name, 
-                         filt_path_range = 10, 
-                         filt_frac_good = 0.5,
+                         filt_path_range = 0, 
+                         filt_frac_good = 0,
                          tab_name = tab_name)
     good = feats['N_Worms'].isin((3,10))
     feats = feats[good]
@@ -180,7 +180,7 @@ def agar_test(database_dir, tab_name):
 
     return feats
 #%%    
-if __name__ == '__main__':
+def main1():
     database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
     #first_test(database_dir)
     #test_food(database_dir)
@@ -229,56 +229,63 @@ if __name__ == '__main__':
     good = feats['date'] == datetime(2016, 11, 25).date()
     plot_boxes(feats[good], feat_str, 'Pick_type', 'Strain')
     
-#%%
-database_name = os.path.join(database_dir, 'control_single.db')
-feats_single = get_feats_db(database_name, tab_name = 'features_means')
-chg = (feats_single['gene']!=feats_single['gene'])
-feats_single.loc[chg, 'gene'] = 'N2'
-feats_single = feats_single.sort_values(by='gene', ascending=False)
-feats_single = feats_single.rename(columns={'gene':'Strain'})
+    #%%
+    database_name = os.path.join(database_dir, 'control_single.db')
+    feats_single = get_feats_db(database_name, tab_name = 'features_means')
+    chg = (feats_single['gene']!=feats_single['gene'])
+    feats_single.loc[chg, 'gene'] = 'N2'
+    feats_single = feats_single.sort_values(by='gene', ascending=False)
+    feats_single = feats_single.rename(columns={'gene':'Strain'})
+    
+    feats['setup'] = 'W-3 24/11'
+    feats_single['setup'] = 'old'
+    
+    feat_m = pd.concat((feats, feats_single))
+    
+    good = feat_m['Strain'] != 'HW'
+    good = good & (feat_m['date'] == datetime(2016, 11, 24).date())
+    good = good & (feat_m['N_Worms'] == 3)
+    good = good | (feat_m['setup'] == 'old')
+    
+    feat_m = feat_m[good]
+    #%%
+    plt.figure()
+    plot_boxes(feat_m, feat_str, 'Strain', 'setup')
+    plt.ylim([0, 350])
+    #%%
+    plt.figure()
+    plot_boxes(feat_m, 'length', 'Strain', 'setup')
+    #plt.ylim([0, 350])
+    #%%
+    feats_agar_test = agar_test(database_dir, tab_name = 'features_means_split')
+    #%%
+    good = feats_agar_test['N_Worms'].isin([3, 10])
+    feats = feats_agar_test[good]
+    feat_str = 'midbody_speed_pos'
+    feat_ylim = [0, 350]
+    
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Picker', 'Strain')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    #%%
+    plt.figure()
+    plot_boxes(feats, feat_str, 'N_Worms', 'Strain')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    #%%
+    plt.figure()
+    plot_boxes(feats, feat_str, 'Old/New Agar', 'Strain')
+    if feat_ylim:
+        plt.ylim(feat_ylim)
+    #%%
+    feat_str = 'length'
+    plot_boxes_group(feats_agar_test, feat_str, 'Old/New Agar', 'Strain', 'date')   
+    plot_boxes_group(feats_agar_test, feat_str, 'Strain', 'N_Worms', 'date')   
 
-feats['setup'] = 'W-3 24/11'
-feats_single['setup'] = 'old'
-
-feat_m = pd.concat((feats, feats_single))
-
-good = feat_m['Strain'] != 'HW'
-good = good & (feat_m['date'] == datetime(2016, 11, 24).date())
-good = good & (feat_m['N_Worms'] == 3)
-good = good | (feat_m['setup'] == 'old')
-
-feat_m = feat_m[good]
 #%%
-plt.figure()
-plot_boxes(feat_m, feat_str, 'Strain', 'setup')
-plt.ylim([0, 350])
-#%%
-plt.figure()
-plot_boxes(feat_m, 'length', 'Strain', 'setup')
-#plt.ylim([0, 350])
-#%%
-feats_agar_test = agar_test(database_dir, tab_name = 'features_means_split')
-#%%
-good = feats_agar_test['N_Worms'].isin([3, 10])
-feats = feats_agar_test[good]
-feat_str = 'midbody_speed_pos'
-feat_ylim = [0, 350]
-
-plt.figure()
-plot_boxes(feats, feat_str, 'Picker', 'Strain')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-#%%
-plt.figure()
-plot_boxes(feats, feat_str, 'N_Worms', 'Strain')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-#%%
-plt.figure()
-plot_boxes(feats, feat_str, 'Old/New Agar', 'Strain')
-if feat_ylim:
-    plt.ylim(feat_ylim)
-#%%
-feat_str = 'length'
-plot_boxes_group(feats_agar_test, feat_str, 'Old/New Agar', 'Strain', 'date')   
-plot_boxes_group(feats_agar_test, feat_str, 'Strain', 'N_Worms', 'date')   
+if __name__ == '__main__':
+    database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
+    #tab_name = 'features_means_split'
+    tab_name = 'features_P90th'
+    first_test(database_dir, tab_name)
