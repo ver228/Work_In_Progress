@@ -24,9 +24,13 @@ def read_rig_csv_db(csv_file):
     
     db_ind = {(row['Set_N'],row['Rig_Pos'],row['Camera_N']) : irow 
              for irow, row in db.iterrows()}
-
-    assert db.shape[0] == len(db_ind) #there must be only one combination set_n, pos_n, ch_n
-    return db, db_ind
+          
+    if db.shape[0] == len(db_ind):
+        return db, db_ind
+    else:
+        raise ValueError('There must be only one combination Set_N, Rig_Pos, Camera_N per sample in the .csv file')
+    
+    
 
 def read_rig_log_file(log_files):
     
@@ -292,7 +296,7 @@ def rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun):
 
     
 def _switch_pos_ch():
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
+    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
     results_dir = os.path.join(output_root, 'MaskedVideos')
     mask_dir = os.path.join(output_root, 'Results')
     r_fnames = glob.glob(os.path.join(results_dir, '**', '*.hdf5'), recursive=True)
@@ -315,18 +319,24 @@ if __name__ == '__main__':
     def TEST_FOOD_name_fun(db_row):
         return '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
+    def TEST_VORTEX_name_fun(db_row):
+        base_name = '{}_N{}'.format(db_row['Strain'], db_row['N_Worms'])
+        if db_row['Vortex'] == 1:
+            base_name += '_V'
+        return base_name
+    
     
     #f_ext = '*hdf5'
     f_ext = '*.mjpg'
-    exp_name = 'double_pick_251116'
+    exp_name = 'double_pick_021216'
     
     raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
     #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/single_worm_protocol"
+    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/compare_SW_protocol/double_picking"
     
-    new_prefix_fun = TEST_FOOD_name_fun
+    new_prefix_fun = TEST_VORTEX_name_fun#TEST_FOOD_name_fun
     
     #files_to_rename = rename_after_bad_choice(output_root, exp_name, '*.hdf5', new_prefix_fun)
     #[print([y for y in map(os.path.basename, x)]) for x in files_to_rename if x[0]!=x[1]]
@@ -340,8 +350,13 @@ if __name__ == '__main__':
     #%%
     #rename files
     for fnames in files_to_rename:
-        print(tuple(os.path.basename(f) for f in fnames))
-        os.rename(*fnames)
+        old_name, new_name = fnames
+        new_name = os.path.basename(new_name)
+        dnameo, fname_old = os.path.split(old_name)
+        pc_n = [x for x in dnameo.split(os.sep) if x.startswith('PC')][0]
+        
+        print('%s => %s' % (os.path.join(pc_n, fname_old), new_name))
+        #os.rename(*fnames)
     #%%
     #f_ext = '*.hdf5'
     #dd = rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun)

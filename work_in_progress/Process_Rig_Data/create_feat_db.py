@@ -8,7 +8,7 @@ import os
 import glob
 import pandas as pd
 from sqlalchemy import create_engine
-from MWTracker.featuresAnalysis.obtainFeaturesHelper import WormStatsClass
+from MWTracker.analysis.feat_create.obtainFeaturesHelper import WormStatsClass
 
 from correct_file_name import read_rig_csv_db, gecko_fnames_to_table
 
@@ -72,10 +72,15 @@ def save_into_db(database_name, experiments):
     
     feat_reader = ReadFeaturesHDF5()
     for video_id, plate_row in experiments.iterrows():
-        
         feat_file = os.path.join(plate_row['directory'], plate_row['base_name'] + '_features.hdf5')
         if not os.path.exists(feat_file):
                 continue
+        
+        #empty file continue 
+        with pd.HDFStore(feat_file, 'r') as fid:
+            if not 'features_means' in fid:
+                continue
+        
         
         feat_types = ['features_P10th', 'features_P90th', 'features_medians', 'features_means']
         feat_types = feat_types + [x + '_split' for x in feat_types]
@@ -122,7 +127,7 @@ if __name__ == '__main__':
     database_dir = '/Users/ajaver/OneDrive - Imperial College London/compare_strains_DB'
     root_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/'
     
-    exp_set = 'single_worm_protocol' #'Test_20161027' # 'L4_Long_Rec' # 'Test_Food'#
+    exp_set =   'short_movies' #'Agar_Test' #'Test_20161027' # 'L4_Long_Rec' #'Test_Food'#
     exp_set_dir = os.path.join(root_dir, exp_set)
     
     database_name = os.path.join(database_dir, 'control_experiments_{}.db'.format(exp_set))

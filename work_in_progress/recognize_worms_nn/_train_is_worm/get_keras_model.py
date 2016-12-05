@@ -8,7 +8,6 @@ Created on Tue Nov 29 14:24:40 2016
 
 import tables
 import numpy as np
-import numpy.ma as ma
 import time
 
 from keras.models import Sequential
@@ -22,7 +21,7 @@ plt.style.use('seaborn-deep')
 mpl.rcParams['image.interpolation'] = 'none'
 mpl.rcParams['image.cmap'] = 'gray'
 
-
+from MWTracker.analysis.ske_init.filterTrajectModel import  reformat_for_model
 
 
 def read_field_data(filename, field):
