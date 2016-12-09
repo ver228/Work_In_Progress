@@ -16,6 +16,39 @@ import numpy as np
 
 #%%
 
+def _get_set_delta_t(experiments):
+    dT = pd.Series()
+    groupby_exp = experiments.groupby('exp_name')
+    for exp_name, exp_rows in groupby_exp:
+        for set_n, set_rows in exp_rows.groupby('N_Worms'):
+            video_timestamp = set_rows['video_timestamp']
+            deltaT = video_timestamp - video_timestamp.min()
+            deltaT /= np.timedelta64(1, 'm')
+            dT = dT.append(deltaT)
+    experiments['delta_time_min'] = dT
+    return experiments
+
+def _add_sample_id(experiments):
+    
+    col_keys = ['exp_name', 'set_n', 'stage_pos', 'channel']
+    
+    if any(not x in experiments for x in col_keys):
+        return experiments
+    
+    dd = experiments[col_keys]
+    dd = dd.drop_duplicates()
+    #dd.sort_values(col_keys, inplace=True)
+    dd.index = np.arange(len(dd))
+    
+    sample_key = {tuple(row.values):sample_id for sample_id, row in dd.iterrows()};
+    
+    samp_tup = ((ind, sample_key[tuple(row.values)]) for ind, row in experiments[col_keys].iterrows())
+    index, sample_id = zip(*samp_tup)
+    
+    experiments['sample_id'] = pd.Series(sample_id, index)
+    return experiments 
+
+    
 def _filter_feats(con, feats, filt_path_range = 10, filt_frac_good = 0.75, tab_name = 'features_means'):
     #
     feats_ind = pd.read_sql_query('SELECT worm_index, n_frames, n_valid_skel, path_range, video_id FROM %s' % tab_name, con)
@@ -32,29 +65,33 @@ def _filter_feats(con, feats, filt_path_range = 10, filt_frac_good = 0.75, tab_n
                  
 def _read_feats(con, tab_name = 'features_means_split'):
     experiments = pd.read_sql_query('SELECT * FROM experiments', con)
+    _add_sample_id(experiments)
+    
+    if 'video_timestamp' in experiments:
+        experiments['video_timestamp'] = pd.to_datetime(experiments['video_timestamp'])
+        experiments['date'] = experiments['video_timestamp'].dt.date
+        experiments = _get_set_delta_t(experiments)
+    
+    
     feats = pd.read_sql_query('SELECT * FROM %s' % tab_name, con)
     feats = feats.merge(experiments, on='video_id')
     
-    if 'video_timestamp' in feats:
-        feats['video_timestamp'] = pd.to_datetime(feats['video_timestamp'])
-        feats['date'] = feats['video_timestamp'].dt.date
     
     if 'worm_index' in feats:
         feats['worm_index'] = feats['worm_index'].astype(np.int)
-    return feats
-                 
+    return feats, experiments
                  
 def get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.75, 
                  tab_name = 'features_means_split'):
     con = create_engine('sqlite:///' + database_name)
     
-    feats = _read_feats(con, tab_name)
+    feats, experiments = _read_feats(con, tab_name)
     
     #let's use the full features to do the filtering
     tab_name_c = tab_name.replace('_split', '')
     good_rows = _filter_feats(con, feats, filt_path_range, filt_frac_good, tab_name = tab_name_c)
     
-    return feats.loc[good_rows, :]
+    return feats.loc[good_rows, :], experiments
     
 #%%
 def plot_boxes(feats, feat_str, main_div, sub_div = None):
@@ -97,7 +134,7 @@ class plot_db(object):
         self.filt_frac_good = filt_frac_good
         self.tab_name = tab_name
         
-        self.feats = get_feats_db(db_path, 
+        self.feats, self.experiments = get_feats_db(db_path, 
                          filt_path_range, 
                          filt_frac_good,
                          tab_name)
