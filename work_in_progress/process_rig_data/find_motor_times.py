@@ -81,6 +81,10 @@ if __name__ == '__main__':
 #            g.set(xlim=(-5, 625))
 #            plt.title(strain)
 #        break
+
+    #%%
+    
+    
     #%%
     feat_name = "length"#"midbody_speed_pos"
     for exp_name, exp_feats in db_obj.feats.groupby('exp_name'):
@@ -98,6 +102,65 @@ if __name__ == '__main__':
             g.set(ylim=(500, 1800))
             g.set(xlim=(-5, 625))
         break
+    
+    
+    
+    #%%
+    import patsy
+    import statsmodels.api as sm
+    
+    f = 'length ~ start_min'
+    ols_fits = {}
+    for sample_id, strain_feats in db_obj.feats.groupby('sample_id'):
+        y,X = patsy.dmatrices(f, strain_feats, return_type='dataframe')
+        ols_fits[sample_id] = sm.OLS(y,X).fit()
+    #%%
+    sample_dat = db_obj.experiments.drop_duplicates('sample_id')
+    sample_dat.index = sample_dat['sample_id']
+    
+    sample_id,dat = zip(*((sample_id, (dat.params['Intercept'], dat.params['start_min'])) 
+                                for sample_id, dat in ols_fits.items()))
+    fit_df = pd.DataFrame(np.array(dat), sample_id, ['Intercept', 'start_min'])
+    
+    sample_dat = sample_dat.join(fit_df)
+    
+    #%%
+    hue_feat = 'exp_name'#'N_Worms'#'Food_Conc'#'Old/New Agar'
+    g = sns.FacetGrid(sample_dat, col="Strain", hue=hue_feat, col_wrap=2)
+    g.map(plt.scatter, 'sample_id', 'start_min')
+    g.add_legend();
+    
+    g = sns.FacetGrid(sample_dat, col="Strain", hue=hue_feat, col_wrap=2)
+    g.map(plt.scatter, 'sample_id', 'Intercept')
+    g.add_legend();
+    #%%
+    x_feat = 'n_valid_skel' #'start_min' #'first_frame'#'n_frames' #
+    #y_feat = "midbody_speed_abs" 
+    y_feat = "length"#
+    
+    for strain, strain_feats in db_obj.feats.groupby('Strain'):
+        g = sns.FacetGrid(strain_feats, col_wrap=4, col="sample_id")
+        g.map(plt.scatter, x_feat, y_feat)
+        plt.subplots_adjust(top=0.9)
+        g.fig.suptitle(strain)
+    
+    #%%
+    #feat_name = "length"#"midbody_speed_pos"
+    #g = sns.FacetGrid(db_obj.feats, row="Strain")
+    #g.map(sns.coefplot, formula='length~start_min', groupby='sample_id')
+    #%%
+#    for exp_name, exp_feats in db_obj.feats.groupby('exp_name'):
+#        print(exp_name)
+#        #if exp_name != 'Agar_Screening_181116': #'Agar_Screening_181116'
+#        #    continue
+#        #plt.figure()
+#        for ii, (strain, strain_feats) in enumerate(db_obj.feats.groupby('Strain')):
+#            #plt.subplot(2,2, ii+1) 
+#            g = sns.coefplot('length~start_min', strain_feats, groupby='sample_id')
+#            plt.title(strain)
+#            
+#        break
+    
     #%%
 #               col_wrap=2, 
 #
