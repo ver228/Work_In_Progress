@@ -15,10 +15,12 @@ GECKO_DT_FMT = '%d%m%Y_%H%M%S'
 
 def rig_focus_to_microns_per_pixel(focus):
     ''' convert rig focus to micros per pixel'''
-    return -0.1937*(focus)+13.4377
+    return 10 #new calibration #-0.1937*(focus)+13.4377
 
 def read_rig_csv_db(csv_file):
     db = pd.read_csv(csv_file)
+    db.dropna(inplace=True, how='all')
+    
     db['microns_per_pixel']= db['Focus'].apply(rig_focus_to_microns_per_pixel)
     db[['Set_N', 'Rig_Pos', 'Camera_N']] = db[['Set_N', 'Rig_Pos', 'Camera_N']].astype(np.int)
     
@@ -75,7 +77,7 @@ def gecko_fnames_to_table(filenames):
         dir_name, bb = os.path.split(x)
         base_name, ext = os.path.splitext(bb)
         
-        parts = base_name.split('_')
+        parts = base_name.lower().split('_')
         
         if parts[-1] in ['skeletons', 'intensities', 'features', 'trajectories']:
             postfix = '_' + parts[-1]
@@ -101,9 +103,9 @@ def gecko_fnames_to_table(filenames):
             return part_n, parts_d
         
             
-        channel, parts = _part_n('Ch', parts)
-        stage_pos, parts = _part_n('Pos', parts)
-        set_n, parts = _part_n('Set', parts)
+        channel, parts = _part_n('ch', parts)
+        stage_pos, parts = _part_n('pos', parts)
+        set_n, parts = _part_n('set', parts)
         
         prefix = '_'.join(parts)
         
@@ -171,10 +173,15 @@ def read_extra_data(output_root_d, original_root_d):
     return rig_move_times, db, db_ind
     
 #%%
-def get_new_names(movie_dir, pc_n, f_ext, db, db_ind, rig_move_times, output_dir, new_prefix_fun):
+def get_new_names(movie_dir, pc_n, db, db_ind, rig_move_times, output_dir, f_ext=None):
     #%%
-    fnames = glob.glob(os.path.join(movie_dir, '**', f_ext), recursive=True)
     
+    if f_ext is None:
+        fnames1 = glob.glob(os.path.join(movie_dir, '**', '*.mjpg'), recursive=True)
+        fnames2 = glob.glob(os.path.join(movie_dir, '**', '*hdf5'), recursive=True)
+        fnames = fnames1 + fnames2
+    else:
+        fnames2 = glob.glob(os.path.join(movie_dir, '**', f_ext), recursive=True)
     
     fparts_table = gecko_fnames_to_table(fnames)
     #correct the channel using the pc number
@@ -218,7 +225,7 @@ def get_new_names(movie_dir, pc_n, f_ext, db, db_ind, rig_move_times, output_dir
         dir_files_to_rename.append((old_fname, new_fname))
     return dir_files_to_rename
 #%% 
-def get_new_names_pc(original_root, exp_name, output_root, f_ext, new_prefix_fun):
+def get_new_names_pc(original_root, exp_name, output_root):
         
     #get data from the extra files
     rig_move_times, db, db_ind = read_extra_data(output_root, original_root)
@@ -238,13 +245,11 @@ def get_new_names_pc(original_root, exp_name, output_root, f_ext, new_prefix_fun
         os.rename(enc_in, enc_out)
     
     #explore each directory and get the expected new name
-    get_new_d = partial(get_new_names, 
-                        f_ext = f_ext, 
+    get_new_d = partial(get_new_names,
                         db = db, 
                         db_ind = db_ind, 
                         rig_move_times = rig_move_times, 
-                        output_dir = output_dir, 
-                        new_prefix_fun = new_prefix_fun)
+                        output_dir = output_dir)
     
     files_to_rename = [get_new_d(movie_dir, pc_n) for pc_n, movie_dir in enumerate(movie_dirs)]
     #flatten list
@@ -256,7 +261,7 @@ def get_new_names_pc(original_root, exp_name, output_root, f_ext, new_prefix_fun
     return files_to_rename
             
 
-def rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun):
+def rename_after_bad_choice(output_root, exp_name, f_ext):
     #%%
     raw_dir = os.path.join(output_root, 'RawVideos',  exp_name)
     results_dir = os.path.join(output_root, 'Results',  exp_name)
@@ -315,57 +320,60 @@ def _switch_pos_ch():
     files_to_rename = [(x, correct_name(x)) for x in fnames]
     return files_to_rename
 
-if __name__ == '__main__':
-    def TEST_FOOD_name_fun(db_row):
-        return '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
-    def TEST_VORTEX_name_fun(db_row):
+def new_prefix_fun(db_row):
+    if 'Vortex' in db_row:
         base_name = '{}_N{}'.format(db_row['Strain'], db_row['N_Worms'])
         if db_row['Vortex'] == 1:
             base_name += '_V'
-        return base_name
+        base_name
+    else:
+        base_name = '{}_N{}_F1-{}'.format(db_row['Strain'], db_row['N_Worms'], db_row['Food_Conc'])
     
-    
-    #f_ext = '*hdf5'
-    f_ext = '*.mjpg'
-    exp_name = 'double_pick_021216'
-    
-    raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
-    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food"
-    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_20161027"
-    #output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/L4_Long_Rec"
-    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/compare_SW_protocol/double_picking"
-    
-    new_prefix_fun = TEST_VORTEX_name_fun#TEST_FOOD_name_fun
-    
-    #files_to_rename = rename_after_bad_choice(output_root, exp_name, '*.hdf5', new_prefix_fun)
-    #[print([y for y in map(os.path.basename, x)]) for x in files_to_rename if x[0]!=x[1]]
-    
-    
-    files_to_rename = get_new_names_pc(raw_movies_root, 
-                                       exp_name, 
-                                       output_root, 
-                                       f_ext, 
-                                       new_prefix_fun)
-    #%%
-    #rename files
+    return base_name
+        
+def print_files_to_rename(files_to_rename):
     for fnames in files_to_rename:
         old_name, new_name = fnames
         new_name = os.path.basename(new_name)
         dnameo, fname_old = os.path.split(old_name)
         pc_n = [x for x in dnameo.split(os.sep) if x.startswith('PC')][0]
-        
         print('%s => %s' % (os.path.join(pc_n, fname_old), new_name))
-        #os.rename(*fnames)
+    
+if __name__ == '__main__':
+    #f_ext = '*hdf5'
+    f_ext = '*.mjpg'
+    exp_name = 'double_pick_151216'
+    
+    raw_movies_root = "/Volumes/behavgenom_archive$/RigRawVideos"
+    output_root = "/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/short_movies/"
+    
+    files_to_rename = get_new_names_pc(raw_movies_root, 
+                                       exp_name, 
+                                       output_root)
+    
+    if not files_to_rename:
+        print('No files found. Exiting.')
+    else:
+        print_files_to_rename(files_to_rename)
+        reply = input('The previous files are going to be renamed. Do you wish to continue (y/N)?')
+        reply = reply.lower()
+        if reply in ['yes', 'ye', 'y']:
+            print('Renaming files...')
+            
+            #move files and save the changes into _renamed.tsv
+            save_renamed = os.path.join(output_root, 'ExtraFiles', exp_name + '_renamed.tsv')
+            with open(save_renamed, 'a') as fid:
+                for old_name, new_name in files_to_rename:
+                    os.rename(old_name, new_name)
+                    fid.write('{}\t{}\n'.format(old_name, new_name));
+            
+            print('Done.')
+        else:
+            print('Aborted.')
+        
     #%%
     #f_ext = '*.hdf5'
     #dd = rename_after_bad_choice(output_root, exp_name, f_ext, new_prefix_fun)
     #wrong_naming = [[y for y in map(os.path.basename, x)] for x in dd if x[0]!=x[1]]
-    
-    #assert(len(wrong_naming) == 0)
-    
-
-    
-    
-    #[tuple(row[col] for col in ['Rig_Pos', 'Camera_N', 'Set_N']) for ii, row in db.iterrows()]
     

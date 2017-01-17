@@ -12,22 +12,54 @@ import matplotlib.pylab as plt
 from sqlalchemy import create_engine
 import numpy as np
 
-
+pd.read_csv('/Volumes/behavgenom_archive$/Avelino/calibration_071216/Calibration_071216.csv')
 
 #%%
 
+def _delta_timestamp(video_timestamp):
+    delT = video_timestamp - video_timestamp.min()
+    delT /= np.timedelta64(1, 'm')
+    return delT
+
 def _get_set_delta_t(experiments):
-    dT = pd.Series()
+    set_dT = pd.Series()
+    exp_dT = pd.Series()
     groupby_exp = experiments.groupby('exp_name')
     for exp_name, exp_rows in groupby_exp:
-        for set_n, set_rows in exp_rows.groupby('N_Worms'):
-            video_timestamp = set_rows['video_timestamp']
-            deltaT = video_timestamp - video_timestamp.min()
-            deltaT /= np.timedelta64(1, 'm')
-            dT = dT.append(deltaT)
-    experiments['delta_time_min'] = dT
+        delT = _delta_timestamp(exp_rows['video_timestamp'])
+        exp_dT = exp_dT.append(delT)
+        for set_n, set_rows in exp_rows.groupby('set_n'):
+            delT = _delta_timestamp(set_rows['video_timestamp'])
+            set_dT = set_dT.append(delT)
+        
+    experiments['set_delta_time'] = set_dT
+    experiments['exp_delta_time'] = exp_dT
     return experiments
 
+def _get_n_worms_estimate(experiments, feats):
+    n_worms_dat = []
+    for video_id, video_feats in feats.groupby('video_id'):
+        first_frame = video_feats['first_frame'].astype(np.int)
+        last_frame = first_frame + video_feats['n_frames'].astype(np.int)
+        
+        tot_frames = last_frame.max()
+        n_worms = np.zeros(tot_frames, np.int)
+        
+        for ini, fin in zip(first_frame, last_frame):
+            n_worms[ini:fin] += 1
+        
+        n_99 = np.percentile(n_worms, [99])[0]
+        n_worms_dat.append((video_id, n_99, tot_frames))
+    
+    video_ids, n_worms, tot_frames = zip(*n_worms_dat)
+        
+    n_worms_estimate = pd.Series(n_worms, index = video_ids)
+    tot_frames = pd.Series(n_worms, index = video_ids)
+    
+    experiments['n_worms_estimate'] = n_worms_estimate
+    experiments['tot_frames'] = tot_frames
+    return experiments
+    
 def _add_sample_id(experiments):
     
     col_keys = ['exp_name', 'set_n', 'stage_pos', 'channel']
@@ -71,11 +103,14 @@ def _read_feats(con, tab_name = 'features_means_split'):
         experiments['video_timestamp'] = pd.to_datetime(experiments['video_timestamp'])
         experiments['date'] = experiments['video_timestamp'].dt.date
         experiments = _get_set_delta_t(experiments)
+        
     
     
     feats = pd.read_sql_query('SELECT * FROM %s' % tab_name, con)
     feats = feats.merge(experiments, on='video_id')
     
+    
+    experiments = _get_n_worms_estimate(experiments, feats)
     
     if 'worm_index' in feats:
         feats['worm_index'] = feats['worm_index'].astype(np.int)
