@@ -16,6 +16,7 @@ pd.read_csv('/Volumes/behavgenom_archive$/Avelino/calibration_071216/Calibration
 
 #%%
 
+<<<<<<< Updated upstream:work_in_progress/process_rig_data/result_plots/plot_db.py
 def _delta_timestamp(video_timestamp):
     delT = video_timestamp - video_timestamp.min()
     delT /= np.timedelta64(1, 'm')
@@ -60,6 +61,51 @@ def _get_n_worms_estimate(experiments, feats):
     experiments['tot_frames'] = tot_frames
     return experiments
     
+=======
+def _get_delta_start(experiments):
+    def _get_deltaT(video_timestamp):
+        deltaT = video_timestamp - video_timestamp.min()
+        deltaT /= np.timedelta64(1, 'm')
+        return deltaT
+    
+    dT_exp = pd.Series()
+    dT_set = pd.Series()
+    groupby_exp = experiments.groupby('exp_name')
+    for exp_name, exp_rows in groupby_exp:
+        deltaT = _get_deltaT(exp_rows['video_timestamp'])
+        dT_exp = dT_exp.append(deltaT)
+        for set_n, set_rows in exp_rows.groupby('set_n'):
+            deltaT = _get_deltaT(set_rows['video_timestamp'])
+            dT_set = dT_set.append(deltaT)
+    
+    experiments['delta_start_exp'] = dT_exp
+    experiments['delta_start_set'] = dT_set  
+    
+    return experiments
+#%%
+def _get_observed_n_worms(feats, experiments):
+    group_by_video =   feats.groupby('video_id')
+    
+    n_worms_dat = []
+    for video_id, video_dat in group_by_video:
+        ini_frame = video_dat['first_frame'].astype(np.int)
+        fin_frame = video_dat['n_frames'].astype(np.int)
+        
+        tot_frames = fin_frame.max()
+        n_worms_f = np.zeros(tot_frames, dtype = np.int)
+        
+        for ini, fin in zip(ini_frame, fin_frame):
+            n_worms_f[ini:fin] += 1
+        
+        n_worms = np.percentile(n_worms_f, 99.5)
+        n_worms_dat.append((video_id, n_worms, tot_frames))
+    
+    dd = list(zip(*n_worms_dat))
+    observed_n_worms = pd.DataFrame(np.array([dd[1], dd[2]]).T, dd[0], columns=['observed_n_worms', 'tot_frames'])
+    experiments = experiments.join(observed_n_worms)
+    return experiments
+#%%
+>>>>>>> Stashed changes:work_in_progress/process_rig_data/plot_db.py
 def _add_sample_id(experiments):
     
     col_keys = ['exp_name', 'set_n', 'stage_pos', 'channel']
@@ -102,18 +148,25 @@ def _read_feats(con, tab_name = 'features_means_split'):
     if 'video_timestamp' in experiments:
         experiments['video_timestamp'] = pd.to_datetime(experiments['video_timestamp'])
         experiments['date'] = experiments['video_timestamp'].dt.date
+<<<<<<< Updated upstream:work_in_progress/process_rig_data/result_plots/plot_db.py
         experiments = _get_set_delta_t(experiments)
         
+=======
+        experiments = _get_delta_start(experiments)
+>>>>>>> Stashed changes:work_in_progress/process_rig_data/plot_db.py
     
     
     feats = pd.read_sql_query('SELECT * FROM %s' % tab_name, con)
-    feats = feats.merge(experiments, on='video_id')
+    #experiments = _get_observed_n_worms(feats, experiments)
     
+    feats = feats.merge(experiments, on='video_id')
+    feats['start_time'] = feats['first_frame']/25/60
     
     experiments = _get_n_worms_estimate(experiments, feats)
     
     if 'worm_index' in feats:
         feats['worm_index'] = feats['worm_index'].astype(np.int)
+    
     return feats, experiments
                  
 def get_feats_db(database_name, filt_path_range = 10, filt_frac_good = 0.75, 
