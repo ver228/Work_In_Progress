@@ -14,6 +14,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
+from keras.models import load_model
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -126,30 +127,38 @@ def show_bad(model, X, Y):
     
     bad_labels = label_pred!=label_real
     
+    
     bad_imgs = np.squeeze(X[bad_labels])
     if bad_imgs.ndim == 2:
         bad_imgs = bad_imgs[None, :, :]
+    
+    print('*****')
+    print(sum(bad_labels), len(label_real))
     #%%
     show_images(bad_imgs, labels = label_pred[bad_labels])
     
  #%%    
 
 if __name__ == '__main__':
-    filename = 'sample.hdf5'
+    filename = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.hdf5'
+    model_trained_path = '/Users/ajaver/Documents/GitHub/Multiworm_Tracking/MWTracker/misc/model_isworm_20161130_002654.h5'
+    
     X_train, Y_train = read_field_data(filename, 'train')
     X_val, Y_val = read_field_data(filename, 'val')
     
-    model = get_model_convnet(X_train, Y_train, X_val, Y_val)
+#    model = get_model_convnet(X_train, Y_train, X_val, Y_val)
+#    
+#    #%%
+#    score = model.evaluate(X_val, Y_val, verbose=0)
+#    print('Test score:', score[0])
+#    print('Test accuracy:', score[1])
+#    
     
-    #%%
-    score = model.evaluate(X_val, Y_val, verbose=0)
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
-    
-    #%%
-    model_name = 'model_isworm_%s.h5' % time.strftime('%Y%m%d_%H%M%S')    
-    model.save(model_name)
+#    #%%
+#    model_name = 'model_isworm_%s.h5' % time.strftime('%Y%m%d_%H%M%S')    
+#    model.save(model_name)
     #%% Show wrongly classified
+    model = load_model(model_trained_path)
     show_bad(model, X_val, Y_val)
     #show_bad(model, X_train, Y_train)
     #X_test, Y_test = read_field_data(filename, 'test')
