@@ -22,7 +22,7 @@ plt.style.use('seaborn-deep')
 mpl.rcParams['image.interpolation'] = 'none'
 mpl.rcParams['image.cmap'] = 'gray'
 
-from MWTracker.analysis.ske_init.filterTrajectModel import  reformat_for_model
+from tierpsy.analysis.ske_init.filterTrajectModel import  reformat_for_model
 
 
 def read_field_data(filename, field):

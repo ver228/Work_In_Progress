@@ -11,8 +11,8 @@ from PyQt5.QtCore import Qt
 
 from image_labeler_ui import Ui_image_labeler
 
-from MWTracker.GUI_Qt5.TrackerViewerAux import TrackerViewerAux_GUI
-from MWTracker.GUI_Qt5.HDF5VideoPlayer import lineEditDragDrop, setChildrenFocusPolicy
+from tierpsy.gui.TrackerViewerAux import TrackerViewerAux_GUI
+from tierpsy.gui.HDF5VideoPlayer import lineEditDragDrop, setChildrenFocusPolicy
 
 class d_Ui_image_labeler(Ui_image_labeler):
 	def __init__(self):
