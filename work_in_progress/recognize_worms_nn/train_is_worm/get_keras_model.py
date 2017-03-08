@@ -70,7 +70,9 @@ def show_images(data,
 #%%
 def get_model_convnet(X_train, Y_train, X_val, Y_val):
     
-    model = Sequential()
+    rand_seed = 1337
+    np.random.seed(rand_seed)  # for reproducibility
+    
     
     batch_size = 128
     nb_classes = 2
@@ -85,8 +87,8 @@ def get_model_convnet(X_train, Y_train, X_val, Y_val):
     # convolution kernel size
     kernel_size = (5, 5)
     
-    rand_seed = 1337
-    np.random.seed(rand_seed)  # for reproducibility
+    
+    model = Sequential()
     
     model.add(Convolution2D(nb_filters, kernel_size[0], kernel_size[1],
                             border_mode='valid',

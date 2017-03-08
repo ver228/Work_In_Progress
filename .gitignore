@@ -1,6 +1,7 @@
 
 *.pyc
 *.hdf5
+*.h5
 *.DS_Store
 
 Single_Worm_Analysis/stage_correction/failed_files.txt
