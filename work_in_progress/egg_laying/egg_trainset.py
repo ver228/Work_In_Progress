@@ -97,7 +97,6 @@ def _randomize_by_event(egg_event_id, val_frac, test_frac):
     
     return all_ind
 #%%
-
 def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
     
     with tables.File(training_file, 'r') as fid:
@@ -114,7 +113,7 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
             fid.create_array(grp, field, obj=indexes)
 #%%
 if __name__ == '__main__':
-    training_file = 'samples.hdf5'
+    training_file = 'samples2.hdf5'
     roi_size = 100
     win_d = 2
     win_size = 2*win_d + 1
@@ -136,6 +135,13 @@ if __name__ == '__main__':
                                      dtype=np.float,
                                      maxshape=(None, win_size, roi_size,roi_size),
                                      chunks=(1, win_size, roi_size,roi_size),
+                                     **IMG_FILTERS)
+        
+        egg_X_diff = fid.create_dataset('/egg_laying_X_diff', 
+                                     (tot_events, win_size-1, roi_size,roi_size),
+                                     dtype=np.float,
+                                     maxshape=(None, win_size-1, roi_size,roi_size),
+                                     chunks=(1, win_size-1, roi_size,roi_size),
                                      **IMG_FILTERS)
 
         egg_Y = fid.create_dataset('/egg_laying_Y', 
@@ -173,27 +179,39 @@ if __name__ == '__main__':
                             continue
                 
                     worm_rois = np.zeros((win_size, roi_size, roi_size), dtype=np.float)
+                    worm_rois_d = np.zeros((win_size-1, roi_size, roi_size), dtype=np.float)
+                    prev_img = None
+                    
                     empty_array = True
                     for ii, frame_number in enumerate(range(ran[0], ran[1]+1)):
                         output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size)
                         if output is not None:
                             row, worm_roi, roi_corner = output
-                            worm_rois[ii] = worm_roi.astype(np.float)
+                            worm_roi = worm_roi.astype(np.float)
+                            worm_rois[ii] = worm_roi
                             empty_array = False
-                    
+                            
+                            if prev_img is not None:
+                                mask = (worm_roi*prev_img) != 0
+                                worm_diff = np.zeros_like(worm_roi)
+                                worm_diff[mask] = worm_roi[mask] - prev_img[mask]
+                                worm_rois_d[ii-1] = worm_diff
+                            prev_img = worm_roi
+                        
+                            
                     if not empty_array:
                         worm_rois_n = shift_and_normalize(worm_rois)
                         egg_X[tot_samples] = worm_rois_n
                         egg_Y[tot_samples] = lab
                         event_ids[tot_samples] = irow
                         
-                        tot_samples += 1
+                        egg_X_diff[tot_samples] = worm_rois_d
                         
+                        tot_samples += 1
                         if event_ids.size <= tot_samples:
-                            for datset in [egg_X, egg_Y, event_ids]:
-                                datset.resize(tot_samples+ 100, axis=0)
-                
+                            for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
+                                datset.resize(tot_samples+ 100, axis=0)                
         #close and add a randomized training set
-        for datset in [egg_X, egg_Y, event_ids]:
+        for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
             datset.resize(tot_samples, axis=0)
     add_train_indexes(training_file)

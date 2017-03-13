@@ -86,7 +86,7 @@ def read_field_data(filename, field):
     with tables.File(filename, 'r') as fid:
         indexes = fid.get_node('/partitions/' + field)[:]
         
-        X = fid.get_node('/egg_laying_X')[indexes, :, :, :]
+        X = fid.get_node('/egg_laying_X_diff')[indexes, :, :, :]
         X = np.rollaxis(X, 1, 4)
         
         dat = fid.get_node('/egg_laying_Y')[indexes]
@@ -109,9 +109,9 @@ def show_bad(model, X, Y):
 #%%
 if __name__ == '__main__':
     batch_size = 128
-    nb_epoch = 20
+    nb_epoch = 50
     
-    training_file = 'samples.hdf5'
+    training_file = 'samples2.hdf5'
     #filename = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.hdf5'
     #model_trained_path = '/Users/ajaver/Documents/GitHub/Multiworm_Tracking/MWTracker/misc/model_isworm_20161130_002654.h5'
     
@@ -124,20 +124,20 @@ if __name__ == '__main__':
     model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               verbose=1, validation_data=(X_val, Y_val))
    
-    model_name = 'model_egg_laying_%s.h5' % time.strftime('%Y%m%d_%H%M%S')    
+    model_name = 'model_egg_laying_diff_%s.h5' % time.strftime('%Y%m%d_%H%M%S')    
     model.save(model_name)
     
 #    model_trained_path = 'model_egg_laying_20170308_105440.h5'
 #    model = load_model(model_trained_path)
     #%%
-    X_test, Y_test = read_field_data(training_file, 'test')
-    score = model.evaluate(X_test, Y_test, verbose=0)
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
+#    X_test, Y_test = read_field_data(training_file, 'test')
+#    score = model.evaluate(X_test, Y_test, verbose=0)
+#    print('Test score:', score[0])
+#    print('Test accuracy:', score[1])
     
     score = model.evaluate(X_val, Y_val, verbose=0)
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
+    print('Validation score:', score[0])
+    print('Validation accuracy:', score[1])
     
     #%%
     bad_ind = show_bad(model, X_val, Y_val)
@@ -154,6 +154,8 @@ if __name__ == '__main__':
         plt.suptitle('{} | {}'.format(Y_train[ind], np.round(prob)))
     #%%
     
-    
-    
+#    model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=10,
+#              verbose=1, validation_data=(X_val, Y_val))
+#    model_name = 'model_egg_laying_%s.h5' % time.strftime('%Y%m%d_%H%M%S')    
+#    model.save(model_name)
     
