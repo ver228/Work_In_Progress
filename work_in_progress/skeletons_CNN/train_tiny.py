@@ -20,7 +20,7 @@ rand_seed = 1337
 np.random.seed(rand_seed)  
 
 out_size = (49, 2)
-roi_size = 120
+roi_size = 128
 
 
 # number of convolutional filters to use
@@ -44,17 +44,14 @@ model.add(Convolution2D(32, kernel_size[0], kernel_size[1]))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 
-model.add(Convolution2D(32, kernel_size[0], kernel_size[1]))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
 
 model.add(Flatten())
-model.add(Dense(4000))
+model.add(Dense(2000))
 model.add(Activation('relu'))
-model.add(Dropout(0.5))
-
-model.add(Dense(1000))
-model.add(Activation('relu'))
+#model.add(Dropout(0.5))
+#
+#model.add(Dense(1000))
+#model.add(Activation('relu'))
 
 model.add(Dense(500))
 model.add(Activation('relu'))
@@ -84,63 +81,49 @@ def _get_index(events_tot, val_frac, test_frac):
     return all_ind
 
 #%%
-is_debug = True
-
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sampleshort.hdf5'
+sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 with tables.File(sample_file, 'r') as fid:
     
-    if is_debug:
-        #select a tiny sample
-        tot = fid.get_node('/mask').shape[0]
-        inds = np.random.permutation(tot)[:128]
-        X = fid.get_node('/mask')[inds, :, :][:, :, :, np.newaxis]
-        Y = fid.get_node('/skeleton')[inds, :, :]
-        
-    else:
-        X = fid.get_node('/mask')[:][:, :, :, np.newaxis]
-        Y = fid.get_node('/skeleton')[:]
+    #select a tiny sample
+    tot = fid.get_node('/mask').shape[0]
+    inds = np.random.permutation(tot)[:128]
+    X = fid.get_node('/mask')[inds, :, :][:, :, :, np.newaxis]
+    Y = fid.get_node('/skeleton')[inds, :, :]
 
-X -= 0.5
-X *= 2.
-
-#index = _get_index(X.shape[0], val_frac=0.2, test_frac=0.05)
-#X_train, X_val, X_test = [X[index[key]] for key in ['train', 'test', 'val']]
-#Y_train, Y_val, Y_test = [Y[index[key]] for key in ['train', 'test', 'val']]
-#model.fit(X_train, Y_train, batch_size=128, nb_epoch=200,
-#                  verbose=1, validation_data=(X_val, Y_val))
-
-#%%
 model.fit(X, Y, batch_size=128, nb_epoch=200, verbose=1)
 
 #%%
-#nb_epoch = 10
-#for i in range(20):
-#    model.fit(X_train, Y_train, batch_size=128, nb_epoch=nb_epoch,
-#                  verbose=1, validation_data=(X_val, Y_val))
-#    model.save('skels_mod_{}.h5'.format((i+1)*nb_epoch))
-
-#%%
-
-#X, Y = X_train, Y_train
-
-#model = load_model('skels_mod_40.h5')
-Y_pred = model.predict(X)
-
+#model.fit(X, Y, batch_size=128, nb_epoch=200, verbose=1)
+#
 ##%%
-import matplotlib.pylab as plt
-
-ind = 0
-plt.figure()
-plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
-plt.grid('off')
-
-plt.plot(Y[ind, :, 0], Y[ind, :, 1], '.r')
-plt.plot(Y[ind, 0, 0], Y[ind, 0, 1], 'sr')
-plt.plot(Y_pred[ind, :, 0], Y_pred[ind, :, 1], '.b')
-plt.plot(Y_pred[ind, 0, 0], Y_pred[ind, 0, 1], 'ob')
-
-
-
+##nb_epoch = 10
+##for i in range(20):
+##    model.fit(X_train, Y_train, batch_size=128, nb_epoch=nb_epoch,
+##                  verbose=1, validation_data=(X_val, Y_val))
+##    model.save('skels_mod_{}.h5'.format((i+1)*nb_epoch))
+#
+##%%
+#
+##X, Y = X_train, Y_train
+#
+##model = load_model('skels_mod_40.h5')
+#Y_pred = model.predict(X)
+#
+###%%
+#import matplotlib.pylab as plt
+#
+#ind = 0
+#plt.figure()
+#plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
+#plt.grid('off')
+#
+#plt.plot(Y[ind, :, 0], Y[ind, :, 1], '.r')
+#plt.plot(Y[ind, 0, 0], Y[ind, 0, 1], 'sr')
+#plt.plot(Y_pred[ind, :, 0], Y_pred[ind, :, 1], '.b')
+#plt.plot(Y_pred[ind, 0, 0], Y_pred[ind, 0, 1], 'ob')
+#
+#
+#
 
 
 
