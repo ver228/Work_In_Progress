@@ -25,3 +25,5 @@ work_in_progress/WCON/test.json
 *.pyc
 
 *.gz
+
+*.local

@@ -150,7 +150,7 @@ def _get_index(events_tot, val_frac, test_frac):
     
     return all_ind
 
-def add_index(save_file, val_frac=0.2, test_frac=0.05):
+def add_index(save_file, val_frac=0.2, test_frac=0.02):
     with tables.File(save_file, 'r+') as fid: 
         if '/index_groups' in fid:
             fid.remove_node('/index_groups')
