@@ -494,8 +494,9 @@ model.compile(loss='mean_absolute_error',
 
 
 #%%
+sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 
-sample_file = './data/N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
 with tables.File(sample_file, 'r') as fid:
     #select a tiny sample
     tot = fid.get_node('/mask').shape[0]

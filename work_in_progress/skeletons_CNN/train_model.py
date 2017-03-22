@@ -366,10 +366,11 @@ def test5():
 
 #%%
 model = test5()
+sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
 
 rand_seed = 1337
 np.random.seed(rand_seed)  
-sample_file = './data/N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 data = {}
 with tables.File(sample_file, 'r') as fid:
     for field in ['test', 'train', 'val']:
