@@ -38,6 +38,8 @@ from keras.callbacks import TensorBoard, ModelCheckpoint, History
 from keras.optimizers import Adam
 
 
+SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
+
 #%%
 
 # for reproducibility
@@ -365,9 +367,6 @@ def test5():
 #%%
 model = test5()
 
-#is_debug = False
-#
-
 rand_seed = 1337
 np.random.seed(rand_seed)  
 sample_file = './data/N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
@@ -385,28 +384,22 @@ with tables.File(sample_file, 'r') as fid:
         
         
 #%%
+epochs = 200
 
-log_dir = './logs/main_%s' % time.strftime('%Y%m%d_%H%M%S')
-checkpoint_file = os.path.join(log_dir, 'main-{epoch:02d}-{val_loss:.2f}.h5')
+log_dir = os.path.join(SAVE_DIR, 'logs/main_%s' % time.strftime('%Y%m%d_%H%M%S'))
+pad=int(np.ceil(np.log10(epochs+1)))
+checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:0%id}-{loss:.4f}.h5' % pad)
+
 history = History()
-
 tb = TensorBoard(log_dir=log_dir)
 mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=1)
 
-epochs = 200
 model.fit(*data['train'], 
           batch_size=128, 
           epochs=epochs, 
           validation_data=data['val'],
           verbose=1, 
           callbacks=[tb, mcp, history])
-#
-#
-#nb_epoch = 10
-#for i in range(20):
-#    model.fit(*data['train'], batch_size=128, nb_epoch=nb_epoch,
-#                  verbose=1, validation_data=data['val'])
-#    model.save('skels_mod3_{}.h5'.format((i+1)*nb_epoch))
 
 #%%
 #model = load_model('skels_mod_60.h5')
@@ -424,12 +417,3 @@ plt.plot(Y[ind, :, 0], Y[ind, :, 1], '.r')
 plt.plot(Y[ind, 0, 0], Y[ind, 0, 1], 'sr')
 plt.plot(Y_pred[0, :, 0], Y_pred[0, :, 1], '.b')
 plt.plot(Y_pred[0, 0, 0], Y_pred[0, 0, 1], 'ob')
-
-
-
-
-
-
-
-
-

@@ -31,6 +31,7 @@ from keras.models import load_model
 from keras.callbacks import TensorBoard, ModelCheckpoint, History
 from keras.optimizers import Adam
 
+SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 
 def test_res():
     input_shape = (roi_size, roi_size, 1)
@@ -513,7 +514,7 @@ epochs = 2000
 save_period = 50
 
 pad=int(np.ceil(np.log10(epochs+1)))
-log_dir = './logs/tiny_%s' % time.strftime('%Y%m%d_%H%M%S')
+log_dir = os.path.join(SAVE_DIR, 'logs/main_%s' % time.strftime('%Y%m%d_%H%M%S'))
 checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:0%id}-{loss:.4f}.h5' % pad)
 
 history = History()
