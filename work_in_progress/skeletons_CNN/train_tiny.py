@@ -341,7 +341,73 @@ def test9():
     model.compile(loss='mean_absolute_error',
                   optimizer=optimizer,
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+def test10():
+    '''This one works, but it has problems with the coils, and do not match the data 100%
+    After a few iterations if fails to converge, but find things
+    '''
     
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
+    x = Activation('elu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('elu', name='conv1a_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
+    x = BatchNormalization(name='conv1b_bn')(x)
+    x = Activation('elu', name='conv1b_act')(x)
+    
+    x = MaxPooling2D((2, 2), name='conv1_pool')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
+    x = BatchNormalization(name='conv2a_bn')(x)
+    x = Activation('elu', name='conv2a_act')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2b')(x)
+    x = BatchNormalization(name='conv2b_bn')(x)
+    x = Activation('elu', name='conv2b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name='conv2_pool')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3a')(x)
+    x = BatchNormalization(name='conv3a_bn')(x)
+    x = Activation('elu', name='conv3a_act')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3b')(x)
+    x = BatchNormalization(name='conv3b_bn')(x)
+    x = Activation('elu', name='conv3b_act')(x)
+    
+    
+    x = GlobalMaxPooling2D(name='avg_pool')(x)
+    
+    #x = Flatten()(x)
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    #x = Dropout(0.4)(x)
+    
+    x = Dense(512, name='dense1', activation='elu')(x)
+    #x = Dropout(0.4)(x)
+    
+    x = Dense(128, name='dense2', activation='elu')(x)
+    #x = Dropout(0.2)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3)#, decay=0.05)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+
 
 # for reproducibility
 rand_seed = 1337
@@ -358,51 +424,60 @@ kernel_size = (3, 3)
 input_shape = (roi_size, roi_size, 1)
 img_input =  Input(shape=input_shape)
 
-x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
-x = Activation('elu', name='conv0_act')(x)
+x = Conv2D(32, (3, 3), padding='same', use_bias=False, name='conv0')(img_input)
+x = BatchNormalization(name='conv0a_bn')(x)
+x = Activation('relu', name='conv0_act')(x)
 x = MaxPooling2D((2, 2), name='conv0_pool')(x)
 
-x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+x = Conv2D(64, (3, 3), padding='same', use_bias=False, name='conv1a')(x)
 x = BatchNormalization(name='conv1a_bn')(x)
-x = Activation('elu', name='conv1a_act')(x)
+x = Activation('relu', name='conv1a_act')(x)
 
-x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
-x = BatchNormalization(name='conv1b_bn')(x)
-x = Activation('elu', name='conv1b_act')(x)
-
-x = MaxPooling2D((2, 2), name='conv1_pool')(x)
-
-x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
-x = BatchNormalization(name='conv2a_bn')(x)
-x = Activation('elu', name='conv2a_act')(x)
-
-x = Conv2D(128, (3, 3), padding='same', name='conv2b')(x)
-x = BatchNormalization(name='conv2b_bn')(x)
-x = Activation('elu', name='conv2b_act')(x)
+residual = Conv2D(128, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+residual = BatchNormalization()(residual)
+x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+x = BatchNormalization(name='block2_sepconv1_bn')(x)
+x = Activation('relu', name='block2_sepconv2_act')(x)
+x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+x = BatchNormalization(name='block2_sepconv2_bn')(x)
+x = MaxPooling2D((2, 2), padding='same', name='block2_pool')(x)
+x = layers.add([x, residual])
 
 
-x = MaxPooling2D((2, 2), name='conv2_pool')(x)
+residual = Conv2D(512, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+residual = BatchNormalization()(residual)
+x = Activation('relu', name='block3_sepconv1_act')(x)
+x = Conv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+x = BatchNormalization(name='block3_sepconv1_bn')(x)
+x = Activation('relu', name='block3_sepconv2_act')(x)
+x = Conv2D(512, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+x = BatchNormalization(name='block3_sepconv2_bn')(x)
+x = MaxPooling2D((2, 2), padding='same', name='block3_pool')(x)
+x = layers.add([x, residual])
 
-x = Conv2D(256, (3, 3), padding='same', name='conv3a')(x)
-x = BatchNormalization(name='conv3a_bn')(x)
-x = Activation('elu', name='conv3a_act')(x)
 
-x = Conv2D(256, (3, 3), padding='same', name='conv3b')(x)
-x = BatchNormalization(name='conv3b_bn')(x)
-x = Activation('elu', name='conv3b_act')(x)
-
+x = Conv2D(1024, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+x = BatchNormalization(name='block14_sepconv2_bn')(x)
+x = Activation('relu', name='block14_sepconv2_act')(x)
 
 x = GlobalMaxPooling2D(name='avg_pool')(x)
 
-#x = Flatten()(x)
+
+#layers seems to be key to capture the worm shape
+#i need to use ELU instead of RELU otherwise the skeletons converges to 0
 x = Dense(1024, name='dense0', activation='elu')(x)
 x = Dropout(0.4)(x)
 
 x = Dense(512, name='dense1', activation='elu')(x)
 x = Dropout(0.4)(x)
 
-x = Dense(128, name='dense2', activation='elu')(x)
+x = Dense(256, name='dense2', activation='elu')(x)
 x = Dropout(0.2)(x)
+
+x = Dense(128, name='dense3', activation='elu')(x)
+x = Dropout(0.1)(x)
 
 x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
 x = Reshape((out_size))(x)
@@ -415,22 +490,11 @@ model.compile(loss='mean_absolute_error',
               optimizer=optimizer,
               metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
 
-#%%
-def _get_index(events_tot, val_frac, test_frac):
-    inds = np.random.permutation(events_tot)
-    test_size = np.round(events_tot*test_frac).astype(np.int)
-    val_size = np.round(events_tot*val_frac).astype(np.int)
-    
-    
-    all_ind = {'test' : inds[:test_size], 
-               'val': inds[test_size:(val_size+test_size)],
-               'train' : inds[(val_size+test_size):]}
-    
-    return all_ind
+
 
 #%%
 
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+sample_file = './data/N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 with tables.File(sample_file, 'r') as fid:
     #select a tiny sample
     tot = fid.get_node('/mask').shape[0]
@@ -445,67 +509,26 @@ with tables.File(sample_file, 'r') as fid:
     #X = -(X-np.mean(X, axis=(1,2)))
     
 #%%
-
-
-log_dir = './tiny_logs_%s' % time.strftime('%Y%m%d_%H%M%S')
-checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:02d}-{loss:.2f}.h5')
-history = History()
-
-tb = TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=True, write_images=True)
-mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=50)
-
 epochs = 2000
+save_period = 50
+
+pad=int(np.ceil(np.log10(epochs+1)))
+log_dir = './logs/tiny_%s' % time.strftime('%Y%m%d_%H%M%S')
+checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:0%id}-{loss:.4f}.h5' % pad)
+
+history = History()
+tb = TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=True, write_images=True)
+mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=save_period)
+
+os.makedirs(log_dir)
+input_data_f = os.path.join(log_dir, 'input_set.hdf5')
+with tables.File(input_data_f, 'w') as fid:
+    fid.create_carray('/', 'X', obj = X)
+    fid.create_carray('/', 'Y', obj = Y)
+
+
 model.fit(X,Y, batch_size=128, 
           epochs=epochs, 
           verbose=1, callbacks=[tb, mcp, history])
 
     
-    #%%
-
-
-
-
-#for i in range(10):
-#    
-#    model.fit(X,Y, batch_size=128, 
-#              epochs=epochs, 
-#              verbose=1)#, callbacks=[tb])
-#    
-#    
-#    Y_pred = model.predict(X)
-#    roi_size = X.shape[1]
-#    #Y_pred = Y_pred*roi_size
-#    #Y_c = Y*roi_size + roi_size/2.
-#    #Y_c = Y*roi_size
-#    #
-#    
-#    ind = 0
-#    plt.figure()
-#    #plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
-#    #plt.grid('off')
-#    Y_c = Y
-#    plt.plot(Y_c[ind, :, 0], Y_c[ind, :, 1], '.r')
-#    plt.plot(Y_c[ind, 0, 0], Y_c[ind, 0, 1], 'sr')
-#    plt.plot(Y_pred[ind, :, 0], Y_pred[ind, :, 1], '.-b')
-#    plt.plot(Y_pred[ind, 0, 0], Y_pred[ind, 0, 1], 'ob')
-#    #model.save('skels_tiny_{}.h5'.format((i+1)*nb_epoch))
-#%%
-##%%
-##nb_epoch = 10
-##for i in range(20):
-##    model.fit(X_train, Y_train, batch_size=128, nb_epoch=nb_epoch,
-##                  verbose=1, validation_data=(X_val, Y_val))
-##    model.save('skels_mod_{}.h5'.format((i+1)*nb_epoch))
-#
-##%%
-#
-#X, Y = X_train, Y_train
-
-#model = load_model('skels_mod_40.h5')
-
-
-
-
-
-
-

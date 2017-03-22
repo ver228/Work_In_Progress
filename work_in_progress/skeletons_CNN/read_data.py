@@ -167,10 +167,10 @@ def add_index(save_file, val_frac=0.2, test_frac=0.02):
 #%%
 if __name__ == '__main__':
     #read_microns_per_pixel
-    #masked_file = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/short_movies_new/MaskedVideos/double_pick_260117/HW_worm3_F1-3_Set4_Pos4_Ch3_26012017_153655.hdf5'
+    masked_file = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/short_movies_new/MaskedVideos/double_pick_260117/HW_worm3_F1-3_Set4_Pos4_Ch3_26012017_153655.hdf5'
     #masked_file = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/short_movies_new/MaskedVideos/double_pick_260117/unc-9_worm10_F1-3_Set1_Pos4_Ch3_26012017_143142.hdf5'
     #masked_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/single_worm/global_sample_v3/egl-43 (n1079)II on food L_2010_07_09__11_04___3___2.hdf5'
-    masked_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/single_worm/global_sample_v3/N2 on food R_2011_03_09__11_58_06___6___3.hdf5'
+    #masked_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/single_worm/global_sample_v3/N2 on food R_2011_03_09__11_58_06___6___3.hdf5'
     skeletons_file = masked_file.replace('.hdf5', '_skeletons.hdf5').replace('MaskedVideos', 'Results')
     
     

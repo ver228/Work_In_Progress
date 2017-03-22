@@ -21,6 +21,7 @@ import time
 from keras.models import Sequential
 from keras.models import Model
 
+from keras import layers
 from keras.layers import Conv2D
 from keras.layers import BatchNormalization
 from keras.layers import Activation
@@ -256,10 +257,8 @@ def test4():
     x = BatchNormalization(name='conv3b_bn')(x)
     x = Activation('elu', name='conv3b_act')(x)
     
-    
     x = GlobalMaxPooling2D(name='avg_pool')(x)
     
-    #x = Flatten()(x)
     x = Dense(1024, name='dense0', activation='elu')(x)
     x = Dropout(0.4)(x)
     
@@ -282,15 +281,96 @@ def test4():
 
 
     return model
+
+def test5():
+    # for reproducibility
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    out_size = (49, 2)
+    roi_size = 128
+    
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', use_bias=False, name='conv0')(img_input)
+    x = BatchNormalization(name='conv0a_bn')(x)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', use_bias=False, name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    residual = Conv2D(128, (1, 1), strides=(2, 2),
+                          padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+    x = BatchNormalization(name='block2_sepconv1_bn')(x)
+    x = Activation('relu', name='block2_sepconv2_act')(x)
+    x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+    x = BatchNormalization(name='block2_sepconv2_bn')(x)
+    x = MaxPooling2D((2, 2), padding='same', name='block2_pool')(x)
+    x = layers.add([x, residual])
+    
+    
+    residual = Conv2D(512, (1, 1), strides=(2, 2),
+                          padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    x = Activation('relu', name='block3_sepconv1_act')(x)
+    x = Conv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+    x = BatchNormalization(name='block3_sepconv1_bn')(x)
+    x = Activation('relu', name='block3_sepconv2_act')(x)
+    x = Conv2D(512, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+    x = BatchNormalization(name='block3_sepconv2_bn')(x)
+    x = MaxPooling2D((2, 2), padding='same', name='block3_pool')(x)
+    x = layers.add([x, residual])
+    
+    
+    x = Conv2D(1024, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+    x = BatchNormalization(name='block14_sepconv2_bn')(x)
+    x = Activation('relu', name='block14_sepconv2_act')(x)
+    
+    x = GlobalMaxPooling2D(name='avg_pool')(x)
+    
+    
+    #layers seems to be key to capture the worm shape
+    #i need to use ELU instead of RELU otherwise the skeletons converges to 0
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(512, name='dense1', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(256, name='dense2', activation='elu')(x)
+    x = Dropout(0.2)(x)
+    
+    x = Dense(128, name='dense3', activation='elu')(x)
+    x = Dropout(0.1)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3)#, decay=0.05)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+    
+    return model
+
+
 #%%
-model = test4()
+model = test5()
 
 #is_debug = False
 #
 
 rand_seed = 1337
 np.random.seed(rand_seed)  
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+sample_file = './data/N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 data = {}
 with tables.File(sample_file, 'r') as fid:
     for field in ['test', 'train', 'val']:
@@ -306,7 +386,7 @@ with tables.File(sample_file, 'r') as fid:
         
 #%%
 
-log_dir = './main_logs_%s' % time.strftime('%Y%m%d_%H%M%S')
+log_dir = './logs/main_%s' % time.strftime('%Y%m%d_%H%M%S')
 checkpoint_file = os.path.join(log_dir, 'main-{epoch:02d}-{val_loss:.2f}.h5')
 history = History()
 

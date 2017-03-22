@@ -13,26 +13,43 @@ import tables
 import numpy as np
 import matplotlib.pylab as plt
 
-log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/main_logs_20170321_210122'
-#log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/tiny_logs_20170321_225232'
+#log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/main_logs_20170321_210122'
+#log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/logs/tiny_20170322_153316'
+log_dir = './logs/tiny_20170322_165535'
+sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+sample_file = os.path.join(log_dir, 'input_set.hdf5')
+
 
 rand_seed = 1337
 np.random.seed(rand_seed)
 
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 with tables.File(sample_file, 'r') as fid:
-    #select a tiny sample
-    tot = fid.get_node('/mask').shape[0]
-    inds = np.random.permutation(tot)[:128]
-    X = fid.get_node('/mask')[inds, :, :][:, :, :, np.newaxis]
-    Y = fid.get_node('/skeleton')[inds, :, :]
-    roi_size = X.shape[1]
-    #Y = Y/roi_size
+    X_set = fid.get_node('/X')
+    Y_set = fid.get_node('/Y')
     
+    #select a tiny sample
+    #X_set = fid.get_node('/mask')
+    #Y_set = fid.get_node('/skeleton')
+    
+    
+    tot = X_set.shape[0]
+    roi_size = X_set.shape[1]
+    
+    inds = np.random.permutation(tot)[:128]
+    X = X_set[inds, :, :]
+    Y = Y_set[inds, :, :]
+    #X = X[:, :, :, np.newaxis]
+    
+    #Y = Y/roi_size
     #Y = (Y-(roi_size/2.))/roi_size*2
     #X = -(X-np.mean(X, axis=(1,2)))
     
+    
+    
 fnames = sorted(glob.glob(os.path.join(log_dir, '*.h5')))
+
+#fnames = fnames[-4:]
+fnames = fnames[:10]
 
 for fname in fnames:
     print(fname)
@@ -43,7 +60,7 @@ for fname in fnames:
     #%%
     #Y_c = Y*roi_size/2 + roi_size/2.
     Y_pred_c = Y_pred*roi_size/2 + roi_size/2.
-    Y_c = Y
+    Y_c = Y*roi_size/2 + roi_size/2.
     #Y_pred_c = Y_pred
     
     
@@ -61,6 +78,7 @@ for fname in fnames:
         plt.plot(Y_pred_c[ind, 0, 0], Y_pred_c[ind, 0, 1], 'ob')
         #model.save('skels_tiny_{}.h5'.format((i+1)*nb_epoch))
         
+    plt.suptitle(os.path.basename(fname))
         #plt.xlim((-1.5,1.5))
         #plt.ylim((-1.5,1.5))
         
