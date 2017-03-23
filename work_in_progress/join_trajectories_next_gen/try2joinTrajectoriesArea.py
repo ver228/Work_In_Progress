@@ -19,11 +19,11 @@ from scipy.signal import medfilt
 
 import sys
 sys.path.append('/Users/ajaver/Documents/GitHub/Multiworm_Tracking')
-from MWTracker.helperFunctions.timeCounterStr import timeCounterStr
 
-from MWTracker.trackWorms.getSkeletonsTables import getWormROI, getWormMask, binaryMask2Contour
-from MWTracker.featuresAnalysis.obtainFeaturesHelper import WLAB
-from MWTracker.featuresAnalysis.getFilteredFeats import saveModifiedTrajData
+from tierpsy.analysis.ske_filt.getFilteredSkels import saveModifiedTrajData
+from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask, binaryMask2Contour
+from tierpsy.analysis.ske_create.helperIterROI import getWormROI
+from tierpsy.helper.misc import WLAB
 
 #%%
 def getStartEndTraj(trajectories_data):
@@ -33,8 +33,6 @@ def getStartEndTraj(trajectories_data):
     grouped_trajectories = trajectories_data.groupby('worm_index_auto')
     
     tot_worms = len(grouped_trajectories)
-    base_name = skeletons_file.rpartition('.')[0].rpartition(os.sep)[-1].rpartition('_')[0]
-    progress_timer = timeCounterStr('');
     
     win_area = 10    
     
@@ -76,7 +74,7 @@ def getStartEndTraj(trajectories_data):
 def getIndCnt(img, x, y, roi_size, thresh, max_area):
     worm_img, roi_corner = getWormROI(img, x, y, roi_size)
     worm_mask = getWormMask(worm_img, thresh)
-    worm_cnt, _ = binaryMask2Contour(worm_mask, min_mask_area = max_area)
+    worm_cnt, _ = binaryMask2Contour(worm_mask, min_blob_area = max_area)
     if worm_cnt.size > 0:
         worm_cnt += roi_corner   
     return worm_cnt                 
@@ -328,13 +326,17 @@ def getPossibleClusters(DG, worm_indexes):
 if __name__ == '__main__':
     #base directory
     #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch5_17112015_205616.hdf5'
-    masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_17112015_205616.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_17112015_205616.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 swimming_2011_03_04__13_16_37__8.hdf5'    
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 on food Rz_2011_03_04__12_55_53__7.hdf5'    
     
-    skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
-    intensities_file = skeletons_file.replace('_skeletons', '_intensities')
+    #skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    
+    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
+    dd = os.path.dirname(masked_image_file)
+    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
+    skeletons_file = os.path.join(dd, 'Results',ff )
     
     #get the trajectories table
     with pd.HDFStore(skeletons_file, 'r') as fid:

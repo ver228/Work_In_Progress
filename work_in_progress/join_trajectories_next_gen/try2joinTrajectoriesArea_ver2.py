@@ -5,26 +5,18 @@ Created on Mon Feb 22 17:46:36 2016
 @author: ajaver
 """
 import pandas as pd
-import os
 import tables
 import numpy as np
-import matplotlib.pylab as plt
 from collections import OrderedDict
-
 import networkx as nx
-
 import cv2
-from scipy.signal import savgol_filter
-from scipy.signal import medfilt
+import os 
 
-import sys
-sys.path.append('/Users/ajaver/Documents/GitHub/Multiworm_Tracking')
-from MWTracker.helperFunctions.timeCounterStr import timeCounterStr
-from MWTracker.helperFunctions.miscFun import WLAB
-from MWTracker.trackWorms.getSkeletonsTables import getWormROI, getWormMask
-from MWTracker.trackWorms.getFilteredSkels import saveModifiedTrajData
+from tierpsy.analysis.ske_filt.getFilteredSkels import saveModifiedTrajData
+from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
+from tierpsy.analysis.ske_create.helperIterROI import getWormROI
+from tierpsy.helper.misc import WLAB
 
-#%%
 def getStartEndTraj(trajectories_data):
     traj_limits = OrderedDict()
     
@@ -32,8 +24,6 @@ def getStartEndTraj(trajectories_data):
     grouped_trajectories = trajectories_data.groupby('worm_index_auto')
     
     tot_worms = len(grouped_trajectories)
-    base_name = skeletons_file.rpartition('.')[0].rpartition(os.sep)[-1].rpartition('_')[0]
-    progress_timer = timeCounterStr('');
     
     win_area = 10    
     
@@ -70,8 +60,8 @@ def getStartEndTraj(trajectories_data):
         #if worm_index == 50: break;
     traj_limits = pd.DataFrame(traj_limits, index=traj_limits['worm_index'])
     return traj_limits
-#%%
-class imageRigBuff:
+
+class ImageRigBuff:
     #ring buffer class to avoid having to read the same image several times
     def __init__(self, mask_group, buf_size):
         
@@ -104,8 +94,6 @@ class imageRigBuff:
         return self.I_buff
 
 def getIndCnt(img, x, y, roi_size, thresh, max_area):
-    
-    
     worm_img, roi_corner = getWormROI(img, x, y, roi_size)
     worm_mask, worm_cnt, _ = getWormMask(worm_img, thresh)
     if worm_cnt.size > 0:
@@ -125,7 +113,7 @@ def extractWormContours(masked_image_file, traj_limits, buf_size = 5):
     
     with tables.File(masked_image_file, 'r') as fid:
         mask_group = fid.get_node('/mask')
-        ir = imageRigBuff(mask_group, buf_size)
+        ir = ImageRigBuff(mask_group, buf_size)
         
         for frame_number in np.unique(np.concatenate((uT0,uTf))):
             #img = mask_group[frame_number]
@@ -250,7 +238,7 @@ def selectNearNodes(connect_dict, ratio_dict, time_table, min_intersect = 0.5):
         posible_nodes.append((node1, node2_dat[0]))
     return posible_nodes
 
-#%%
+
 def cleanRedundantNodes(DG, trajectories_data_f):
     
     #join trajectories that only has as parent and child each other. (A->B->C)
@@ -385,15 +373,21 @@ def filterTableByArea(trajectories_data, min_area_limit = 50, n_sigma = 6):
 
 #%%
 if __name__ == '__main__':
-    #base directory
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch6_17112015_205616.hdf5'
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/Camille_151030/MaskedVideos/CSTCTest_Ch2_30102015_212430.hdf5'    
-    masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 swimming_2011_03_04__13_16_37__8.hdf5'    
     #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 on food Rz_2011_03_04__12_55_53__7.hdf5'    
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch6_17112015_205616.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Camille_151030/MaskedVideos/CSTCTest_Ch2_30102015_212430.hdf5'    
+    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
     
-    skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
-    intensities_file = skeletons_file.replace('_skeletons', '_intensities')
+    #skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    
+    dd = os.path.dirname(masked_image_file)
+    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
+    skeletons_file = os.path.join(dd, 'Results',ff )
+    
+    #masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    #intensities_file = skeletons_file.replace('_skeletons', '_intensities')
     
     min_area_limit = 50
     
@@ -406,9 +400,8 @@ if __name__ == '__main__':
     
     del trajectories_data
     
-    #%%
+    
     trajgrouped = trajectories_data_f.groupby('frame_number')    
-
     traj_limits = getStartEndTraj(trajectories_data_f) 
     
     first_index = traj_limits['t0'].min()
@@ -474,9 +467,6 @@ if __name__ == '__main__':
              pass
 
     print('B', len(break_points))
-    #AA    
-
-#%%
     indexInFrame = {} 
     roi_data = {}
     for dd in break_points:
@@ -486,22 +476,18 @@ if __name__ == '__main__':
             indexInFrame[t].append(ind)
             roi_data[ind,t] = dat
 
-#%%
-    
     buf_size = 5
     worm_cnt = OrderedDict() 
     with tables.File(masked_image_file, 'r') as fid:
         mask_group = fid.get_node('/mask')
-        ir = imageRigBuff(mask_group, buf_size)
+        ir = ImageRigBuff(mask_group, buf_size)
         
         for t in sorted(indexInFrame):
             img = ir.get_buffer(t)
             img = np.min(img, axis=0)
             for ind in indexInFrame[t]:
                 worm_cnt[ind, t] = getIndCnt(img, *roi_data[ind, t])
-    
-    
-#%%
+
     area_overlap = {}
     for (ind_split, t_split, dat_split), (ind_check, t_check, dat_check) in break_points:
         key_tuple = (ind_split, t_split, ind_check, t_check)
@@ -509,12 +495,10 @@ if __name__ == '__main__':
         cnt_check = worm_cnt[ind_check, t_check]
         
         if len(cnt_check) == 0: 
-            area_overlap[key_tuple] = -2#'bad_check'
+            area_overlap[key_tuple] = -2 #'bad_check'
         elif len(cnt_split) == 0: 
-            area_overlap[key_tuple] = -1#'bad_split'
-            
+            area_overlap[key_tuple] = -1 #'bad_split'
         elif not key_tuple in area_overlap:
-        
             bot = np.minimum(np.amin(cnt_split,0), np.amin(cnt_check, 0))
             top = np.maximum(np.amax(cnt_split,0), np.amax(cnt_check, 0))
             
@@ -546,7 +530,7 @@ if __name__ == '__main__':
     
     
     print('S', len(points2split))    
-#%%
+
     #def splitTrajectories(trajectories_data_f, points2split):
     
     last_index = trajectories_data_f['worm_index_auto'].max()
@@ -601,8 +585,6 @@ if __name__ == '__main__':
     after_ratio = getAreaIntersecRatio(connect_after, final_cnt, initial_cnt)
     before_ratio = getAreaIntersecRatio(connect_before, initial_cnt, final_cnt)
     
-    
-    
     #maybe a graph reduction algorithm would work better...
     #%%
     print('Getting connections between trajectories.')    
@@ -627,10 +609,8 @@ if __name__ == '__main__':
                      #there is anothr way to arrive to this node we miss an earlier child
                      DG.remove_edge(n1,n2)
                      break
-    #%%
+    
     DG, trajectories_data_f = cleanRedundantNodes(DG, trajectories_data_f)
-    
-    
     #%%
     with pd.HDFStore(skeletons_file, 'r') as fid:
         trajectories_data = fid['/trajectories_data']
