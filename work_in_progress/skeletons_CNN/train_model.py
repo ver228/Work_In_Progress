@@ -362,10 +362,17 @@ def test5():
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
     return model
-
-
+    
 #%%
-model = test5()
+#model = test5()
+model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
+model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
+
+optimizer = Adam(lr=1e-4, decay=0.05)
+model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
 sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
 
