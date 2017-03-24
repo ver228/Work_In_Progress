@@ -177,17 +177,11 @@ if __name__ == '__main__':
     
     save_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN'
     
-    
-    
     roi_size = 128
     chuck_size = 100
-    
     get_roi_skel_sample(masked_file, skeletons_file, save_dir, roi_size, chuck_size)
         
     
-   
-    
-        
 #%%
 #import matplotlib.pylab as plt
 #

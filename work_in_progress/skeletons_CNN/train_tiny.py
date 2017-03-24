@@ -26,6 +26,7 @@ from keras.layers import Dense
 from keras.layers import Reshape
 from keras.layers import Flatten
 from keras.layers import Dropout
+from keras.layers import UpSampling2D
 
 from keras.models import load_model
 from keras.callbacks import TensorBoard, ModelCheckpoint, History
@@ -408,89 +409,237 @@ def test10():
                   optimizer=optimizer,
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
 
+#%%
+def test_resnet():
+    # for reproducibility
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    out_size = (49, 2)
+    roi_size = 128
+    
+    
+   
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', use_bias=False, name='conv0')(img_input)
+    x = BatchNormalization(name='conv0a_bn')(x)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', use_bias=False, name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    residual = Conv2D(128, (1, 1), strides=(2, 2),
+                          padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+    x = BatchNormalization(name='block2_sepconv1_bn')(x)
+    x = Activation('relu', name='block2_sepconv2_act')(x)
+    x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+    x = BatchNormalization(name='block2_sepconv2_bn')(x)
+    x = MaxPooling2D((2, 2), padding='same', name='block2_pool')(x)
+    x = layers.add([x, residual])
+    
+    
+    residual = Conv2D(512, (1, 1), strides=(2, 2),
+                          padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    x = Activation('relu', name='block3_sepconv1_act')(x)
+    x = Conv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+    x = BatchNormalization(name='block3_sepconv1_bn')(x)
+    x = Activation('relu', name='block3_sepconv2_act')(x)
+    x = Conv2D(512, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+    x = BatchNormalization(name='block3_sepconv2_bn')(x)
+    x = MaxPooling2D((2, 2), padding='same', name='block3_pool')(x)
+    x = layers.add([x, residual])
+    
+    
+    x = Conv2D(1024, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+    x = BatchNormalization(name='block14_sepconv2_bn')(x)
+    x = Activation('relu', name='block14_sepconv2_act')(x)
+    
+    x = GlobalMaxPooling2D(name='avg_pool')(x)
+    
+    
+    #layers seems to be key to capture the worm shape
+    #i need to use ELU instead of RELU otherwise the skeletons converges to 0
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(512, name='dense1', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(256, name='dense2', activation='elu')(x)
+    x = Dropout(0.2)(x)
+    
+    x = Dense(128, name='dense3', activation='elu')(x)
+    x = Dropout(0.1)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3)#, decay=0.05)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+    
+def test_pyramid():
 
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    out_size = (49, 2)
+    roi_size = 128
+    
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
+    x = BatchNormalization(name='conv1b_bn')(x)
+    x = Activation('relu', name='conv1b_act')(x)
+    x = MaxPooling2D((2, 2), name='conv1_pool')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
+    x = BatchNormalization(name='conv2a_bn')(x)
+    x = Activation('relu', name='conv2a_act')(x)
+    x = MaxPooling2D((2, 2), name='conv2_pool')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv2b')(x)
+    x = BatchNormalization(name='conv2b_bn')(x)
+    x = Activation('relu', name='conv2b_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = UpSampling2D((2,2))(x)
+    
+    x = Conv2D(16, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = UpSampling2D((2,2))(x)
+    
+    x = Conv2D(1, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    
+    x = Flatten()(x)
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(256, name='dense1', activation='elu')(x)
+    x = Dropout(0.2)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
 
+#%%
 # for reproducibility
-rand_seed = 1337
-np.random.seed(rand_seed)  
 
 out_size = (49, 2)
 roi_size = 128
-
-
-# convolution kernel size
-kernel_size = (3, 3)
-    
-
+rand_seed = 1337
+np.random.seed(rand_seed)
+ 
 input_shape = (roi_size, roi_size, 1)
 img_input =  Input(shape=input_shape)
 
-x = Conv2D(32, (3, 3), padding='same', use_bias=False, name='conv0')(img_input)
-x = BatchNormalization(name='conv0a_bn')(x)
-x = Activation('relu', name='conv0_act')(x)
-x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+block1 = Conv2D(32, (3, 3), padding='same', name='conv0a')(img_input)
+block1 = Activation('relu', name='conv0a_act')(block1)
+block1 = Conv2D(32, (3, 3), padding='same', name='conv0b')(block1)
+block1 = Activation('relu', name='conv0b_act')(block1)
 
-x = Conv2D(64, (3, 3), padding='same', use_bias=False, name='conv1a')(x)
-x = BatchNormalization(name='conv1a_bn')(x)
-x = Activation('relu', name='conv1a_act')(x)
+block2 = MaxPooling2D((2, 2), name='conv0_pool')(block1)
+block2 = Conv2D(64, (3, 3), padding='same', name='conv1a')(block2)
+block2 = BatchNormalization(name='conv1a_bn')(block2)
+block2 = Activation('relu', name='conv1a_act')(block2)
+block2 = Conv2D(64, (3, 3), padding='same', name='conv1b')(block2)
+block2 = BatchNormalization(name='conv1b_bn')(block2)
+block2 = Activation('relu', name='conv1b_act')(block2)
 
-residual = Conv2D(128, (1, 1), strides=(2, 2),
-                      padding='same', use_bias=False)(x)
-residual = BatchNormalization()(residual)
-x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
-x = BatchNormalization(name='block2_sepconv1_bn')(x)
-x = Activation('relu', name='block2_sepconv2_act')(x)
-x = Conv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
-x = BatchNormalization(name='block2_sepconv2_bn')(x)
-x = MaxPooling2D((2, 2), padding='same', name='block2_pool')(x)
-x = layers.add([x, residual])
+block3 = MaxPooling2D((2, 2), name='conv1_pool')(block2)
+block3 = Conv2D(128, (3, 3), padding='same', name='conv2a')(block3)
+block3 = BatchNormalization(name='conv2a_bn')(block3)
+block3 = Activation('relu', name='conv2a_act')(block3)
+block3 = Conv2D(128, (3, 3), padding='same', name='conv2b')(block3)
+block3 = BatchNormalization(name='conv2b_bn')(block3)
+block3 = Activation('relu', name='conv2b_act')(block3)
 
+block4 = MaxPooling2D((2, 2), name='conv2_pool')(block3)
+block4 = Conv2D(256, (3, 3), padding='same', name='conv3a')(block4)
+block4 = BatchNormalization(name='conv3a_bn')(block4)
+block4 = Activation('relu', name='conv3a_act')(block4)
+block4 = Conv2D(256, (3, 3), padding='same', name='conv3b')(block4)
+block4 = BatchNormalization(name='conv3b_bn')(block4)
+block4 = Activation('relu', name='conv3b_act')(block4)
 
-residual = Conv2D(512, (1, 1), strides=(2, 2),
-                      padding='same', use_bias=False)(x)
-residual = BatchNormalization()(residual)
-x = Activation('relu', name='block3_sepconv1_act')(x)
-x = Conv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
-x = BatchNormalization(name='block3_sepconv1_bn')(x)
-x = Activation('relu', name='block3_sepconv2_act')(x)
-x = Conv2D(512, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
-x = BatchNormalization(name='block3_sepconv2_bn')(x)
-x = MaxPooling2D((2, 2), padding='same', name='block3_pool')(x)
-x = layers.add([x, residual])
-
-
-x = Conv2D(1024, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
-x = BatchNormalization(name='block14_sepconv2_bn')(x)
-x = Activation('relu', name='block14_sepconv2_act')(x)
-
-x = GlobalMaxPooling2D(name='avg_pool')(x)
+feat_top = GlobalMaxPooling2D(name='avg_pool')(block4)
+feat_top = Dense(1024, name='dense0', activation='elu')(feat_top)
+feat_top = Dropout(0.4)(feat_top)
 
 
-#layers seems to be key to capture the worm shape
-#i need to use ELU instead of RELU otherwise the skeletons converges to 0
-x = Dense(1024, name='dense0', activation='elu')(x)
-x = Dropout(0.4)(x)
+down_block4 = Conv2D(128, (3, 3), padding='same')(block4)
+down_block4 = UpSampling2D((2,2))(down_block4)
+p_block4 = layers.add([block3, down_block4])
 
-x = Dense(512, name='dense1', activation='elu')(x)
-x = Dropout(0.4)(x)
-
-x = Dense(256, name='dense2', activation='elu')(x)
-x = Dropout(0.2)(x)
-
-x = Dense(128, name='dense3', activation='elu')(x)
-x = Dropout(0.1)(x)
-
-x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
-x = Reshape((out_size))(x)
+feat_p4 = GlobalMaxPooling2D(name='avg_pool')(p_block4)
+p_block4 = Dense(1024, activation='elu')(p_block4)
+p_block4 = Dropout(0.4)(feat_top)
 
 
+#down_merge_3_4 = Conv2D(32, (1, 1), activation='elu', padding='same')(merged_3_4)
+#down_merge_3_4 = UpSampling2D((2,2))(down_merge_3_4)
+#lat_block2 = Conv2D(32, (1, 1), activation='elu', padding='same')(block2)
+#merged_2_3 = layers.add([lat_block2, down_merge_3_4])
+#
+#feat_2_3 = Conv2D(16, (3, 3), activation='elu', padding='same')(merged_2_3)
+#feat_2_3 = Conv2D(1, (3, 3), activation='elu', padding='same')(feat_2_3)
+#feat_2_3 = Flatten()(feat_2_3)
+#feat_2_3 = Dense(1024, activation='elu')(feat_2_3)
+#
+#down_merge_2_3 = Conv2D(16, (1, 1), activation='elu', padding='same')(merged_2_3)
+#down_merge_2_3 = UpSampling2D((2,2))(down_merge_2_3)
+#lat_block1 = Conv2D(16, (1, 1), activation='elu', padding='same')(block1)
+#merged_1_2 = layers.add([lat_block1, down_merge_2_3])
+#
+#feat_1_2 = Conv2D(1, (3, 3), activation='elu', padding='same')(merged_1_2)
+#feat_1_2 = Flatten()(feat_1_2)
+#feat_1_2 = Dense(1024, activation='elu')(feat_1_2)
 
-model = Model(img_input, x)
-optimizer = Adam(lr=1e-3)#, decay=0.05)
+#all_feats = layers.add([feat_top, feat_3_4, feat_2_3, feat_1_2])
+all_feats = layers.add([feat_top, p_block4])
+all_feats = Dense(1024, activation='elu')(all_feats)
+p_block4 = Dense(1024, activation='elu')(p_block4)
+p_block4 = Dropout(0.4)(feat_top)
+p_block4 = Dense(1024, activation='elu')(p_block4)
+p_block4 = Dropout(0.4)(feat_top)
+
+
+
+skel_out = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(all_feats)
+skel_out = Reshape((out_size))(skel_out)
+
+
+
+model = Model(img_input, skel_out)
+#optimizer = Adam(lr=1e-2, decay=0.1)
+optimizer = Adam(lr=1e-3, decay=0.1)
 model.compile(loss='mean_absolute_error',
               optimizer=optimizer,
               metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
-
 
 
 #%%
@@ -513,9 +662,11 @@ with tables.File(sample_file, 'r') as fid:
 #%%
 epochs = 2000
 save_period = 50
+#epochs = 100
+#save_period = 10
 
 pad=int(np.ceil(np.log10(epochs+1)))
-log_dir = os.path.join(SAVE_DIR, 'logs/main_%s' % time.strftime('%Y%m%d_%H%M%S'))
+log_dir = os.path.join(SAVE_DIR, 'logs', 'tiny_%s' % time.strftime('%Y%m%d_%H%M%S'))
 checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:0%id}-{loss:.4f}.h5' % pad)
 
 history = History()

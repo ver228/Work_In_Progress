@@ -13,13 +13,18 @@ import matplotlib.pylab as plt
 import os
 
 #sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample_bad.hdf5'
-#sample_file = 'egl-43 (n1079)II on food L_2010_07_09__11_04___3___2_sample.hdf5'
-sample_file = 'HW_worm3_F1-3_Set4_Pos4_Ch3_26012017_153655_sample.hdf5'
+sample_file = 'egl-43 (n1079)II on food L_2010_07_09__11_04___3___2_sample.hdf5'
+#sample_file = 'HW_worm3_F1-3_Set4_Pos4_Ch3_26012017_153655_sample.hdf5'
 
-model_name = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/main_logs_20170321_210122/main-18-0.03.h5'
-model = load_model(model_name)
+#model_name = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/simple_20170321_210122/main-18-0.03.h5'
+#model_name = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529/tiny-018-0.0415.h5'
+model_name = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/simple_20170323_154817/simple-010-0.0329.h5'
+#model_name = '/Volumes/behavgenom_archive\$/Avelino/skeletons_cnn_tests/logs/main_20170323_153747/tiny-003-0.0357.h5'
 
-with tables.File(sample_file, 'r') as fid:
+SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
+sample_file_f = os.path.join(SAVE_DIR, 'data', sample_file)
+
+with tables.File(sample_file_f, 'r') as fid:
     #select a tiny sample
     tot = fid.get_node('/mask').shape[0]
     inds = np.random.permutation(tot)[:128]
@@ -28,9 +33,7 @@ with tables.File(sample_file, 'r') as fid:
     Y = fid.get_node('/skeleton')[inds, :, :]
     roi_size = X.shape[1]
     
-    
-
-
+model = load_model(model_name)
 
 Y_pred = model.predict(X)
 roi_size = X.shape[1]

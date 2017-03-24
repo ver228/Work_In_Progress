@@ -13,23 +13,50 @@ import tables
 import numpy as np
 import matplotlib.pylab as plt
 
+SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
+
 #log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/main_logs_20170321_210122'
 #log_dir = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/logs/tiny_20170322_153316'
-log_dir = './logs/tiny_20170322_165535'
+
+#%%
+#log_dir_n = 'simple_20170321_210122'
+#log_dir_n = 'resnet_20170322_191529'
+#log_dir_n = 'simple_20170323_154817'
+#log_dir_n = 'main_20170323_153747'
+#log_dir_n = 'main_20170323_204136'
+#is_tiny = False
+#%%
+#log_dir_n = 'tiny_simple_20170321_232912' #i don't think i am using the sample samples i used to train the network
+#log_dir_n = 'tiny_resnet_20170322_191940'
+#log_dir_n = 'tiny_20170323_170847'
+#log_dir_n = 'tiny_resnet_20170322_165535_100epochs'
+#log_dir_n = 'tiny_pyramid_small_20170323_172456'
+
+log_dir_n = 'tiny_20170324_165206'
+is_tiny = True
+#%%
 sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
-sample_file = os.path.join(log_dir, 'input_set.hdf5')
+
+log_dir = os.path.join(SAVE_DIR, 'logs', log_dir_n)
+if is_tiny:
+    sample_file = os.path.join(log_dir, 'input_set.hdf5')
+else:
+    sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
 
 
 rand_seed = 1337
 np.random.seed(rand_seed)
 
 with tables.File(sample_file, 'r') as fid:
-    X_set = fid.get_node('/X')
-    Y_set = fid.get_node('/Y')
     
-    #select a tiny sample
-    #X_set = fid.get_node('/mask')
-    #Y_set = fid.get_node('/skeleton')
+    if is_tiny:
+        #select a tiny sample
+        X_set = fid.get_node('/X')
+        Y_set = fid.get_node('/Y')
+    
+    else:
+        X_set = fid.get_node('/mask')
+        Y_set = fid.get_node('/skeleton')
     
     
     tot = X_set.shape[0]
@@ -38,18 +65,17 @@ with tables.File(sample_file, 'r') as fid:
     inds = np.random.permutation(tot)[:128]
     X = X_set[inds, :, :]
     Y = Y_set[inds, :, :]
-    #X = X[:, :, :, np.newaxis]
     
-    #Y = Y/roi_size
-    #Y = (Y-(roi_size/2.))/roi_size*2
-    #X = -(X-np.mean(X, axis=(1,2)))
-    
-    
+    if is_tiny:
+        Y = Y*roi_size/2 + roi_size/2.
+        
+    if X.ndim == 3:
+        X = X[:, :, :, np.newaxis]
     
 fnames = sorted(glob.glob(os.path.join(log_dir, '*.h5')))
 
-#fnames = fnames[-4:]
-fnames = fnames[:10]
+fnames = fnames[-4:]
+#fnames = fnames[:10]
 
 for fname in fnames:
     print(fname)
@@ -58,16 +84,18 @@ for fname in fnames:
     Y_pred = model.predict(X)
     roi_size = X.shape[1]
     #%%
-    #Y_c = Y*roi_size/2 + roi_size/2.
     Y_pred_c = Y_pred*roi_size/2 + roi_size/2.
-    Y_c = Y*roi_size/2 + roi_size/2.
-    #Y_pred_c = Y_pred
+    Y_c = Y
+    
+    mad = np.mean(np.abs(Y_pred_c-Y), axis=(1,2))
+    inds = mad.argsort()[::-1]
+    
+    #inds = range(16)
     
     
-    ind = 20
     plt.figure()
-    for ind in range(16):
-        plt.subplot(4,4,ind+1)
+    for ii, ind in enumerate(inds[:16]):
+        plt.subplot(4,4,ii+1)
         plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
         plt.grid('off')
         
@@ -76,21 +104,8 @@ for fname in fnames:
         plt.plot(Y_c[ind, 0, 0], Y_c[ind, 0, 1], 'sr')
         plt.plot(Y_pred_c[ind, :, 0], Y_pred_c[ind, :, 1], '-b')
         plt.plot(Y_pred_c[ind, 0, 0], Y_pred_c[ind, 0, 1], 'ob')
-        #model.save('skels_tiny_{}.h5'.format((i+1)*nb_epoch))
-        
     plt.suptitle(os.path.basename(fname))
-        #plt.xlim((-1.5,1.5))
-        #plt.ylim((-1.5,1.5))
-        
-#%%
-#fname = '/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/skeletons_CNN/skels_mod_60.h5'
-#with tables.File(fname, 'r') as fid:
-#    dd = fid.get_node('/model_weights/convolution2d_1/convolution2d_1_W:0')[:]
-#    
-#    for ind in range(64):
-#        plt.subplot(8,8,ind+1)
-#        plt.imshow(np.squeeze(dd[:,:,:,ind]), interpolation='none', cmap='gray')
-#        
+
         
     
     

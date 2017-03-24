@@ -36,7 +36,7 @@ from keras.layers import Dropout
 from keras.models import load_model
 from keras.callbacks import TensorBoard, ModelCheckpoint, History
 from keras.optimizers import Adam
-
+from keras.layers import UpSampling2D
 
 SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 
@@ -214,7 +214,7 @@ def test3():
 
     return model
 #%%
-def test4():
+def test_simple():
     # for reproducibility
     rand_seed = 1337
     np.random.seed(rand_seed)  
@@ -283,8 +283,8 @@ def test4():
 
 
     return model
-
-def test5():
+#%%
+def test_resnet():
     # for reproducibility
     rand_seed = 1337
     np.random.seed(rand_seed)  
@@ -362,16 +362,80 @@ def test5():
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
     return model
-    
 #%%
-#model = test5()
-model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
-model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
-
-optimizer = Adam(lr=1e-4, decay=0.05)
-model.compile(loss='mean_absolute_error',
+def test_pyramid():
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    out_size = (49, 2)
+    roi_size = 128
+    
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
+    x = BatchNormalization(name='conv1b_bn')(x)
+    x = Activation('relu', name='conv1b_act')(x)
+    x = MaxPooling2D((2, 2), name='conv1_pool')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
+    x = BatchNormalization(name='conv2a_bn')(x)
+    x = Activation('relu', name='conv2a_act')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2b')(x)
+    x = BatchNormalization(name='conv2b_bn')(x)
+    x = Activation('relu', name='conv2b_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = UpSampling2D((2,2))(x)
+    
+    x = Conv2D(32, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = UpSampling2D((2,2))(x)
+    
+    x = Conv2D(2, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    
+    x = Flatten()(x)
+    x = Activation('softmax')(x)
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(256, name='dense1', activation='elu')(x)
+    x = Dropout(0.2)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3, decay=0.05)
+    model.compile(loss='mean_absolute_error',
                   optimizer=optimizer,
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+    
+    return model
+
+#%%
+#model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
+#model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
+#optimizer = Adam(lr=1e-4, decay=0.05)
+#model.compile(loss='mean_absolute_error',
+#                  optimizer=optimizer,
+#                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+model = test_pyramid()
 
 sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
@@ -394,9 +458,9 @@ with tables.File(sample_file, 'r') as fid:
 #%%
 epochs = 200
 
-log_dir = os.path.join(SAVE_DIR, 'logs/main_%s' % time.strftime('%Y%m%d_%H%M%S'))
+log_dir = os.path.join(SAVE_DIR, 'logs', 'main_%s' % time.strftime('%Y%m%d_%H%M%S'))
 pad=int(np.ceil(np.log10(epochs+1)))
-checkpoint_file = os.path.join(log_dir, 'tiny-{epoch:0%id}-{loss:.4f}.h5' % pad)
+checkpoint_file = os.path.join(log_dir, 'main-{epoch:0%id}-{loss:.4f}.h5' % pad)
 
 history = History()
 tb = TensorBoard(log_dir=log_dir)
