@@ -12,6 +12,7 @@ import numpy as np
 import pymysql
 import os
 import matplotlib.pylab as plt
+import cv2
 
 from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
 from tierpsy.analysis.compress.compressVideo import IMG_FILTERS
@@ -113,8 +114,9 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
             fid.create_array(grp, field, obj=indexes)
 #%%
 if __name__ == '__main__':
-    training_file = 'samples_eggs.hdf5'
-    roi_size = 100
+    training_file = 'samples_eggs_zoomed.hdf5'
+    roi_size = 128
+    roi_fixed = -1
     win_d = 2
     win_size = 2*win_d + 1
     win_offset = (win_d*2+2)
@@ -184,10 +186,13 @@ if __name__ == '__main__':
                     
                     empty_array = True
                     for ii, frame_number in enumerate(range(ran[0], ran[1]+1)):
-                        output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size)
+                        output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size=roi_fixed)
                         if output is not None:
                             row, worm_roi, roi_corner = output
                             worm_roi = worm_roi.astype(np.float)
+                            
+                            if worm_roi.shape[0] != roi_size:
+                                worm_roi = cv2.resize(worm_roi, (roi_size,roi_size))
                             worm_rois[ii] = worm_roi
                             empty_array = False
                             
@@ -197,6 +202,7 @@ if __name__ == '__main__':
                                 worm_diff[mask] = worm_roi[mask] - prev_img[mask]
                                 worm_rois_d[ii-1] = worm_diff
                             prev_img = worm_roi
+                        
                         
                             
                     if not empty_array:

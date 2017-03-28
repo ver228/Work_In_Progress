@@ -16,7 +16,8 @@ from tierpsy.analysis.ske_create.helperIterROI import generateMoviesROI
 from tierpsy.analysis.ske_init.filterTrajectModel import shift_and_normalize
 
 #model_trained_path = 'model_egg_laying3_epocs20_20170308_194818.h5'
-model_trained_path = 'model_egg_laying_diff_20170309_193209.h5'
+#model_trained_path = 'model_egg_laying_diff_20170309_193209.h5'
+model_trained_path = '/Volumes/behavgenom_archive$/Avelino/eggs_tests/logs/main_20170328_140758/main-001-0.1707.h5'
 model = load_model(model_trained_path)
 roi_size = model.input_shape[2]
 
@@ -56,6 +57,9 @@ worm_buff = []
 seq_dat = []
 worm_probs = np.full((true_eggs.size, 2), np.nan)
 
+
+buff_size = 4
+
 prev_img = None
 for worms_in_frame in ROIs_generator:
     assert len(worms_in_frame) == 1 #we are only dealing with one worm case
@@ -67,39 +71,39 @@ for worms_in_frame in ROIs_generator:
         
         worm_img = worm_img.astype(np.float)
         
-        if prev_img is not None:
-            mask = (worm_img*prev_img) != 0
-            worm_diff = np.zeros_like(worm_img)
-            worm_diff[mask] = worm_img[mask] - prev_img[mask]
-        
-        
-            if len(worm_buff) < 4:
-                worm_buff.append(worm_diff)
-            else:
-                worm_buff = worm_buff[1:] + [worm_diff]
-                worm_seq = np.array(worm_buff)
-                seq_dat.append((frame_number-2, np.rollaxis(worm_seq, 0, 3)))
+#        if prev_img is not None:
+#            mask = (worm_img*prev_img) != 0
+#            worm_diff = np.zeros_like(worm_img)
+#            worm_diff[mask] = worm_img[mask] - prev_img[mask]
+#        
+#        
+#            if len(worm_buff) < buff_size-1:
+#                worm_buff.append(worm_diff)
+#            else:
+#                worm_buff = worm_buff[1:] + [worm_diff]
+#                worm_seq = np.array(worm_buff)
+#                seq_dat.append((frame_number-2, np.rollaxis(worm_seq, 0, 3)))
         
         prev_img = worm_img
-#        if len(worm_buff) < 5:
-#            worm_buff.append(worm_img)
-#        else:
-#            worm_buff = worm_buff[1:] + [worm_img]
-#            worm_seq = shift_and_normalize(np.array(worm_buff))
-#            seq_dat.append((frame_number-2, np.rollaxis(worm_seq, 0, 3)))
+        if len(worm_buff) < buff_size:
+            worm_buff.append(worm_img)
+        else:
+            worm_buff = worm_buff[1:] + [worm_img]
+            worm_seq = shift_and_normalize(np.array(worm_buff))
+            seq_dat.append((frame_number-1, np.rollaxis(worm_seq, 0, 3)))
 #    
     if (len(seq_dat)+1) % 100 == 0:
         frame_numbers, worm_seqs = zip(*seq_dat)
         
         worm_seqs = np.array(worm_seqs)
-        worm_prob = model.predict_proba(worm_seqs, verbose=0)
+        worm_prob = model.predict(worm_seqs, verbose=0)
         worm_probs[frame_numbers, :] = worm_prob
         seq_dat = []
-
+#%%
 if len(seq_dat) > 0:
     frame_numbers, worm_seqs = zip(*seq_dat)
     worm_seqs = np.array(worm_seqs)
-    worm_prob = model.predict_proba(worm_seqs, verbose=0)
+    worm_prob = model.predict(worm_seqs, verbose=0)
     worm_probs[frame_numbers, :] = worm_prob
     
 #%%

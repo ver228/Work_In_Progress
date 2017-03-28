@@ -17,7 +17,8 @@ from egg_train_model import _plot_seq, read_field_data
 
 n_rows = 2
 
-sample_file = 'samples_eggs_fixed.hdf5'
+#sample_file = 'samples_eggs_fixed.hdf5'
+sample_file = 'samples_eggs_zoomed.hdf5'
 data = read_field_data(sample_file, 'train', tot=n_rows)
 
 #for irow in range(n_rows):

@@ -539,7 +539,7 @@ if __name__ == '__main__':
             
     #%%
     epochs = 200
-    
+    batch_size = 128
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
     checkpoint_file = os.path.join(log_dir, '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
@@ -548,12 +548,12 @@ if __name__ == '__main__':
     mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=1)
     
     img_generator = ImageSkeletonsGenerator(sample_file, 
-                     batch_size=32, 
+                     batch_size=batch_size, 
                      shuffle=False, 
                      seed=rand_seed)
     
     model.fit_generator(img_generator,
-                        steps_per_epoch = img_generator.tot_samples, 
+                        steps_per_epoch = round(img_generator.tot_samples/batch_size), 
                         epochs = epochs,
                         verbose = 1,
                         validation_data = data['val'],
