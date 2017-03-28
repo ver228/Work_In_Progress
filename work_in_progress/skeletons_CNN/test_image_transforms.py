@@ -9,7 +9,7 @@ import numpy as np
 import tables
 import scipy.ndimage as ndi
 
-def random_rotation(x, y, rg, row_axis=1, col_axis=2, channel_axis=0,
+def _random_rotation_r(x, y, rg, row_axis=1, col_axis=2, channel_axis=0,
                     fill_mode='nearest', cval=0.):
     """Performs a random rotation of a Numpy image tensor.
     # Arguments
@@ -39,7 +39,8 @@ def random_rotation(x, y, rg, row_axis=1, col_axis=2, channel_axis=0,
     
     return x, y
 
-def random_shift(x, y, wrg, hrg, row_axis=1, col_axis=2, channel_axis=0,
+
+def _random_shift(x, y, shift_range, row_axis=1, col_axis=2, channel_axis=0,
                  fill_mode='nearest', cval=0.):
     """Performs a random spatial shift of a Numpy image tensor.
     # Arguments
@@ -75,55 +76,7 @@ def random_shift(x, y, wrg, hrg, row_axis=1, col_axis=2, channel_axis=0,
     
     return x, yr
 
-
-def apply_transform_coord(y, transform_matrix):
-    yr = np.ones((y.shape[0],y.shape[1]+1)); 
-    yr[:,:-1] = y
-    yr = np.dot(transform_matrix, yr.T).T
-    return yr[:, :-1]
-
-def apply_transform_img(x,
-                    transform_matrix,
-                    channel_axis=0,
-                    fill_mode='nearest',
-                    cval=0.):
-    """Apply the image transformation specified by a matrix.
-    # Arguments
-        x: 2D numpy array, single image.
-        transform_matrix: Numpy array specifying the geometric transformation.
-        channel_axis: Index of axis for channels in the input tensor.
-        fill_mode: Points outside the boundaries of the input
-            are filled according to the given mode
-            (one of `{'constant', 'nearest', 'reflect', 'wrap'}`).
-        cval: Value used for points outside the boundaries
-            of the input if `mode='constant'`.
-    # Returns
-        The transformed version of the input.
-    """
-    x = np.rollaxis(x, channel_axis, 0)
-    final_affine_matrix = transform_matrix[:2, :2]
-    final_offset = transform_matrix[:2, 2]
-    channel_images = [ndi.interpolation.affine_transform(
-        x_channel,
-        final_affine_matrix,
-        final_offset,
-        order=0,
-        mode=fill_mode,
-        cval=cval) for x_channel in x]
-    x = np.stack(channel_images, axis=0)
-    x = np.rollaxis(x, 0, channel_axis + 1)
-    return x
-
-
-def transform_matrix_offset_center(matrix, x, y):
-    o_x = float(x) / 2 + 0.5
-    o_y = float(y) / 2 + 0.5
-    offset_matrix = np.array([[1, 0, o_x], [0, 1, o_y], [0, 0, 1]])
-    reset_matrix = np.array([[1, 0, -o_x], [0, 1, -o_y], [0, 0, 1]])
-    transform_matrix = np.dot(np.dot(offset_matrix, matrix), reset_matrix)
-    return transform_matrix
-
-def random_zoom(x, y, zoom_range, row_axis=1, col_axis=2, channel_axis=0,
+def _random_zoom(x, y, zoom_range, row_axis=1, col_axis=2, channel_axis=0,
                 fill_mode='nearest', cval=0.):
     """Performs a random spatial zoom of a Numpy image tensor.
     # Arguments
@@ -166,7 +119,131 @@ def random_zoom(x, y, zoom_range, row_axis=1, col_axis=2, channel_axis=0,
     y = apply_transform_coord(y, transform_matrix)
     return x, y
 
+def random_rotation(rg, h, w):
+    
+    theta = np.pi / 180 * np.random.uniform(-rg, rg)
+    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],
+                                [np.sin(theta), np.cos(theta), 0],
+                                [0, 0, 1]])
+    transform_matrix = transform_matrix_offset_center(rotation_matrix, h, w)    
+    return transform_matrix
 
+
+def random_shift(shift_range, h, w):
+    
+    tx = np.random.uniform(-shift_range, shift_range) * h
+    ty = np.random.uniform(-shift_range, shift_range) * w
+    translation_matrix_x = np.array([[1, 0, tx],
+                                   [0, 1, ty],
+                                   [0, 0, 1]])
+
+    translation_matrix_y = np.array([[1, 0, -ty],
+                                   [0, 1, -tx],
+                                   [0, 0, 1]])
+    return translation_matrix_x, translation_matrix_y
+
+
+def random_zoom(zoom_range, h, w):
+    if zoom_range[0] == 1 and zoom_range[1] == 1:
+        zx, zy = 1, 1
+    else:
+        zx, zy = np.random.uniform(zoom_range[0], zoom_range[1], 2)
+    zoom_matrix_x = np.array([[zx, 0, 0],
+                            [0, zy, 0],
+                            [0, 0, 1]])
+
+    transform_matrix_x = transform_matrix_offset_center(zoom_matrix_x, h, w)
+    
+    
+    zoom_matrix_y = np.array([[1/zy, 0, 0],
+                            [0, 1/zx, 0],
+                            [0, 0, 1]])
+    transform_matrix_y = transform_matrix_offset_center(zoom_matrix_y, h, w)
+    return transform_matrix_x, transform_matrix_y
+
+def apply_transform_coord(y, transform_matrix):
+    yr = np.ones((y.shape[0],y.shape[1]+1)); 
+    yr[:,:-1] = y
+    yr = np.dot(transform_matrix, yr.T).T
+    return yr[:, :-1]
+
+def apply_transform_img(x,
+                    transform_matrix,
+                    channel_axis=0,
+                    fill_mode='nearest',
+                    cval=0.):
+    """Apply the image transformation specified by a matrix.
+    # Arguments
+        x: 2D numpy array, single image.
+        transform_matrix: Numpy array specifying the geometric transformation.
+        channel_axis: Index of axis for channels in the input tensor.
+        fill_mode: Points outside the boundaries of the input
+            are filled according to the given mode
+            (one of `{'constant', 'nearest', 'reflect', 'wrap'}`).
+        cval: Value used for points outside the boundaries
+            of the input if `mode='constant'`.
+    # Returns
+        The transformed version of the input.
+    """
+    x = np.rollaxis(x, channel_axis, 0)
+    final_affine_matrix = transform_matrix[:2, :2]
+    final_offset = transform_matrix[:2, 2]
+    channel_images = [ndi.interpolation.affine_transform(
+        x_channel,
+        final_affine_matrix,
+        final_offset,
+        order=0,
+        mode=fill_mode,
+        cval=cval) for x_channel in x]
+    x = np.stack(channel_images, axis=0)
+    x = np.rollaxis(x, 0, channel_axis + 1)
+    return x
+
+
+
+
+def transform_matrix_offset_center(matrix, x, y):
+    o_x = float(x) / 2 + 0.5
+    o_y = float(y) / 2 + 0.5
+    offset_matrix = np.array([[1, 0, o_x], [0, 1, o_y], [0, 0, 1]])
+    reset_matrix = np.array([[1, 0, -o_x], [0, 1, -o_y], [0, 0, 1]])
+    transform_matrix = np.dot(np.dot(offset_matrix, matrix), reset_matrix)
+    return transform_matrix
+
+
+def random_transform(xx, yy, 
+                     rotation_range=90, 
+                     shift_range = 0.1,
+                     zoom_range = (0.75, 1.25),
+                     horizontal_flip=True,
+                     vertical_flip=True):
+    h, w = xx.shape[:-1]
+    rot_mat = random_rotation(rotation_range, h, w)
+    shift_mat_x, shift_mat_y = random_shift(shift_range, h, w)
+    zoom_mat_x, zoom_mat_y = random_zoom(zoom_range, h, w)
+    
+    transform_x = rot_mat.copy()
+    for mat in [shift_mat_x, zoom_mat_x]:
+        transform_x = np.dot(transform_x, mat)
+    
+    transform_y = rot_mat.copy()
+    for mat in [shift_mat_y, zoom_mat_y]:
+        transform_y = np.dot(mat, transform_y)
+    
+    img = apply_transform_img(xx, transform_x, 2)
+    yr = apply_transform_coord(yy, transform_y)
+
+    if horizontal_flip and np.random.random() < 0.5:
+        img = img[::-1, :, :]
+        yr[:, 1] = -yr[:, 1] + img.shape[1]
+    
+    if vertical_flip and np.random.random() < 0.5:
+        img = img[:, ::-1, :]
+        yr[:, 0] = -yr[:, 0] + img.shape[0]
+
+
+
+    return img, yr
 if __name__ == '__main__':
     import os
     
@@ -203,22 +280,29 @@ if __name__ == '__main__':
         raise ValueError('zoom_range should be a float or '
                          'a tuple or list of two floats. '
                          'Received arg: ', zoom_range)
+    n_rows, n_cols = 2,2
     
-    #img, yr = random_rotation(xx, yy, 90, row_axis=0, col_axis=1, channel_axis=2)
-    img, yr = random_shift(xx, yy, 0.1, 0.1, row_axis=0, col_axis=1, channel_axis=2)
-    img, yr = random_rotation(img, yr, 90, row_axis=0, col_axis=1, channel_axis=2)
-   
-    img, yr = random_zoom(xx, yy, zoom_range, row_axis=0, col_axis=1, channel_axis=2)
-    
-    plt.subplot(1,2,1)
+    plt.figure()
+    plt.subplot(n_rows,n_cols,1)
     plt.imshow(np.squeeze(xx), interpolation='none', cmap='gray')
     plt.plot(yy[:,0], yy[:,1])
     plt.plot(yy[0,0], yy[0,1], 'x')
-    plt.plot()
-    plt.subplot(1,2,2)
-    plt.imshow(np.squeeze(img), interpolation='none', cmap='gray')
-    plt.plot(yr[:,0], yr[:,1])
-    plt.plot(yr[0,0], yr[0,1], 'x')
-#    
-#    plt.plot(yy[:,0], yy[:,1])
-#    plt.plot(yy[0,0], yy[0,1], 'x')
+        
+    for mm in range(n_rows*n_cols-1):
+    
+        img, yr = random_transform(xx, yy, 
+                     rotation_range=90, 
+                     shift_range = 0.1,
+                     zoom_range = (0.75, 1.25),
+                     horizontal_flip=True,
+                     vertical_flip=True)
+        
+        
+        plt.plot()
+        plt.subplot(n_rows,n_cols,mm+2)
+        plt.imshow(np.squeeze(img), interpolation='none', cmap='gray')
+        plt.plot(yr[:,0], yr[:,1], 'r')
+        plt.plot(yr[0,0], yr[0,1], 'x')
+    #    
+    #    plt.plot(yy[:,0], yy[:,1])
+    #    plt.plot(yy[0,0], yy[0,1], 'x')

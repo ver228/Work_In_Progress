@@ -29,10 +29,10 @@ from keras.models import load_model
 
 from keras.preprocessing.image import ImageDataGenerator
 
-from egg_trainset import _plot_seq
+#from egg_trainset import _plot_seq
 from keras.models import Model
 
-from keras.callbacks import TensorBoard, ModelCheckpoint, History
+from keras.callbacks import TensorBoard, ModelCheckpoint
 from keras.optimizers import Adam
 
 rand_seed = 1337
@@ -217,9 +217,10 @@ def show_bad(model, X, Y):
     return bad_ind
 #%%
 if __name__ == '__main__':
-    
+    SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/eggs_tests/'
     
     training_file = 'samples_eggs_fixed.hdf5'
+    training_file = os.path.join(SAVE_DIR, 'data', training_file)
     #filename = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.hdf5'
     #model_trained_path = '/Users/ajaver/Documents/GitHub/Multiworm_Tracking/MWTracker/misc/model_isworm_20161130_002654.h5'
     
@@ -241,8 +242,8 @@ if __name__ == '__main__':
     epochs = 200
     
     
-    SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
-    log_dir = os.path.join(SAVE_DIR, 'log_eggs', 'main_%s' % time.strftime('%Y%m%d_%H%M%S'))
+    
+    log_dir = os.path.join(SAVE_DIR, 'logs', 'main_%s' % time.strftime('%Y%m%d_%H%M%S'))
     pad=int(np.ceil(np.log10(epochs+1)))
     checkpoint_file = os.path.join(log_dir, 'main-{epoch:0%id}-{loss:.4f}.h5' % pad)
 
@@ -264,18 +265,11 @@ if __name__ == '__main__':
                     validation_data=data['val'],
                     callbacks=[tb, mcp])
 
-
-#    
-#    model.fit(*data['train'], 
-#              batch_size=batch_size, 
-#              epochs=epochs,
-#              verbose=1,
-#              validation_data=data['val'])
     #%%
-#    X_test, Y_test = read_field_data(training_file, 'test')
-#    score = model.evaluate(X_test, Y_test, verbose=0)
-#    print('Test score:', score[0])
-#    print('Test accuracy:', score[1])
+    X_test, Y_test = read_field_data(training_file, 'test')
+    score = model.evaluate(X_test, Y_test, verbose=0)
+    print('Test score:', score[0])
+    print('Test accuracy:', score[1])
     
     score = model.evaluate(*data['val'], verbose=0)
     print('Validation score:', score[0])
