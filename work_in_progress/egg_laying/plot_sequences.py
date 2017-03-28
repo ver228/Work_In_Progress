@@ -12,13 +12,13 @@ import numpy as np
 
 from keras.preprocessing.image import ImageDataGenerator
 
-from egg_train_model import _plot_seq, read_field_data
+from egg_train_model import read_field_data
 
 
 n_rows = 2
 
 #sample_file = 'samples_eggs_fixed.hdf5'
-sample_file = 'samples_eggs_zoomed.hdf5'
+sample_file = 'samples_eggs_resized.hdf5'
 data = read_field_data(sample_file, 'train', tot=n_rows)
 
 #for irow in range(n_rows):
@@ -32,18 +32,19 @@ data = read_field_data(sample_file, 'train', tot=n_rows)
 
         
 #%%
-
-
-
 datagen = ImageDataGenerator(rotation_range=90.,
                      width_shift_range=0.1,
                      height_shift_range=0.1,
                      zoom_range=0.2,
                      horizontal_flip=True,
                      vertical_flip=True)
-dd = datagen.flow(data[0][:,:,:,1:], data[1], batch_size=32)
 
-n_rows = 5
+#datagen = ImageDataGenerator(
+#                     horizontal_flip=True,
+#                     vertical_flip=True)
+#dd = datagen.flow(data[0][:,:,:,1:], data[1], batch_size=32)
+dd = datagen.flow(data[0][:,:,:,:], data[1], batch_size=32)
+
 for idat, (X, Y) in enumerate(dd):
     for iseq in range(X.shape[0]):
         seq_worm = X[iseq]

@@ -114,7 +114,7 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
             fid.create_array(grp, field, obj=indexes)
 #%%
 if __name__ == '__main__':
-    training_file = 'samples_eggs_zoomed.hdf5'
+    training_file = 'samples_eggs_resized.hdf5'
     roi_size = 128
     roi_fixed = -1
     win_d = 2
@@ -132,6 +132,8 @@ if __name__ == '__main__':
     tot_samples = 0
     with h5py.File(training_file, 'w') as fid:
         egg_events.to_hdf(training_file, 'eggs_data')
+        #egg_events = egg_events[:10]
+        
         egg_X = fid.create_dataset('/egg_laying_X', 
                                      (tot_events, win_size, roi_size,roi_size),
                                      dtype=np.float,
@@ -189,8 +191,9 @@ if __name__ == '__main__':
                         output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size=roi_fixed)
                         if output is not None:
                             row, worm_roi, roi_corner = output
-                            worm_roi = worm_roi.astype(np.float)
                             
+                            worm_roi = worm_roi.astype(np.float)
+                            worm_roi = shift_and_normalize(worm_roi)
                             if worm_roi.shape[0] != roi_size:
                                 worm_roi = cv2.resize(worm_roi, (roi_size,roi_size))
                             worm_rois[ii] = worm_roi
@@ -206,8 +209,8 @@ if __name__ == '__main__':
                         
                             
                     if not empty_array:
-                        worm_rois_n = shift_and_normalize(worm_rois)
-                        egg_X[tot_samples] = worm_rois_n
+                        #worm_rois_n = shift_and_normalize(worm_rois)
+                        egg_X[tot_samples] = worm_rois
                         egg_Y[tot_samples] = lab
                         event_ids[tot_samples] = irow
                         

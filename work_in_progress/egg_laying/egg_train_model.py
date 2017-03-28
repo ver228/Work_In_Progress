@@ -195,7 +195,7 @@ def read_field_data(filename, field, tot=None):
         X = fid.get_node('/egg_laying_X')[indexes, :, :, :]
         #X = X[:,:, :, :, np.newaxis]
         X = np.rollaxis(X, 1, 4)
-        X = X[:, :, :, 1:]
+        X = X[:, :, :, :-1]
         
         
         dat = fid.get_node('/egg_laying_Y')[indexes]
@@ -219,7 +219,7 @@ def show_bad(model, X, Y):
 if __name__ == '__main__':
     SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/eggs_tests/'
     
-    training_file = 'samples_eggs_fixed.hdf5'
+    training_file = 'samples_eggs_resized.hdf5'
     training_file = os.path.join(SAVE_DIR, 'data', training_file)
     #filename = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.hdf5'
     #model_trained_path = '/Users/ajaver/Documents/GitHub/Multiworm_Tracking/MWTracker/misc/model_isworm_20161130_002654.h5'
@@ -245,7 +245,7 @@ if __name__ == '__main__':
     
     log_dir = os.path.join(SAVE_DIR, 'logs', 'main_%s' % time.strftime('%Y%m%d_%H%M%S'))
     pad=int(np.ceil(np.log10(epochs+1)))
-    checkpoint_file = os.path.join(log_dir, 'main-{epoch:0%id}-{loss:.4f}.h5' % pad)
+    checkpoint_file = os.path.join(log_dir, 'main_resized-{epoch:0%id}-{loss:.4f}.h5' % pad)
 
     
     tb = TensorBoard(log_dir=log_dir)
