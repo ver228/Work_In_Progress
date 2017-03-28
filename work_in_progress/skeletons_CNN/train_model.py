@@ -38,6 +38,9 @@ from keras.callbacks import TensorBoard, ModelCheckpoint, History
 from keras.optimizers import Adam
 from keras.layers import UpSampling2D
 
+from image_transforms import ImageSkeletonsGenerator
+
+
 SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 
 #%%
@@ -425,66 +428,151 @@ def test_pyramid():
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
     return model
-
 #%%
-#model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
-#model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
-#optimizer = Adam(lr=1e-4, decay=0.05)
-#model.compile(loss='mean_absolute_error',
-#                  optimizer=optimizer,
-#                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
-
-model = test_pyramid()
-
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
-sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
-
-rand_seed = 1337
-np.random.seed(rand_seed)  
-data = {}
-with tables.File(sample_file, 'r') as fid:
-    for field in ['test', 'train', 'val']:
-        ind = fid.get_node('/index_groups/' + field)[:]
+def test_simple_v2():
+    # for reproducibility
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    out_size = (49, 2)
+    roi_size = 128
         
-        X = fid.get_node('/mask')[ind, :, :][:, :, :, np.newaxis]
-        Y = fid.get_node('/skeleton')[ind, :, :]
-        #normalize
-        roi_size = X.shape[1]
-        Y = (Y-(roi_size/2.))/roi_size*2
-        data[field] = (X, Y)
-        
-        
+    
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
+    x = BatchNormalization(name='conv1b_bn')(x)
+    x = Activation('relu', name='conv1b_act')(x)
+    
+    x = MaxPooling2D((2, 2), name='conv1_pool')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
+    x = BatchNormalization(name='conv2a_bn')(x)
+    x = Activation('relu', name='conv2a_act')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2b')(x)
+    x = BatchNormalization(name='conv2b_bn')(x)
+    x = Activation('relu', name='conv2b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name='conv2_pool')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3a')(x)
+    x = BatchNormalization(name='conv3a_bn')(x)
+    x = Activation('relu', name='conv3a_act')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3b')(x)
+    x = BatchNormalization(name='conv3b_bn')(x)
+    x = Activation('relu', name='conv3b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name='conv3_pool')(x)
+    
+    x = Conv2D(512, (3, 3), padding='same', name='conv4a')(x)
+    x = BatchNormalization(name='conv4a_bn')(x)
+    x = Activation('relu', name='conv4a_act')(x)
+    
+    x = Conv2D(512, (3, 3), padding='same', name='conv4b')(x)
+    x = BatchNormalization(name='conv4b_bn')(x)
+    x = Activation('relu', name='conv4b_act')(x)
+    
+    
+    x = GlobalMaxPooling2D(name='avg_pool')(x)
+    
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(1024, name='dense1', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3, decay=0.05)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+    model_name = 'simple_v2'
+    return model, model_name
+
 #%%
-epochs = 200
-
-log_dir = os.path.join(SAVE_DIR, 'logs', 'main_%s' % time.strftime('%Y%m%d_%H%M%S'))
-pad=int(np.ceil(np.log10(epochs+1)))
-checkpoint_file = os.path.join(log_dir, 'main-{epoch:0%id}-{loss:.4f}.h5' % pad)
-
-history = History()
-tb = TensorBoard(log_dir=log_dir)
-mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=1)
-
-model.fit(*data['train'], 
-          batch_size=128, 
-          epochs=epochs, 
-          validation_data=data['val'],
-          verbose=1, 
-          callbacks=[tb, mcp, history])
-
-#%%
-#model = load_model('skels_mod_60.h5')
-#%%
-X, Y = data['test']
-
-ind = 900
-Y_pred = model.predict(X[ind][np.newaxis, :, :, :])
-
-plt.figure()
-plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
-plt.grid('off')
-
-plt.plot(Y[ind, :, 0], Y[ind, :, 1], '.r')
-plt.plot(Y[ind, 0, 0], Y[ind, 0, 1], 'sr')
-plt.plot(Y_pred[0, :, 0], Y_pred[0, :, 1], '.b')
-plt.plot(Y_pred[0, 0, 0], Y_pred[0, 0, 1], 'ob')
+if __name__ == '__main__':
+    #model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
+    #model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
+    #optimizer = Adam(lr=1e-4, decay=0.05)
+    #model.compile(loss='mean_absolute_error',
+    #                  optimizer=optimizer,
+    #                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+    
+    model, model_name = test_simple_v2()
+    
+    sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+    sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
+    
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    data = {}
+    with tables.File(sample_file, 'r') as fid:
+        for field in ['test', 'val']: #'train'
+            ind = fid.get_node('/index_groups/' + field)[:]
+            
+            X = fid.get_node('/mask')[ind, :, :][:, :, :, np.newaxis]
+            Y = fid.get_node('/skeleton')[ind, :, :]
+            #normalize
+            roi_size = X.shape[1]
+            Y = (Y-(roi_size/2.))/roi_size*2
+            data[field] = (X, Y)
+            
+            
+    #%%
+    epochs = 200
+    
+    log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
+    pad=int(np.ceil(np.log10(epochs+1)))
+    checkpoint_file = os.path.join(log_dir, '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
+    
+    tb = TensorBoard(log_dir=log_dir)
+    mcp = ModelCheckpoint(checkpoint_file, verbose=0,  mode='auto', period=1)
+    
+    img_generator = ImageSkeletonsGenerator(sample_file, 
+                     batch_size=32, 
+                     shuffle=False, 
+                     seed=rand_seed)
+    
+    model.fit_generator(img_generator,
+                        steps_per_epoch = img_generator.tot_samples, 
+                        epochs = epochs,
+                        verbose = 1,
+                        validation_data = data['val'],
+                        callbacks=[tb, mcp])
+    
+    
+    #%%
+    #model = load_model('skels_mod_60.h5')
+    #%%
+    X, Y = data['test']
+    
+    ind = 900
+    Y_pred = model.predict(X[ind][np.newaxis, :, :, :])
+    
+    plt.figure()
+    plt.imshow(np.squeeze(X[ind]), interpolation='None', cmap='gray')
+    plt.grid('off')
+    
+    plt.plot(Y[ind, :, 0], Y[ind, :, 1], '.r')
+    plt.plot(Y[ind, 0, 0], Y[ind, 0, 1], 'sr')
+    plt.plot(Y_pred[0, :, 0], Y_pred[0, :, 1], '.b')
+    plt.plot(Y_pred[0, 0, 0], Y_pred[0, 0, 1], 'ob')
