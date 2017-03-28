@@ -113,7 +113,7 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
             fid.create_array(grp, field, obj=indexes)
 #%%
 if __name__ == '__main__':
-    training_file = 'samples2.hdf5'
+    training_file = 'samples_eggs.hdf5'
     roi_size = 100
     win_d = 2
     win_size = 2*win_d + 1
@@ -211,7 +211,9 @@ if __name__ == '__main__':
                         if event_ids.size <= tot_samples:
                             for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
                                 datset.resize(tot_samples+ 100, axis=0)                
+        
         #close and add a randomized training set
         for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
             datset.resize(tot_samples, axis=0)
+    
     add_train_indexes(training_file)

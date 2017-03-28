@@ -407,7 +407,6 @@ def test_pyramid():
     x = Conv2D(2, (3, 3), padding='same', use_bias=False)(x)
     x = BatchNormalization()(x)
     x = Activation('relu')(x)
-    
     x = Flatten()(x)
     x = Activation('softmax')(x)
     x = Dense(1024, name='dense0', activation='elu')(x)

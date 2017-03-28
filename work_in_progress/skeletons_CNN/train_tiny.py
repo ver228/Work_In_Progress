@@ -548,116 +548,148 @@ def test_pyramid():
 
 #%%
 # for reproducibility
+def test_pyramid_feat():
+    out_size = (49, 2)
+    roi_size = 128
+    rand_seed = 1337
+    np.random.seed(rand_seed)
+     
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    block1 = Conv2D(32, (3, 3), padding='same', name='conv0a')(img_input)
+    block1 = Activation('relu', name='conv0a_act')(block1)
+    block1 = Conv2D(32, (3, 3), padding='same', name='conv0b')(block1)
+    block1 = Activation('relu', name='conv0b_act')(block1)
+    
+    block2 = MaxPooling2D((2, 2), name='conv0_pool')(block1)
+    block2 = Conv2D(64, (3, 3), padding='same', name='conv1a')(block2)
+    block2 = BatchNormalization(name='conv1a_bn')(block2)
+    block2 = Activation('relu', name='conv1a_act')(block2)
+    block2 = Conv2D(64, (3, 3), padding='same', name='conv1b')(block2)
+    block2 = BatchNormalization(name='conv1b_bn')(block2)
+    block2 = Activation('relu', name='conv1b_act')(block2)
+    
+    block3 = MaxPooling2D((2, 2), name='conv1_pool')(block2)
+    block3 = Conv2D(128, (3, 3), padding='same', name='conv2a')(block3)
+    block3 = BatchNormalization(name='conv2a_bn')(block3)
+    block3 = Activation('relu', name='conv2a_act')(block3)
+    block3 = Conv2D(128, (3, 3), padding='same', name='conv2b')(block3)
+    block3 = BatchNormalization(name='conv2b_bn')(block3)
+    block3 = Activation('relu', name='conv2b_act')(block3)
+    
+    block4 = MaxPooling2D((2, 2), name='conv2_pool')(block3)
+    block4 = Conv2D(256, (3, 3), padding='same', name='conv3a')(block4)
+    block4 = BatchNormalization(name='conv3a_bn')(block4)
+    block4 = Activation('relu', name='conv3a_act')(block4)
+    block4 = Conv2D(256, (3, 3), padding='same', name='conv3b')(block4)
+    block4 = BatchNormalization(name='conv3b_bn')(block4)
+    block4 = Activation('relu', name='conv3b_act')(block4)
+    
+    feat_top = GlobalMaxPooling2D(name='avg_pool')(block4)
+    feat_top = Dense(1024, name='dense0', activation='elu')(feat_top)
+    feat_top = Dropout(0.4)(feat_top)
+    
+    
+    down_block4 = Conv2D(128, (3, 3), padding='same')(block4)
+    down_block4 = UpSampling2D((2,2))(down_block4)
+    p_block4 = layers.add([block3, down_block4])
+    feat_p4 = GlobalMaxPooling2D(name='avg_pool_4')(p_block4)
+    feat_p4 = Dense(1024, activation='elu')(feat_p4)
+    feat_p4 = Dropout(0.4)(feat_p4)
+    
+    down_block3 = Conv2D(64, (3, 3), padding='same')(block3)
+    down_block3 = UpSampling2D((2,2))(down_block3)
+    p_block3 = layers.add([block2, down_block3])
+    feat_p3 = GlobalMaxPooling2D(name='avg_pool_3')(p_block3)
+    feat_p3 = Dense(1024, activation='elu')(feat_p3)
+    feat_p3 = Dropout(0.4)(feat_p3)
+    
+    #down_merge_3_4 = Conv2D(32, (1, 1), activation='elu', padding='same')(merged_3_4)
+    #down_merge_3_4 = UpSampling2D((2,2))(down_merge_3_4)
+    #lat_block2 = Conv2D(32, (1, 1), activation='elu', padding='same')(block2)
+    #merged_2_3 = layers.add([lat_block2, down_merge_3_4])
+    #
+    #feat_2_3 = Conv2D(16, (3, 3), activation='elu', padding='same')(merged_2_3)
+    #feat_2_3 = Conv2D(1, (3, 3), activation='elu', padding='same')(feat_2_3)
+    #feat_2_3 = Flatten()(feat_2_3)
+    #feat_2_3 = Dense(1024, activation='elu')(feat_2_3)
+    #
+    #down_merge_2_3 = Conv2D(16, (1, 1), activation='elu', padding='same')(merged_2_3)
+    #down_merge_2_3 = UpSampling2D((2,2))(down_merge_2_3)
+    #lat_block1 = Conv2D(16, (1, 1), activation='elu', padding='same')(block1)
+    #merged_1_2 = layers.add([lat_block1, down_merge_2_3])
+    #
+    #feat_1_2 = Conv2D(1, (3, 3), activation='elu', padding='same')(merged_1_2)
+    #feat_1_2 = Flatten()(feat_1_2)
+    #feat_1_2 = Dense(1024, activation='elu')(feat_1_2)
+    
+    #all_feats = layers.add([feat_top, feat_3_4, feat_2_3, feat_1_2])
+    all_feats = layers.add([feat_top, feat_p4, feat_p3])
+    all_feats = Dense(1024, activation='elu')(all_feats)
+    p_block4 = Dense(1024, activation='elu')(p_block4)
+    p_block4 = Dropout(0.4)(feat_top)
+    p_block4 = Dense(1024, activation='elu')(p_block4)
+    p_block4 = Dropout(0.4)(feat_top)
+    
+    
+    
+    skel_out = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(all_feats)
+    skel_out = Reshape((out_size))(skel_out)
+    
+    
+    
+    model = Model(img_input, skel_out)
+    #optimizer = Adam(lr=1e-2, decay=0.1)
+    optimizer = Adam(lr=1e-3, decay=0.1)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
 
-out_size = (49, 2)
-roi_size = 128
-rand_seed = 1337
-np.random.seed(rand_seed)
- 
-input_shape = (roi_size, roi_size, 1)
-img_input =  Input(shape=input_shape)
-
-block1 = Conv2D(32, (3, 3), padding='same', name='conv0a')(img_input)
-block1 = Activation('relu', name='conv0a_act')(block1)
-block1 = Conv2D(32, (3, 3), padding='same', name='conv0b')(block1)
-block1 = Activation('relu', name='conv0b_act')(block1)
-
-block2 = MaxPooling2D((2, 2), name='conv0_pool')(block1)
-block2 = Conv2D(64, (3, 3), padding='same', name='conv1a')(block2)
-block2 = BatchNormalization(name='conv1a_bn')(block2)
-block2 = Activation('relu', name='conv1a_act')(block2)
-block2 = Conv2D(64, (3, 3), padding='same', name='conv1b')(block2)
-block2 = BatchNormalization(name='conv1b_bn')(block2)
-block2 = Activation('relu', name='conv1b_act')(block2)
-
-block3 = MaxPooling2D((2, 2), name='conv1_pool')(block2)
-block3 = Conv2D(128, (3, 3), padding='same', name='conv2a')(block3)
-block3 = BatchNormalization(name='conv2a_bn')(block3)
-block3 = Activation('relu', name='conv2a_act')(block3)
-block3 = Conv2D(128, (3, 3), padding='same', name='conv2b')(block3)
-block3 = BatchNormalization(name='conv2b_bn')(block3)
-block3 = Activation('relu', name='conv2b_act')(block3)
-
-block4 = MaxPooling2D((2, 2), name='conv2_pool')(block3)
-block4 = Conv2D(256, (3, 3), padding='same', name='conv3a')(block4)
-block4 = BatchNormalization(name='conv3a_bn')(block4)
-block4 = Activation('relu', name='conv3a_act')(block4)
-block4 = Conv2D(256, (3, 3), padding='same', name='conv3b')(block4)
-block4 = BatchNormalization(name='conv3b_bn')(block4)
-block4 = Activation('relu', name='conv3b_act')(block4)
-
-feat_top = GlobalMaxPooling2D(name='avg_pool')(block4)
-feat_top = Dense(1024, name='dense0', activation='elu')(feat_top)
-feat_top = Dropout(0.4)(feat_top)
-
-
-down_block4 = Conv2D(128, (3, 3), padding='same')(block4)
-down_block4 = UpSampling2D((2,2))(down_block4)
-p_block4 = layers.add([block3, down_block4])
-
-feat_p4 = GlobalMaxPooling2D(name='avg_pool')(p_block4)
-p_block4 = Dense(1024, activation='elu')(p_block4)
-p_block4 = Dropout(0.4)(feat_top)
-
-
-#down_merge_3_4 = Conv2D(32, (1, 1), activation='elu', padding='same')(merged_3_4)
-#down_merge_3_4 = UpSampling2D((2,2))(down_merge_3_4)
-#lat_block2 = Conv2D(32, (1, 1), activation='elu', padding='same')(block2)
-#merged_2_3 = layers.add([lat_block2, down_merge_3_4])
-#
-#feat_2_3 = Conv2D(16, (3, 3), activation='elu', padding='same')(merged_2_3)
-#feat_2_3 = Conv2D(1, (3, 3), activation='elu', padding='same')(feat_2_3)
-#feat_2_3 = Flatten()(feat_2_3)
-#feat_2_3 = Dense(1024, activation='elu')(feat_2_3)
-#
-#down_merge_2_3 = Conv2D(16, (1, 1), activation='elu', padding='same')(merged_2_3)
-#down_merge_2_3 = UpSampling2D((2,2))(down_merge_2_3)
-#lat_block1 = Conv2D(16, (1, 1), activation='elu', padding='same')(block1)
-#merged_1_2 = layers.add([lat_block1, down_merge_2_3])
-#
-#feat_1_2 = Conv2D(1, (3, 3), activation='elu', padding='same')(merged_1_2)
-#feat_1_2 = Flatten()(feat_1_2)
-#feat_1_2 = Dense(1024, activation='elu')(feat_1_2)
-
-#all_feats = layers.add([feat_top, feat_3_4, feat_2_3, feat_1_2])
-all_feats = layers.add([feat_top, p_block4])
-all_feats = Dense(1024, activation='elu')(all_feats)
-p_block4 = Dense(1024, activation='elu')(p_block4)
-p_block4 = Dropout(0.4)(feat_top)
-p_block4 = Dense(1024, activation='elu')(p_block4)
-p_block4 = Dropout(0.4)(feat_top)
-
-
-
-skel_out = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(all_feats)
-skel_out = Reshape((out_size))(skel_out)
-
-
-
-model = Model(img_input, skel_out)
-#optimizer = Adam(lr=1e-2, decay=0.1)
-optimizer = Adam(lr=1e-3, decay=0.1)
-model.compile(loss='mean_absolute_error',
-              optimizer=optimizer,
-              metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
-
+    return model
 
 #%%
-sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+if True:
+    model = test_pyramid_feat()
+    
+    sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
+    
+    sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
+    with tables.File(sample_file, 'r') as fid:
+        #select a tiny sample
+        tot = fid.get_node('/mask').shape[0]
+        inds = np.random.permutation(tot)[:128]
+        X = fid.get_node('/mask')[inds, :, :][:, :, :, np.newaxis]
+        Y = fid.get_node('/skeleton')[inds, :, :]
+        roi_size = X.shape[1]
+        
+        #Y = Y/roi_size
+        
+        Y = (Y-(roi_size/2.))/roi_size*2
+        #X = -(X-np.mean(X, axis=(1,2)))
 
-sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
-with tables.File(sample_file, 'r') as fid:
-    #select a tiny sample
-    tot = fid.get_node('/mask').shape[0]
-    inds = np.random.permutation(tot)[:128]
-    X = fid.get_node('/mask')[inds, :, :][:, :, :, np.newaxis]
-    Y = fid.get_node('/skeleton')[inds, :, :]
-    roi_size = X.shape[1]
+else:
+    model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/tiny_pyramid_short_a_20170324_174653'
+    model = load_model(os.path.join(model_dir, 'tiny-1999-0.0388.h5'))
     
-    #Y = Y/roi_size
     
-    Y = (Y-(roi_size/2.))/roi_size*2
-    #X = -(X-np.mean(X, axis=(1,2)))
+    optimizer = Adam(lr=1e-5, decay=0.01)
+    model.compile(loss='mean_absolute_error',
+                      optimizer=optimizer,
+                      metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+    
+    sample_file = os.path.join(model_dir, 'input_set.hdf5')
+    with tables.File(sample_file, 'r') as fid:
+        #select a tiny sample
+        X_set = fid.get_node('/X')
+        Y_set = fid.get_node('/Y')
+        tot = X_set.shape[0]
+        roi_size = X_set.shape[1]
+        
+        X = X_set[:]
+        Y = Y_set[:]
+        
+    
     
 #%%
 epochs = 2000

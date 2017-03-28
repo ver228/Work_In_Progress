@@ -10,24 +10,52 @@ import h5py
 import matplotlib.pylab as plt
 import numpy as np
 
-sample_file = 'samples.hdf5'
-with h5py.File(sample_file, 'r') as fid:
-    events_tot, seq_size, w, h =  fid['/egg_laying'].shape
-    
-    
-    plt.figure(figsize=(20,25))
-    
-    n_rows = 8
-    events_ids = np.round(np.random.rand(n_rows)*events_tot).astype(np.int)
-    
-    for irow, event_id in enumerate(events_ids):
+from keras.preprocessing.image import ImageDataGenerator
+
+from egg_train_model import _plot_seq, read_field_data
+
+
+n_rows = 2
+
+sample_file = 'samples_eggs_fixed.hdf5'
+data = read_field_data(sample_file, 'train', tot=n_rows)
+
+#for irow in range(n_rows):
+#    seq_worm = data[0][irow]
+#    seq_size = seq_worm.shape[-1]
+#    for ii in range(seq_size):
+#        nn = ii+1 + seq_size*irow
+#        plt.subplot(n_rows, seq_size, nn)
+#        plt.imshow(seq_worm[:,:,ii], interpolation='none', cmap='gray')
+#        plt.axis('off')
+
         
+#%%
+
+
+
+datagen = ImageDataGenerator(rotation_range=90.,
+                     width_shift_range=0.1,
+                     height_shift_range=0.1,
+                     zoom_range=0.2,
+                     horizontal_flip=True,
+                     vertical_flip=True)
+dd = datagen.flow(data[0][:,:,:,1:], data[1], batch_size=32)
+
+n_rows = 5
+for idat, (X, Y) in enumerate(dd):
+    for iseq in range(X.shape[0]):
+        seq_worm = X[iseq]
+        if iseq == 0:
+            plt.figure()
+        irow = iseq % 10
         
-        seq_worm = fid['/egg_laying'][event_id]
-        for ii, img in enumerate(seq_worm):
+        seq_size = seq_worm.shape[-1]
+        for ii in range(seq_size):
             nn = ii+1 + seq_size*irow
             plt.subplot(n_rows, seq_size, nn)
-            plt.imshow(img, interpolation='none', cmap='gray')
+            plt.imshow(seq_worm[:,:,ii], interpolation='none', cmap='gray')
             plt.axis('off')
             
-        
+    if idat >= 5:
+        break
