@@ -70,15 +70,13 @@ def getStartEndTraj(trajectories_data):
     traj_limits = pd.DataFrame(traj_limits, index=traj_limits['worm_index'])
     return traj_limits
 #%%
-
 def getIndCnt(img, x, y, roi_size, thresh, max_area):
     worm_img, roi_corner = getWormROI(img, x, y, roi_size)
-    worm_mask = getWormMask(worm_img, thresh)
-    worm_cnt, _ = binaryMask2Contour(worm_mask, min_blob_area = max_area)
+    worm_mask, worm_cnt, _ = getWormMask(worm_img, thresh)
     if worm_cnt.size > 0:
         worm_cnt += roi_corner   
     return worm_cnt                 
-                    
+                 
 
 def extractWormContours(masked_image_file, traj_limits):
     grouped_t0 = traj_limits.groupby('t0')
@@ -333,11 +331,15 @@ if __name__ == '__main__':
     
     #skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
     
-    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
-    dd = os.path.dirname(masked_image_file)
-    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
-    skeletons_file = os.path.join(dd, 'Results',ff )
+#    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
+#    dd = os.path.dirname(masked_image_file)
+#    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
+#    skeletons_file = os.path.join(dd, 'Results',ff )
+#   
+    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/join/N2_worm10_F1-3_Set1_Pos4_Ch2_26012017_143133.hdf5'
+    skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
     
+ 
     #get the trajectories table
     with pd.HDFStore(skeletons_file, 'r') as fid:
         trajectories_data = fid['/trajectories_data']

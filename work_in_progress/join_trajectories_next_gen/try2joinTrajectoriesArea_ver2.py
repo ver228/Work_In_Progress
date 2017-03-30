@@ -11,6 +11,7 @@ from collections import OrderedDict
 import networkx as nx
 import cv2
 import os 
+import matplotlib.pylab as plt
 
 from tierpsy.analysis.ske_filt.getFilteredSkels import saveModifiedTrajData
 from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
@@ -240,63 +241,76 @@ def selectNearNodes(connect_dict, ratio_dict, time_table, min_intersect = 0.5):
 
 
 def cleanRedundantNodes(DG, trajectories_data_f):
+    while 1:
+        #join trajectories that only has as parent and child each other. (A->B->C)
+        same_nodes = []
+        for ind1 in DG.nodes():
+            next_nodes = DG.successors(ind1)
+            if len(next_nodes) == 1:
+                pp = DG.predecessors(next_nodes[0]);
+                if len(pp) == 1 and pp[0] == ind1 and ind1!=next_nodes[0]:
+                    same_nodes.append((ind1, next_nodes[0]))
+        if len(same_nodes) == 0:
+            break
+        
+        for ind1, ind2 in same_nodes:
+            DG = nx.contracted_nodes(DG, ind1, ind2)
+            
+            row2chg = trajectories_data_f.worm_index_auto == ind2
+            trajectories_data_f.loc[row2chg, 'worm_index_auto'] = ind1
     
-    #join trajectories that only has as parent and child each other. (A->B->C)
-    same_nodes = []
-    for ind1 in DG.nodes():
-        next_nodes = DG.successors(ind1)
-        if len(next_nodes) == 1:
-            pp = DG.predecessors(next_nodes[0]);
-            if len(pp) == 1 and pp[0] == ind1:
-                same_nodes.append((ind1, next_nodes[0]))
-    
-    #create path form this trajectories
-    G_redundant = nx.Graph()
-    G_redundant.add_nodes_from(set([i for sub in same_nodes for i in sub]))
-    G_redundant.add_edges_from(same_nodes)
-    
-    index2rename = {}
-    for subgraph in nx.connected_component_subgraphs(G_redundant):
-        
-        nodes2remove = sorted(subgraph.nodes())
-        edges2remove = subgraph.edges()
-        
-        #find the first node
-        first_node = []
-        for x in nodes2remove:
-            pred = DG.predecessors(x)
-            if len(pred) != 1 or not pred in nodes2remove:
-                first_node.append(x)
-        assert len(first_node) == 1
-        first_node = first_node[0]
-        
-        #find the last node
-        last_node = []
-        for x in nodes2remove:
-            suc = DG.successors(x)
-            if len(suc) != 1 or not suc in nodes2remove:
-                last_node.append(x)
-        assert len(last_node) == 1
-        last_node = last_node[0]
-        
-        #we are only keeping the first node
-        nodes2remove.remove(first_node)
-        index2rename[first_node] = nodes2remove
-        
-        #connect the edges of the last node with the first no
-        edges2add = []
-        for ind2 in DG.successors(last_node):
-                edges2add.append((first_node,ind2))
-        DG.add_edges_from(edges2add)
-        DG.remove_edges_from(edges2remove)
-        DG.remove_nodes_from(nodes2remove)
-    
-    for new_index in index2rename:
-        for ind in index2rename[new_index]:
-            row2chg = trajectories_data_f.worm_index_auto.isin(index2rename[new_index])
-            trajectories_data_f.loc[row2chg, 'worm_index_auto'] = new_index
     
     return DG, trajectories_data_f
+   
+    #%%
+#    #create path form this trajectories
+#    G_redundant = nx.Graph()
+#    G_redundant.add_nodes_from(set([i for sub in same_nodes for i in sub]))
+#    G_redundant.add_edges_from(same_nodes)
+#    
+#    index2rename = {}
+#    for subgraph in nx.connected_component_subgraphs(G_redundant):
+#        
+#        nodes2remove = sorted(subgraph.nodes())
+#        edges2remove = subgraph.edges()
+#        
+#        #find the first node
+#        first_node = []
+#        for x in nodes2remove:
+#            pred = DG.predecessors(x)
+#            if len(pred) != 1 or not pred in nodes2remove:
+#                first_node.append(x)
+#        assert len(first_node) == 1
+#        first_node = first_node[0]
+#        
+#        #find the last node
+#        last_node = []
+#        for x in nodes2remove:
+#            suc = DG.successors(x)
+#            if len(suc) != 1 or not suc in nodes2remove:
+#                last_node.append(x)
+#        assert len(last_node) == 1
+#        last_node = last_node[0]
+#        
+#        #we are only keeping the first node
+#        nodes2remove.remove(first_node)
+#        index2rename[first_node] = nodes2remove
+#        
+#        #connect the edges of the last node with the first no
+#        edges2add = []
+#        for ind2 in DG.successors(last_node):
+#                edges2add.append((first_node,ind2))
+#        DG.add_edges_from(edges2add)
+#        DG.remove_edges_from(edges2remove)
+#        DG.remove_nodes_from(nodes2remove)
+#    
+#    for new_index in index2rename:
+#        for ind in index2rename[new_index]:
+#            row2chg = trajectories_data_f.worm_index_auto.isin(index2rename[new_index])
+#            trajectories_data_f.loc[row2chg, 'worm_index_auto'] = new_index
+#    
+#    return DG, trajectories_data_f
+
 #%%
 def getTrajGraph(trajectories_data, masked_image_file, max_gap = 25, min_area_intersect = 0.5):
     print('Getting the trajectories starting and ending points.')
@@ -357,7 +371,7 @@ def getPossibleClusters(DG, worm_indexes):
 #%%    
     return possible_cluster
 
-def filterTableByArea(trajectories_data, min_area_limit = 50, n_sigma = 6):
+def filter_table_by_area(trajectories_data, min_area_limit = 50, n_sigma = 6):
     area_med = trajectories_data['area'].median()
     area_mad = (trajectories_data['area']-area_med).abs().median();
     
@@ -370,49 +384,18 @@ def filterTableByArea(trajectories_data, min_area_limit = 50, n_sigma = 6):
     
     trajectories_data_f = trajectories_data[~trajectories_data.worm_index_auto.isin(small_index)]    
     return trajectories_data_f
-
 #%%
-if __name__ == '__main__':
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 swimming_2011_03_04__13_16_37__8.hdf5'    
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 on food Rz_2011_03_04__12_55_53__7.hdf5'    
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch6_17112015_205616.hdf5'
-    #masked_image_file = '/Users/ajaver/Desktop/Videos/Camille_151030/MaskedVideos/CSTCTest_Ch2_30102015_212430.hdf5'    
-    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
-    
-    #skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
-    
-    dd = os.path.dirname(masked_image_file)
-    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
-    skeletons_file = os.path.join(dd, 'Results',ff )
-    
-    #masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
-    #intensities_file = skeletons_file.replace('_skeletons', '_intensities')
-    
-    min_area_limit = 50
-    
-    #get the trajectories table
-    with pd.HDFStore(skeletons_file, 'r') as fid:
-        trajectories_data = fid['/trajectories_data']
-        trajectories_data['worm_index_auto'] = trajectories_data['worm_index_joined'] 
-    
-    trajectories_data_f = filterTableByArea(trajectories_data, min_area_limit=min_area_limit, n_sigma = 6)
-    
-    del trajectories_data
-    
-    
+def _get_break_points(trajectories_data_f):
     trajgrouped = trajectories_data_f.groupby('frame_number')    
     traj_limits = getStartEndTraj(trajectories_data_f) 
     
-    first_index = traj_limits['t0'].min()
-    last_index = traj_limits['tf'].max()
-
+    
     break_points = []
     #check if the trajectories end or the begining intersect the middle of other trajectories    
     #for ind_check, row2check in traj_limits.loc[436:437].iterrows():
     for ind_check, row2check in traj_limits.iterrows():
         
-        Rsearch = row2check['roi_size']**2
+        R_search = row2check['roi_size']**2
         
         t_prev = row2check['t0']-1
         try:      
@@ -428,7 +411,7 @@ if __name__ == '__main__':
             delX = row2check['x0'] - dat_prev['coord_x']
             delY = row2check['y0'] - dat_prev['coord_y']
             R = delX*delX + delY*delY
-            dat_prev = dat_prev[R <= Rsearch]
+            dat_prev = dat_prev[R <= R_search]
             for _, rr in dat_prev.iterrows():
                 assert t_prev == rr['frame_number'] == row2check['t0']-1
                             
@@ -453,7 +436,7 @@ if __name__ == '__main__':
             delX = row2check['xf'] - dat_next['coord_x']
             delY = row2check['yf'] - dat_next['coord_y']
             R = delX*delX + delY*delY
-            dat_next = dat_next[R <= Rsearch]
+            dat_next = dat_next[R <= R_search]
             
             for _, rr in dat_next.iterrows():
                 assert t_next == rr['frame_number'] == row2check['tf']+1
@@ -466,7 +449,10 @@ if __name__ == '__main__':
         except KeyError:
              pass
 
-    print('B', len(break_points))
+    
+    return break_points
+
+def _get_area_overlaps(masked_image_file, break_points):
     indexInFrame = {} 
     roi_data = {}
     for dd in break_points:
@@ -502,7 +488,7 @@ if __name__ == '__main__':
             bot = np.minimum(np.amin(cnt_split,0), np.amin(cnt_check, 0))
             top = np.maximum(np.amax(cnt_split,0), np.amax(cnt_check, 0))
             
-            roi_size = roi_size = top-bot + (1,1)
+            roi_size = top - bot + (1,1)
             roi_size = roi_size[::-1]
             
             mask_split = np.zeros(roi_size, np.int32)
@@ -516,8 +502,24 @@ if __name__ == '__main__':
             area_intersect = np.sum(mask_check & mask_split)
             area_check = np.sum(mask_check)
             
-            area_overlap[key_tuple] = area_intersect/area_check
+#            try:
+#                if ind_split == 1846 or ind_check == 1846:
+#                    plt.figure()
+#                    plt.plot(cnt_split[0][:, 0], cnt_split[0][:, 1])
+#                    plt.plot(cnt_check[0][:, 0], cnt_check[0][:, 1])
+#                    plt.title((ind_split, t_split, ind_check, t_check))
+#            except:
+#                import pdb
+#                pdb.set_trace()
             
+            
+            area_overlap[key_tuple] = area_intersect/area_check
+    return area_overlap
+
+def _get_points2split(trajectories_data_f, masked_image_file):
+    break_points = _get_break_points(trajectories_data_f)
+    area_overlap = _get_area_overlaps(masked_image_file, break_points)
+    #%%
     points2split = {}
     for x in area_overlap:
         if area_overlap[x]>0.5:
@@ -526,13 +528,10 @@ if __name__ == '__main__':
             t_split = max(x[1],x[3]);
             if not t_split in points2split[x[0]]:
                 points2split[x[0]].append(t_split)
-    
-    
-    
-    print('S', len(points2split))    
+    #%%
+    return points2split
 
-    #def splitTrajectories(trajectories_data_f, points2split):
-    
+def _split_trajectories(trajectories_data_f, points2split):
     last_index = trajectories_data_f['worm_index_auto'].max()
     traj_grouped_ind = trajectories_data_f.groupby('worm_index_auto')
     for worm_ind in points2split:
@@ -550,6 +549,44 @@ if __name__ == '__main__':
         assert np.all(trajectories_data_f.loc[new_index.index, 'worm_index_auto'] == worm_ind)
         
         trajectories_data_f.loc[new_index.index, 'worm_index_auto'] = new_index
+
+    return trajectories_data_f
+
+#%%
+if __name__ == '__main__':
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch1_18112015_075624.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 swimming_2011_03_04__13_16_37__8.hdf5'    
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/04-03-11/MaskedVideos/575 JU440 on food Rz_2011_03_04__12_55_53__7.hdf5'    
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Avelino_17112015/MaskedVideos/CSTCTest_Ch6_17112015_205616.hdf5'
+    #masked_image_file = '/Users/ajaver/Desktop/Videos/Camille_151030/MaskedVideos/CSTCTest_Ch2_30102015_212430.hdf5'    
+    #masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
+    masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/join/N2_worm1_F1-3_Set3_Pos5_Ch2_26012017_151526.hdf5'
+    #masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/join/N2_worm10_F1-3_Set1_Pos4_Ch2_26012017_143133.hdf5'
+    skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    
+#    dd = os.path.dirname(masked_image_file)
+#    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
+#    skeletons_file = os.path.join(dd, 'Results',ff )
+    
+    #masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    #intensities_file = skeletons_file.replace('_skeletons', '_intensities')
+    
+    min_area_limit = 50
+    
+    #get the trajectories table
+    with pd.HDFStore(skeletons_file, 'r') as fid:
+        trajectories_data = fid['/trajectories_data']
+        trajectories_data['worm_index_auto'] = trajectories_data['worm_index_joined'] 
+    
+    trajectories_data_f = filter_table_by_area(trajectories_data, min_area_limit=min_area_limit, n_sigma = 6)
+    del trajectories_data
+    
+
+    
+    points2split = _get_points2split(trajectories_data_f, masked_image_file)
+    print('S', len(points2split))    
+    trajectories_data_f = _split_trajectories(trajectories_data_f, points2split)
+    
 #%%
 #            new_ind1 = last_index + 1
 #            new_ind2 = last_index + 2
@@ -585,8 +622,8 @@ if __name__ == '__main__':
     after_ratio = getAreaIntersecRatio(connect_after, final_cnt, initial_cnt)
     before_ratio = getAreaIntersecRatio(connect_before, initial_cnt, final_cnt)
     
-    #maybe a graph reduction algorithm would work better...
     #%%
+    #maybe a graph reduction algorithm would work better...
     print('Getting connections between trajectories.')    
     edges_after = selectNearNodes(connect_after, after_ratio, traj_limits['t0'], min_intersect = 0.5)
     edges_before = selectNearNodes(connect_before, before_ratio, -traj_limits['tf'], min_intersect = 0.5)
@@ -646,19 +683,16 @@ if __name__ == '__main__':
 
     #let's save this data into the skeletons file
     saveModifiedTrajData(skeletons_file, trajectories_data)
-
-
-#%%
-
-#    #create a dictionary to map from old to new indexes  
-#    dd = trajectories_data.groupby('worm_index_auto').agg({'frame_number':'min'})
-#    dd = dd.to_records()
-#    dd.sort(order=['frame_number', 'worm_index_auto'])
-#    new_ind_dict = {x:ii+1 for ii,x in enumerate(dd['worm_index_auto'])}
-#    
-#    #replace the data from the new indexes (pandas replace do not work because the dict and keys values must be different)
-#    worm_index_auto = trajectories_data['worm_index_auto'].values
-#    worm_index_auto = [new_ind_dict[x] for x in worm_index_auto]
-#    trajectories_data['worm_index_auto'] = worm_index_auto
-#%%
-         
+    
+    #%%
+    #create a dictionary to map from old to new indexes  
+    dd = trajectories_data.groupby('worm_index_auto').agg({'frame_number':'min'})
+    dd = dd.to_records()
+    dd.sort(order=['frame_number', 'worm_index_auto'])
+    new_ind_dict = {x:ii+1 for ii,x in enumerate(dd['worm_index_auto'])}
+    
+    #replace the data from the new indexes (pandas replace do not work because the dict and keys values must be different)
+    worm_index_auto = trajectories_data['worm_index_auto'].values
+    worm_index_auto = [new_ind_dict[x] for x in worm_index_auto]
+    trajectories_data['worm_index_auto'] = worm_index_auto
+    
