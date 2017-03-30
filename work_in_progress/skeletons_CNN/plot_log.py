@@ -24,16 +24,18 @@ SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 #log_dir_n = 'simple_20170323_154817'
 #log_dir_n = 'main_20170323_153747'
 #log_dir_n = 'main_20170323_204136'
-#is_tiny = False
+log_dir_n = 'simple_v2_20170328_171828'
+is_tiny = False
 #%%
 #log_dir_n = 'tiny_simple_20170321_232912' #i don't think i am using the sample samples i used to train the network
-log_dir_n = 'tiny_resnet_20170322_191940'
+#log_dir_n = 'tiny_resnet_20170322_191940'
+
 #log_dir_n = 'tiny_20170323_170847'
 #log_dir_n = 'tiny_resnet_20170322_165535_100epochs'
 #log_dir_n = 'tiny_pyramid_small_20170323_172456'
 #log_dir_n = 'tiny_20170324_165206'
 #log_dir_n = 'tiny_20170324_174653'
-is_tiny = True
+#is_tiny = True
 #%%
 sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
 

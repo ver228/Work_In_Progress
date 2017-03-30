@@ -507,6 +507,80 @@ def test_simple_v2():
 
     model_name = 'simple_v2'
     return model, model_name
+#%%
+# for reproducibility
+def test_pyramid_feat2():
+    out_size = (49, 2)
+    roi_size = 128
+    rand_seed = 1337
+    np.random.seed(rand_seed)
+     
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    block1 = Conv2D(32, (3, 3), padding='same', name='conv0a')(img_input)
+    block1 = Activation('relu', name='conv0a_act')(block1)
+    block1 = Conv2D(32, (3, 3), padding='same', name='conv0b')(block1)
+    block1 = Activation('relu', name='conv0b_act')(block1)
+    
+    block2 = MaxPooling2D((2, 2), name='conv0_pool')(block1)
+    block2 = Conv2D(64, (3, 3), padding='same', name='conv1a')(block2)
+    block2 = BatchNormalization(name='conv1a_bn')(block2)
+    block2 = Activation('relu', name='conv1a_act')(block2)
+    block2 = Conv2D(64, (3, 3), padding='same', name='conv1b')(block2)
+    block2 = BatchNormalization(name='conv1b_bn')(block2)
+    block2 = Activation('relu', name='conv1b_act')(block2)
+    
+    block3 = MaxPooling2D((2, 2), name='conv1_pool')(block2)
+    block3 = Conv2D(128, (3, 3), padding='same', name='conv2a')(block3)
+    block3 = BatchNormalization(name='conv2a_bn')(block3)
+    block3 = Activation('relu', name='conv2a_act')(block3)
+    block3 = Conv2D(128, (3, 3), padding='same', name='conv2b')(block3)
+    block3 = BatchNormalization(name='conv2b_bn')(block3)
+    block3 = Activation('relu', name='conv2b_act')(block3)
+    
+    block4 = MaxPooling2D((2, 2), name='conv2_pool')(block3)
+    block4 = Conv2D(256, (3, 3), padding='same', name='conv3a')(block4)
+    block4 = BatchNormalization(name='conv3a_bn')(block4)
+    block4 = Activation('relu', name='conv3a_act')(block4)
+    block4 = Conv2D(256, (3, 3), padding='same', name='conv3b')(block4)
+    block4 = BatchNormalization(name='conv3b_bn')(block4)
+    block4 = Activation('relu', name='conv3b_act')(block4)
+    
+    feat_top = GlobalMaxPooling2D(name='avg_pool')(block4)
+    feat_top = Dense(1024, name='dense0', activation='elu')(feat_top)
+    feat_top = Dropout(0.4)(feat_top)
+    
+    down_block4 = Conv2D(1, (1, 1), padding='same')(block4)
+    down_block4 = UpSampling2D((2,2))(down_block4)
+    lat_block3 = Conv2D(1, (1, 1), padding='same')(block3)
+    p_block3 = layers.add([lat_block3, down_block4])
+    
+    down_block3 = UpSampling2D((2,2))(p_block3)
+    lat_block2 = Conv2D(1, (1, 1), padding='same')(block2)
+    p_block2 = layers.add([lat_block2, down_block3])
+    
+    
+    feat_bot = Flatten()(p_block2)
+    feat_bot = Dense(1024, activation='elu')(feat_bot)
+    feat_bot = Dropout(0.4)(feat_bot)
+    
+    all_feats = layers.add([feat_top, feat_bot])
+    all_feats = Dense(1024, activation='elu')(all_feats)
+    feat_bot = Dropout(0.4)(feat_bot)
+    
+    skel_out = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(all_feats)
+    skel_out = Reshape((out_size))(skel_out)
+    
+    model = Model(img_input, skel_out)
+    #optimizer = Adam(lr=1e-2, decay=0.1)
+    optimizer = Adam(lr=1e-3, decay=0.1)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+    return model, 'pyramid_feat2'
+
 
 #%%
 if __name__ == '__main__':
@@ -517,7 +591,8 @@ if __name__ == '__main__':
     #                  optimizer=optimizer,
     #                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
-    model, model_name = test_simple_v2()
+    #model, model_name = test_simple_v2()
+    model, model_name = test_pyramid_feat2()
     
     sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
     sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
