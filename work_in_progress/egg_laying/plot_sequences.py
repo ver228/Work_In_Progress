@@ -14,7 +14,6 @@ from keras.preprocessing.image import ImageDataGenerator
 
 from egg_train_model import read_field_data
 
-
 n_rows = 2
 
 #sample_file = 'samples_eggs_fixed.hdf5'

@@ -429,14 +429,10 @@ def test_pyramid():
     
     return model
 #%%
-def test_simple_v2():
+def test_simple_v2(out_size = (49, 2), roi_size = 128):
     # for reproducibility
     rand_seed = 1337
     np.random.seed(rand_seed)  
-    
-    out_size = (49, 2)
-    roi_size = 128
-        
     
     input_shape = (roi_size, roi_size, 1)
     img_input =  Input(shape=input_shape)
@@ -494,7 +490,7 @@ def test_simple_v2():
     x = Dense(1024, name='dense1', activation='elu')(x)
     x = Dropout(0.4)(x)
     
-    x = Dense(out_size[0]*out_size[1], activation='elu', name='skeleton')(x)
+    x = Dense(np.prod(out_size), activation='elu', name='skeleton')(x)
     x = Reshape((out_size))(x)
     
     
@@ -584,6 +580,7 @@ def test_pyramid_feat2():
 #%%
 # for reproducibility
 def pyramid_feat2_large():
+    #DIDN'T CONVERNGED
     out_size = (49, 2)
     roi_size = 128
     rand_seed = 1337
@@ -671,6 +668,8 @@ def pyramid_feat2_large():
 
 #%%
 if __name__ == '__main__':
+    
+    from skelxy2ang import transform2skelangles
     #model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/resnet_20170322_191529'
     #model = load_model(os.path.join(model_dir, 'tiny-018-0.0415.h5'))
     #optimizer = Adam(lr=1e-4, decay=0.05)
@@ -679,8 +678,13 @@ if __name__ == '__main__':
     #                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
     #model, model_name = test_simple_v2()
+    
+    model, model_name = test_simple_v2((52,))
+    
+    transform_ang = True
+    if transform_ang:
+        model_name += '_ang'
     #model, model_name = test_pyramid_feat2()
-    model, model_name = pyramid_feat2_large()
     
     sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
     sample_file = os.path.join(SAVE_DIR, 'data', sample_file)
@@ -697,6 +701,11 @@ if __name__ == '__main__':
             #normalize
             roi_size = X.shape[1]
             Y = (Y-(roi_size/2.))/roi_size*2
+            
+            if transform_ang:
+               skel_angles, mean_angles, segment_sizes, ini_coord = transform2skelangles(Y)
+               Y = np.concatenate([skel_angles, mean_angles[:,np.newaxis], segment_sizes[:,np.newaxis], ini_coord], axis=1)
+            
             data[field] = (X, Y)
             
             
@@ -713,7 +722,8 @@ if __name__ == '__main__':
     img_generator = ImageSkeletonsGenerator(sample_file, 
                      batch_size=batch_size, 
                      shuffle=False, 
-                     seed=rand_seed)
+                     seed=rand_seed,
+                     transform_ang = transform_ang)
     
     model.fit_generator(img_generator,
                         steps_per_epoch = round(img_generator.tot_samples/batch_size), 

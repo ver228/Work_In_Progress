@@ -8,8 +8,11 @@ Created on Tue Mar 28 10:47:34 2017
 import numpy as np
 import tables
 import scipy.ndimage as ndi
+from scipy.ndimage.filters import gaussian_filter
 import threading
 from keras import backend as K
+
+from skelxy2ang import transform2skelangles, transform2skelxy
 
 def random_rotation(rg, h, w):
     
@@ -188,9 +191,6 @@ class Iterator(object):
         return self.next(*args, **kwargs)
 
 
-
-
-        
 class ImageSkeletonsGenerator(Iterator):
     
     def __init__(self, sample_file, 
@@ -199,7 +199,9 @@ class ImageSkeletonsGenerator(Iterator):
                  field_indexes = '/index_groups/train',
                  batch_size=32, 
                  shuffle=True, 
-                 seed=None):
+                 seed=None,
+                 do_intensity = False,
+                 transform_ang = False):
        
         self.sample_file = sample_file
         self.fid = tables.File(sample_file, 'r') 
@@ -212,9 +214,11 @@ class ImageSkeletonsGenerator(Iterator):
         
         self.roi_size = self.X.shape[1]
         self.roi_size_half = self.roi_size/2.
-        self.n_skel_points = self.Y.shape[1]
+        #self.n_skel_points = self.Y.shape[1]
         self.tot_samples = self.sample_indexes.shape[0]
-       
+        self.do_intensity = do_intensity
+        self.transform_ang = transform_ang
+        
         super(ImageSkeletonsGenerator, self).__init__(self.tot_samples, batch_size, shuffle, seed)
 
     def next(self):
@@ -230,7 +234,10 @@ class ImageSkeletonsGenerator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros((current_batch_size, self.roi_size, self.roi_size, 1), dtype=K.floatx())
-        batch_y = np.zeros((current_batch_size, self.n_skel_points, 2), dtype=K.floatx())
+        
+        
+        batch_y = np.zeros((current_batch_size, 49, 2), dtype=K.floatx())
+        
         for i, j in enumerate(index_array):
             ind  = self.sample_indexes[j]
             xx = self.X[ind][:, :, np.newaxis]
@@ -242,20 +249,35 @@ class ImageSkeletonsGenerator(Iterator):
                      zoom_range = (0.75, 1.25),
                      horizontal_flip=True,
                      vertical_flip=True)
+            yr = (yr-self.roi_size_half)/self.roi_size_half
+            
+            
+            if self.do_intensity:
+                gamma = np.random.uniform(0.5, 3)
+                alpha = np.random.uniform(0.5, 2)
+                sigma_blur = np.random.uniform(0, 1.5)
+                
+                img_r = np.round((np.abs(xr)**gamma)*255*alpha)
+                img_r = -np.clip(img_r, 0, 255)/255
+                img_r = gaussian_filter(img_r, sigma=sigma_blur)
+                xr = img_r
             
             
             batch_x[i] = xr
-            batch_y[i] = (yr-self.roi_size_half)/self.roi_size_half
-        
+            batch_y[i] = yr
+            
+        if self.transform_ang:
+            skel_angles, mean_angles, segment_sizes, ini_coord = transform2skelangles(batch_y)
+            batch_y = np.concatenate((skel_angles, 
+                                      mean_angles[:,np.newaxis], 
+                                      segment_sizes[:,np.newaxis], 
+                                      ini_coord), axis=1)
+            
         return batch_x, batch_y
 
 if __name__ == '__main__':
     import os
     import matplotlib.pylab as plt
-    
-    
-    
-    
     
     
     rand_seed = 1337
@@ -267,21 +289,41 @@ if __name__ == '__main__':
     img_generator = ImageSkeletonsGenerator(sample_file, 
                  batch_size=128, 
                  shuffle=True, 
-                 seed=rand_seed)
-    
+                 seed=rand_seed,
+                 transform_ang = True)
+    #%%
     batch_x, batch_y = next(img_generator)
-    
+    batch_y = transform2skelxy(batch_y[:, :48], batch_y[:, 48], batch_y[:, 49], batch_y[:, 50:])
     
     n_rows, n_cols = 3,3 
     tot = n_rows*n_cols
-
+    
+    
     plt.figure()    
     for mm in range(tot):
         img = batch_x[mm]
         yr = batch_y[mm]
+        
+        
         
         yr = yr*img.shape[1]/2 + img.shape[1]/2.
         plt.subplot(n_rows,n_cols,mm+1)
         plt.imshow(np.squeeze(img), interpolation='none', cmap='gray')
         plt.plot(yr[:,0], yr[:,1], 'r')
         plt.plot(yr[0,0], yr[0,1], 'x')
+#%%
+#from skimage.filters import rank
+#
+#plt.figure()
+#plt.subplot(1,2,1)
+#plt.imshow(np.squeeze(img*255), interpolation='none', cmap='gray')
+#plt.subplot(1,2,2)
+#
+#img_r = np.round((np.abs(img)**3)*255*2)
+#img_r = -np.clip(img_r, 0, 255)/255
+#img_r = gaussian_filter(img_r, sigma=1.5)
+#plt.imshow(np.squeeze(img_r), interpolation='none', cmap='gray')
+
+
+
+

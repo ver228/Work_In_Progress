@@ -32,6 +32,8 @@ from keras.models import load_model
 from keras.callbacks import TensorBoard, ModelCheckpoint, History
 from keras.optimizers import Adam
 
+
+
 SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 
 def test_res():
@@ -410,12 +412,12 @@ def test10():
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
 
 #%%
-def test_resnet():
+def test_resnet(out_size = (49, 2)):
     # for reproducibility
     rand_seed = 1337
     np.random.seed(rand_seed)  
     
-    out_size = (49, 2)
+    
     roi_size = 128
     
     
@@ -489,12 +491,12 @@ def test_resnet():
                   optimizer=optimizer,
                   metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
-def test_pyramid():
+def test_pyramid(out_size = (49, 2)):
 
     rand_seed = 1337
     np.random.seed(rand_seed)  
     
-    out_size = (49, 2)
+    
     roi_size = 128
     
     input_shape = (roi_size, roi_size, 1)
@@ -548,8 +550,8 @@ def test_pyramid():
 
 #%%
 # for reproducibility
-def test_pyramid_feat():
-    out_size = (49, 2)
+def test_pyramid_feat(out_size = (49, 2)):
+    
     roi_size = 128
     rand_seed = 1337
     np.random.seed(rand_seed)
@@ -652,8 +654,8 @@ def test_pyramid_feat():
     return model
 #%%
 # for reproducibility
-def test_pyramid_feat2():
-    out_size = (49, 2)
+def test_pyramid_feat2(out_size = (49, 2)):
+    
     roi_size = 128
     rand_seed = 1337
     np.random.seed(rand_seed)
@@ -726,8 +728,84 @@ def test_pyramid_feat2():
 
     return model, 'pyramid_feat2'
 #%%
+def test_simple_v2(out_size = (49, 2), roi_size = 128):
+    # for reproducibility
+    rand_seed = 1337
+    np.random.seed(rand_seed)  
+    
+    input_shape = (roi_size, roi_size, 1)
+    img_input =  Input(shape=input_shape)
+    
+    x = Conv2D(32, (3, 3), padding='same', name='conv0')(img_input)
+    x = Activation('relu', name='conv0_act')(x)
+    x = MaxPooling2D((2, 2), name='conv0_pool')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1a')(x)
+    x = BatchNormalization(name='conv1a_bn')(x)
+    x = Activation('relu', name='conv1a_act')(x)
+    
+    x = Conv2D(64, (3, 3), padding='same', name='conv1b')(x)
+    x = BatchNormalization(name='conv1b_bn')(x)
+    x = Activation('relu', name='conv1b_act')(x)
+    
+    x = MaxPooling2D((2, 2), name='conv1_pool')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2a')(x)
+    x = BatchNormalization(name='conv2a_bn')(x)
+    x = Activation('relu', name='conv2a_act')(x)
+    
+    x = Conv2D(128, (3, 3), padding='same', name='conv2b')(x)
+    x = BatchNormalization(name='conv2b_bn')(x)
+    x = Activation('relu', name='conv2b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name='conv2_pool')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3a')(x)
+    x = BatchNormalization(name='conv3a_bn')(x)
+    x = Activation('relu', name='conv3a_act')(x)
+    
+    x = Conv2D(256, (3, 3), padding='same', name='conv3b')(x)
+    x = BatchNormalization(name='conv3b_bn')(x)
+    x = Activation('relu', name='conv3b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name='conv3_pool')(x)
+    
+    x = Conv2D(512, (3, 3), padding='same', name='conv4a')(x)
+    x = BatchNormalization(name='conv4a_bn')(x)
+    x = Activation('relu', name='conv4a_act')(x)
+    
+    x = Conv2D(512, (3, 3), padding='same', name='conv4b')(x)
+    x = BatchNormalization(name='conv4b_bn')(x)
+    x = Activation('relu', name='conv4b_act')(x)
+    
+    
+    x = GlobalMaxPooling2D(name='avg_pool')(x)
+    
+    x = Dense(1024, name='dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(1024, name='dense1', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(np.prod(out_size), activation='elu', name='skeleton')(x)
+    x = Reshape((out_size))(x)
+    
+    
+    
+    model = Model(img_input, x)
+    optimizer = Adam(lr=1e-3, decay=0.05)
+    model.compile(loss='mean_absolute_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
+
+    model_name = 'simple_v2'
+    return model, model_name
+
+#%%
 if True:
-    model, model_name = test_pyramid_feat2()
+    
     
     sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample.hdf5'
     
@@ -744,18 +822,26 @@ if True:
         
         Y = (Y-(roi_size/2.))/roi_size*2
         #X = -(X-np.mean(X, axis=(1,2)))
-
+        from skelxy2ang import transform2skelangles
+        skel_angles, mean_angles, segment_sizes, ini_coord = transform2skelangles(Y)
+        Y = np.concatenate([skel_angles, mean_angles[:,np.newaxis], segment_sizes[:,np.newaxis], ini_coord], axis=1)
+        
+    model, model_name = test_simple_v2(Y.shape[1:])
+    
 else:
-    model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/tiny_pyramid_short_a_20170324_174653'
-    model = load_model(os.path.join(model_dir, 'tiny-1999-0.0388.h5'))
+    #model_dir = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/tiny_pyramid_short_a_20170324_174653'
+    #model = load_model(os.path.join(model_dir, 'tiny-1999-0.0388.h5'))
     
+    model_name = 'tiny_pyramid_feat2_20170330_162429_v'
+    model_path = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/tiny_pyramid_feat2_20170330_162429/tiny-pyramid_feat2-1999-0.0760.h5'
+    model = load_model(model_path)
     
-    optimizer = Adam(lr=1e-5, decay=0.01)
+    optimizer = Adam(lr=1e-6, decay=0.1)
     model.compile(loss='mean_absolute_error',
                       optimizer=optimizer,
                       metrics=['mean_absolute_error', 'mean_squared_error', 'mean_absolute_percentage_error'])
     
-    sample_file = os.path.join(model_dir, 'input_set.hdf5')
+    sample_file = os.path.join(os.path.dirname(model_path), 'input_set.hdf5')
     with tables.File(sample_file, 'r') as fid:
         #select a tiny sample
         X_set = fid.get_node('/X')
@@ -765,8 +851,9 @@ else:
         
         X = X_set[:]
         Y = Y_set[:]
-        
-    
+
+
+
     
 #%%
 epochs = 2000

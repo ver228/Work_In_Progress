@@ -19,8 +19,6 @@ import os
 #model_name = '/Volumes/behavgenom_archive\$/Avelino/skeletons_cnn_tests/logs/main_20170323_153747/tiny-003-0.0357.h5'
 model_name = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/logs/simple_v2_20170328_171828/simple_v2-033-0.0713.h5'
 
-
-
 #sample_file = 'N2 on food R_2011_03_09__11_58_06___6___3_sample_bad.hdf5'
 #sample_file = 'egl-43 (n1079)II on food L_2010_07_09__11_04___3___2_sample.hdf5'
 sample_file = 'HW_worm3_F1-3_Set4_Pos4_Ch3_26012017_153655_sample.hdf5'
