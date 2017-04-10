@@ -10,7 +10,11 @@ import glob
 import pandas as pd
 
 
-masks_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/'
+#results_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/Results'
+#masks_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/'
+masks_dir = '/Volumes/behavgenom_archive$/Avelino/screening/David_Miller/MaskedVideos/DM_unc-4_Adult_L4_060417'
+results_dir = masks_dir.replace('MaskedVideos', 'Results')
+
 fnames = glob.glob(os.path.join(masks_dir, '*.hdf5'))
 
 time_sets = {}
@@ -22,7 +26,7 @@ for fname in fnames:
 
 
 #%%
-results_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/Results'
+
 feat_files = glob.glob(os.path.join(results_dir, '*_features.hdf5'))
 features_timeseries = {}
 for feat_file in feat_files:
@@ -55,10 +59,12 @@ for bn, tab in features_timeseries.items():
     isub = ind_subplot[time_sets[bn]]
     strain = bn.partition('_')[0]
     col = strain_col[strain]
-    plt.subplot(2,2, isub)
+    ax= plt.subplot(2,2, isub)
     plt.plot(xx, yy, col)
     
-    #time_str = str(time_sets[bn])
+    time_str = str(time_sets[bn])
+    plt.title(time_str)
+    #ax.set_yscale('log')
     #strain = bn.partition('_')[0]
     #plt.title('{} {}'.format(time_str, strain))
 
