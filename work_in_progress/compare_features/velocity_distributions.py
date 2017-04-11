@@ -12,6 +12,9 @@ import numpy as np
 import tables
 import matplotlib.pylab as plt
 
+from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormStats
+
+
 def read_feat_events(feat_file):
     fid= tables.File(feat_file, 'r')
     
@@ -25,17 +28,21 @@ def read_feat_events(feat_file):
                 features_events[feat] = {}
             dat = fid.get_node(worm_node._v_pathname, feat)[:]
             features_events[feat][worn_n] = dat
-            
-    #features_events = {feat:np.concatenate(val) for feat, val in features_events.items()}
+    
+    def dict2array(dd):
+        return np.concatenate([val for val in dd.values()])
+    
+    features_events = {feat:dict2array(val) for feat, val in features_events.items()}
     return features_events
 #%%
-masks_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/'
-results_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/Results'
+#masks_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/'
+#results_dir = '/Volumes/SAMSUNG_USB/David_Miller/DM_unc-4_Adult_L4_060417/Results'
 
-#masks_dir = '/Volumes/behavgenom_archive$/Avelino/screening/David_Miller/MaskedVideos/DM_unc-4_Adult_L4_060417'
-#results_dir = masks_dir.replace('MaskedVideos', 'Results')
+masks_dir = '/Volumes/behavgenom_archive$/Avelino/screening/David_Miller/MaskedVideos/DM_unc-4_Adult_L4_060417'
+results_dir = masks_dir.replace('MaskedVideos', 'Results')
 
 fnames = glob.glob(os.path.join(masks_dir, '*.hdf5'))
+
 
 time_sets = {}
 for fname in fnames:
@@ -46,9 +53,10 @@ for fname in fnames:
     
 #%%
 feat_files = glob.glob(os.path.join(results_dir, '*_features.hdf5'))
-features_timeseries = {}
-features_events = {}
-for feat_file in feat_files:
+features_data = {}
+wstat = WormStats()
+plate_stats = np.full(len(feat_files), np.nan, wstat.feat_avg_dtype)
+for ii, feat_file in enumerate(feat_files):
     base_name = os.path.basename(feat_file).replace('_features.hdf5', '')
     print(base_name)
     with pd.HDFStore(feat_file, 'r') as fid:
@@ -60,15 +68,22 @@ for feat_file in feat_files:
             motion_modes = feats_worm['motion_modes'].fillna(method='ffill')
             feat_timeseries['motion_modes_f'] = motion_modes
         
-        features_timeseries[base_name] = feat_timeseries
-        features_events[base_name] = read_feat_events(feat_file)
+        dd = {x:feat_timeseries[x] for x in feat_timeseries}
+        worm_features_dict = {**dd, **read_feat_events(feat_file)}
+        features_data[base_name] = worm_features_dict
+        
+        plate_stats[ii] = wstat.getWormStats(worm_features_dict)
+plate_stats = pd.DataFrame(plate_stats)
 
+plate_stats['base_name'] =[os.path.basename(x).replace('_features.hdf5', '') for x in feat_files]
+plate_stats['strain'] = [x.partition('_')[0] for x in plate_stats['base_name'].values]
+plate_stats['time_set'] = [time_sets[x] for x in  plate_stats['base_name'].values]
 #%%
 ind_subplot = {key:ii+1 for ii,key in enumerate(sorted(set(time_sets.values())))}
 strain_col = {'unc-4 (c2323)':'b', 'unc-4 (c2323);ceh-12':'r'}
 
 plt.figure()
-for ii, (bn, tab) in enumerate(features_timeseries.items()):
+for ii, (bn, tab) in enumerate(features_data.items()):
     dat = tab['midbody_speed'].dropna()
     counts, edges = np.histogram(dat, 501, (-25,45))
     
@@ -93,12 +108,13 @@ for ii, (bn, tab) in enumerate(features_timeseries.items()):
     #plt.title('{} {}'.format(time_str, strain))
 
 #%%
-feat_stats = tab.quantile([0.05, 0.5, 0.95])
-feat_stats.append(tab.mean(skipna=True), ignore_index=True)
+#feat_stats = tab.quantile([0.05, 0.5, 0.95])
+#feat_stats.append(tab.mean(skipna=True), ignore_index=True)
 #%%
-for ii, (bn, tab) in enumerate(features_timeseries.items()):
+for ii, (bn, tab) in enumerate(features_data.items()):
 
-    dat = np.concatenate([x for x in features_events[bn]['forward_time'].values()])
+    
+    dat = features_data[bn]['forward_time']
     dat = dat[~np.isnan(dat)]
     counts, edges = np.histogram(dat, 25)
     binsize = edges[1]-edges[0]
@@ -106,7 +122,7 @@ for ii, (bn, tab) in enumerate(features_timeseries.items()):
     
     yy = counts/dat.size#/binsize
     
-    yy = np.cumsum(yy)
+    #yy = np.cumsum(yy)
     isub = ind_subplot[time_sets[bn]]
     strain = bn.partition('_')[0]
     col = strain_col[strain]
@@ -115,10 +131,43 @@ for ii, (bn, tab) in enumerate(features_timeseries.items()):
     
     time_str = str(time_sets[bn])
     plt.title(time_str)
-    
-    print(ii, isub, time_sets[bn])
 
 #%%
+
+
+
+#%%
+#wstat = WormStats()
+#
+#       feat_stats = np.full(1, np.nan, dtype=self.feat_avg_dtype)
+#
+#        motion_mode = worm_features_dict['motion_modes'].values
+#        for feat_name, feat_props in self.features_info.iterrows():
+#            feat_obj = feat_props['feat_name_obj']
+#
+#            if feat_obj in worm_features._features:
+#                tmp_data = worm_features._features[feat_obj].value
+#            else:
+#                tmp_data = None
+#
+#            if tmp_data is None:
+#                feat_stats[feat_name] = np.nan
+#
+#            elif isinstance(tmp_data, (int, float)):
+#                feat_stats[feat_name] = tmp_data
+#
+#            else:
+#                feat_avg = self._featureStat(
+#                    stat_func,
+#                    tmp_data,
+#                    feat_name,
+#                    feat_props['is_signed'],
+#                    feat_props['is_time_series'],
+#                    motion_mode)
+#                for feat_avg_name in feat_avg:
+#                    feat_stats[feat_avg_name] = feat_avg[feat_avg_name]
+#%%
+
 #'forward_distance'
 #'forward_time'
 #'backward_distance'

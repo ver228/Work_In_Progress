@@ -13,7 +13,7 @@ import matplotlib.pylab as plt
 
 
 
-def plot_probs(eggs, worm_probs_resized, worm_probs_fixed, thresh=0.99):
+def plot_probs(eggs, worm_probs_resized, worm_probs_fixed, thresh=0.99, plot_log=True):
 
     def get_possible_eggs(worm_probs, thresh ):
         inds = np.where(worm_probs[:,1]>thresh)[0]
