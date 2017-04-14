@@ -32,14 +32,10 @@ from keras.layers import Dense
 from keras.layers import Reshape
 from keras.layers import Flatten
 from keras.layers import Dropout
-
-from keras.models import load_model
-from keras.callbacks import TensorBoard, ModelCheckpoint, History
-from keras.optimizers import Adam
 from keras.layers import UpSampling2D
 
+from keras.callbacks import TensorBoard, ModelCheckpoint
 from image_transforms import ImageSkeletonsGenerator
-
 
 SAVE_DIR = '/Volumes/behavgenom_archive$/Avelino/skeletons_cnn_tests/'
 
