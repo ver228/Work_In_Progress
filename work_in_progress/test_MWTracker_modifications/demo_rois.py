@@ -6,7 +6,9 @@ Created on Thu Dec 17 21:57:30 2015
 """
 import pandas as pd
 import matplotlib.pylab as plt
-from tierpsy.analysis.ske_create.helperIterROI import generateMoviesROI, getROIfromInd
+from tierpsy.analysis.ske_create.helperIterROI import generateMoviesROI
+from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
+from tierpsy.analysis.traj_create.getBlobTrajectories import _thresh_bw
 
 masked_file = "/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Exp_250417/BRC20067_worms10_food1-3_Set4_Pos5_Ch2_25042017_140346.hdf5"
 skeletons_file = masked_file.replace('MaskedVideos', 'Results').replace('.hdf5', '_skeletons.hdf5')
@@ -16,14 +18,22 @@ with pd.HDFStore(skeletons_file, 'r') as fid:
     
 roi_generator = generateMoviesROI(masked_file, trajectories_data)
 
-frame_data = next(roi_generator)
+worms_in_frame = next(roi_generator)
 
-for row in frame_data:
-    img_roi, roi_corner = frame_data[row]
+for row in worms_in_frame:
+    worm_img, roi_corner = worms_in_frame[row]
+    row_data = trajectories_data.loc[row]
+    worm_mask, worm_cnt, _ = getWormMask(worm_img, 
+                                 row_data['threshold'], 
+                                 5)
 
     plt.figure()
-    plt.imshow(img_roi, interpolation=None, cmap='gray')
-        
+    plt.subplot(1,2,1)
+    plt.imshow(worm_img, interpolation=None, cmap='gray')
+    plt.subplot(1,2,2)
+    plt.imshow(worm_mask, interpolation=None, cmap='gray')
+    break
+    
 
 #import h5py
 #import pandas as pd
