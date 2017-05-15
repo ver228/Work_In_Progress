@@ -16,8 +16,6 @@ from tierpsy.helper.misc import TimeCounter
 from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormStats
 from tierpsy.analysis.feat_create.obtainFeatures import FUNC_FOR_DIV
 
-from check_real_data import select_real_files
-
 def _get_type_str(basename, types_list):
             type_str = ''
             for ss in types_list:
@@ -29,7 +27,7 @@ def _get_type_str(basename, types_list):
 def get_strain(basename):
     strain = _get_type_str(basename, ['N2', 'tbh-1', 'trp-4'])
     if not strain:
-        strain = 'N2'
+        strain = ''
     return strain
 
 def get_data_type(basename):
@@ -119,32 +117,20 @@ def exec_parallel(input_data, func):
     
     return output_data
 
-def read_feat_summary(fname):
-    print(os.path.basename(fname))
-    with pd.HDFStore(fname, 'r') as fid:
-        valid_stats = [x for x in fid.get_node('/features_summary')._v_children.keys() if not '_split' in x]
-        worm_stat = {}
-        for stat in valid_stats:
-            worm_stat[stat] = fid['/features_summary/' + stat]
-    
-    return concat_dataframe(fname, worm_stat)
+
 
 if __name__ == '__main__':
     main_dir = '/Volumes/behavgenom$/Kezhi/ToAvelino/for_paper'
-    
-    real_files = select_real_files(main_dir)
-    real_feats = exec_parallel(real_files, read_feat_summary)
-    
     simulation_files = glob.glob(os.path.join(main_dir, '**', '*.mat'), recursive=True)
     simulation_feats =  exec_parallel(simulation_files, calculate_feat_stats_cnt)
     
-    all_feats = pd.concat(simulation_feats + real_feats)
-    all_feats.to_csv('simulation_features.csv')
+    simulation_feats = pd.concat(simulation_feats)
+    simulation_feats.to_csv('simulation_features.csv')
     #%%
     import seaborn as sns
     feat_f = 'midbody_bend_sd_abs'
     
-    data = all_feats[['strain', 'data_type', 'stat_type', feat_f]]
+    data = simulation_feats[['strain', 'data_type', 'stat_type', feat_f]]
     #data[feat_f] /= 3
     sns.factorplot(x="strain", y=feat_f, hue="stat_type",
                col="data_type", data=data, kind='box',

@@ -62,19 +62,28 @@ def plot_feats(data):
     return fig_list
 
 if __name__ == '__main__':
-    main_dir = '/Volumes/behavgenom$/Kezhi/ToAvelino/for_paper/real_data'
-    
     fields2ignore = ['worm_index', 'n_frames', 'n_valid_skel', 'first_frame',
                      'strain', 'data_type', 'stat_type']
     
-    all_feats= pd.read_csv('simulation_features.csv')
-    
-    #all_feats = all_feats[all_feats['length'] > 1050]
     #%%
-    good = (all_feats['stat_type'] == 'means') & \
-           (all_feats['data_type'] == 'real')
+    dat_simulation = pd.read_csv('simulation_features.csv')
+    good = (dat_simulation['stat_type'] == 'means') & \
+           (dat_simulation['data_type'] == 'noise')
+    dat_simulation = dat_simulation[good]
+    dat_simulation['data_type'] = 'simulation'
+    #%%
+    dat_train = pd.read_csv('train_features.csv')
+    dat_train['data_type'] = 'train'
+    good = (dat_train['stat_type'] == 'means') & \
+           (~dat_train['strain'].isnull())
+    dat_train = dat_train[good]
+    
+    #%%
+    dat_real = pd.read_csv('real_features.csv')
+    good = (dat_real['stat_type'] == 'means') & \
+           (~dat_real['strain'].isnull())
            
-    dat_real = all_feats[good]
+    dat_real = dat_real[good]
     
     # randomly select 10 files for each strain
     strain_group = dat_real.groupby('strain')
@@ -110,25 +119,23 @@ if __name__ == '__main__':
     
     print('tbh-1')
     print(pvalues['tbh-1'].sort_values()[:20])
-
-    #plot_feats(dat_real)
-    
     
     #%%
-    good = (all_feats['stat_type'] == 'means') & \
-           (all_feats['data_type'] == 'noise')
-    dat_simulation = all_feats[good]
-    dat_simulation['data_type'] = 'simulation'
-    
     data = pd.concat((dat_real, dat_simulation))
-    #%%
     pdf_file = 'simulation_vs_real_boxplot.pdf'
     fig_list = plot_feats(data)
     with PdfPages(pdf_file) as pdf_id:
         for fig in fig_list:
             pdf_id.savefig(fig)
-            #plt.close(fig)
-        
+            plt.close(fig)
+    
+    data = pd.concat((dat_train, dat_simulation))
+    pdf_file = 'training_vs_real_boxplot.pdf'
+    fig_list = plot_feats(data)
+    with PdfPages(pdf_file) as pdf_id:
+        for fig in fig_list:
+            pdf_id.savefig(fig)
+            plt.close(fig)
     
     #%%
 #    good = (all_feats['stat_type'] == 'means') & \

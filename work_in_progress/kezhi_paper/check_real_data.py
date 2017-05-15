@@ -9,6 +9,9 @@ import glob
 import os
 import pymysql
 import shutil
+import pandas as pd
+
+from calculate_features import concat_dataframe, exec_parallel
 
 def _get_basenames(main_dir):
     all_files = glob.glob(os.path.join(main_dir, '**', '*_features.hdf5'), recursive=True)
@@ -60,7 +63,7 @@ def select_real_files(main_dir):
     
     features_data = []
     for key, data in results_data.items():
-        for results_dir, base_name, data in data:
+        for results_dir, base_name, _ in data:
             feat_file = os.path.join(results_dir, base_name + '_features.hdf5')
             features_data.append(feat_file)        
     
@@ -76,22 +79,23 @@ def copy_files(dst_dir):
     for feat_file in feat_files:
         print(os.path.basename(feat_file))
         shutil.copy(feat_file, dst_dir)
-        
+
+def read_feat_summary(fname):
+    print(os.path.basename(fname))
+    with pd.HDFStore(fname, 'r') as fid:
+        valid_stats = [x for x in fid.get_node('/features_summary')._v_children.keys() if not '_split' in x]
+        worm_stat = {}
+        for stat in valid_stats:
+            worm_stat[stat] = fid['/features_summary/' + stat]
+    
+    return concat_dataframe(fname, worm_stat)
 
 
 
 if __name__ == '__main__':
-    main_dir = '/Volumes/behavgenom$/Kezhi/ToAvelino/for_paper/real_data'
-
-    #all_files = glob.glob(os.path.join(main_dir, '*.hdf5'))
-#    all_files = select_files(main_dir)
-#    print(len(all_files))
-#    
-#    all_feats = pd.concat(all_feats)
-#    #%%
-#    import seaborn as sns
-#    
-#    feat_f = 'midbody_bend_sd_abs'
-#    data = all_feats[['strain', 'simulation', 'stat_type', feat_f]]
-#    sns.boxplot(x='strain', y=feat_f, hue='stat_type', data=data)
-#    #sns.stripplot(x="strain", y=feat_f, hue='stat_type', data=data, jitter=True);
+    main_dir = '/Volumes/behavgenom$/Kezhi/ToAvelino/for_paper'
+    
+    real_files = select_real_files(main_dir)
+    real_feats = exec_parallel(real_files, read_feat_summary)
+    real_feats = all_feats = pd.concat(real_feats)
+    real_feats.to_csv('real_features.csv')
