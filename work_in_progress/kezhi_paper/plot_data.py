@@ -15,6 +15,16 @@ from matplotlib.backends.backend_pdf import PdfPages
 def plot_feats(data):
     #plt.figure(figsize=(15,4))
     fig_list = []
+    
+    feats2check = ['eigen_projection_2_pos', 'eigen_projection_2_abs',
+       'forward_motion_frequency', 'backward_motion_time_ratio',
+       'head_motion_direction_neg', 'eigen_projection_3_neg',
+       'head_motion_direction_abs', 'paused_motion_time_ratio',
+       'head_speed_neg', 'head_tip_speed_neg', 'tail_bend_sd_abs',
+       'head_motion_direction_pos', 'tail_tip_speed_neg', 'path_curvature_pos',
+       'tail_speed_neg', 'path_curvature_abs', 'backward_motion_frequency',
+       'midbody_speed_neg', 'eigen_projection_1_pos', 'path_curvature_neg']
+    '''
     feats2check = ['head_bend_sd_abs',
                    'neck_bend_sd_abs', 
                    'midbody_bend_sd_abs',
@@ -52,9 +62,41 @@ def plot_feats(data):
                    'midbody_speed_pos',
                    'forward_motion_time_ratio',
                    'backward_motion_time_ratio',
-                   'paused_motion_time_ratio'
+                   'paused_motion_time_ratio',
+                   'foraging_amplitude',
+                   'foraging_amplitude_abs', 
+                   'foraging_amplitude_neg', 
+                   'foraging_amplitude_pos', 
+                   'foraging_amplitude_forward', 
+                   'foraging_amplitude_forward_abs', 
+                   'foraging_amplitude_forward_neg', 
+                   'foraging_amplitude_forward_pos', 
+                   'foraging_amplitude_paused', 
+                   'foraging_amplitude_paused_abs', 
+                   'foraging_amplitude_paused_neg', 
+                   'foraging_amplitude_paused_pos', 
+                   'foraging_amplitude_backward', 
+                   'foraging_amplitude_backward_abs', 
+                   'foraging_amplitude_backward_neg', 
+                   'foraging_amplitude_backward_pos', 
+                   'foraging_speed', 
+                   'foraging_speed_abs', 
+                   'foraging_speed_neg', 
+                   'foraging_speed_pos', 
+                   'foraging_speed_forward', 
+                   'foraging_speed_forward_abs', 
+                   'foraging_speed_forward_neg', 
+                   'foraging_speed_forward_pos', 
+                   'foraging_speed_paused', 
+                   'foraging_speed_paused_abs', 
+                   'foraging_speed_paused_neg', 
+                   'foraging_speed_paused_pos', 
+                   'foraging_speed_backward', 
+                   'foraging_speed_backward_abs', 
+                   'foraging_speed_backward_neg', 
+                   'foraging_speed_backward_pos'
                    ]
-    
+    '''
     for ii, feat_f in enumerate(feats2check):
         fig = plt.figure()
         sns.boxplot(x='strain', y=feat_f, hue ='data_type', data=data)  
@@ -121,19 +163,47 @@ if __name__ == '__main__':
     print(pvalues['tbh-1'].sort_values()[:20])
     
     #%%
+#    data = pd.concat((dat_real, dat_simulation))
+#    pdf_file = 'simulation_vs_real_boxplot.pdf'
+#    fig_list = plot_feats(data)
+#    with PdfPages(pdf_file) as pdf_id:
+#        for fig in fig_list:
+#            pdf_id.savefig(fig)
+#            plt.close(fig)
+#    
+#    data = pd.concat((dat_train, dat_simulation))
+#    pdf_file = 'training_vs_real_boxplot.pdf'
+#    fig_list = plot_feats(data)
+#    with PdfPages(pdf_file) as pdf_id:
+#        for fig in fig_list:
+#            pdf_id.savefig(fig)
+#            plt.close(fig)
+    #%%
     data = pd.concat((dat_real, dat_simulation))
-    pdf_file = 'simulation_vs_real_boxplot.pdf'
-    fig_list = plot_feats(data)
-    with PdfPages(pdf_file) as pdf_id:
-        for fig in fig_list:
-            pdf_id.savefig(fig)
-            plt.close(fig)
     
-    data = pd.concat((dat_train, dat_simulation))
-    pdf_file = 'training_vs_real_boxplot.pdf'
-    fig_list = plot_feats(data)
+    fig1= plt.figure(figsize=(7,5))
+    data_strain = data[data['strain'].isin(['N2', 'trp-4'])]
+    ax = sns.boxplot(x='strain', 
+                y='head_bend_mean_abs', 
+                hue ='data_type', 
+                data=data_strain) 
+    ax.legend_.remove()
+    ax.legend(loc='best')
+    
+    
+    
+    fig2=plt.figure(figsize=(7,5))
+    data_strain =  data[data['strain'].isin(['N2', 'tbh-1'])]
+    sns.boxplot(x='strain', 
+                y='forward_motion_frequency', 
+                hue ='data_type', 
+                data=data_strain) 
+    ax.legend_.remove()
+    ax.legend(loc='best')
+    
+    pdf_file = 'simulation_vs_real_boxplot.pdf'
     with PdfPages(pdf_file) as pdf_id:
-        for fig in fig_list:
+        for fig in [fig1, fig2]:
             pdf_id.savefig(fig)
             plt.close(fig)
     

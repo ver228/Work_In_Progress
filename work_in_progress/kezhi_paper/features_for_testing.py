@@ -22,6 +22,16 @@ def get_query(base_names):
     
     return sql
 
+def get_missing_exit_flag(conn, missing_base_names):
+    #%%
+    
+    bn_str = ','.join(['"'+ x + '"' for x in missing_base_names])
+    sql = '''SELECT base_name, exit_flag FROM experiments_full WHERE base_name IN ({});'''.format(bn_str)
+    df = pd.read_sql(sql, con=conn)
+    #%%
+    return df
+
+
 def read_feats(f_dir):
     conn = pymysql.connect(host='localhost', database='single_worm_db')
     fnames = glob.glob(os.path.join(f_dir, '**', '*.hdf5'), recursive=True)
@@ -29,8 +39,19 @@ def read_feats(f_dir):
     
     sql = get_query(base_names)
     df = pd.read_sql(sql, con=conn)
-    conn.close()
     
+    
+    
+    missing_bn = [x for x in  base_names if not x in df['base_name'].values]
+    missing_df = get_missing_exit_flag(conn, missing_bn)
+    print(missing_df)
+    
+    print('NOT IN THE DATABASE')
+    for x in missing_bn: 
+        if not x in missing_df['base_name'].values:
+            print(x)
+    
+    conn.close()
     return df
 
 
@@ -41,5 +62,6 @@ train_df = read_feats(training_dir)
 test_df = read_feats(testing_dir)
 
 
-train_df.to_csv('train_feat_means.csv')
-test_df.to_csv('test_feat_means.csv')
+train_df.to_csv('train_feat_means.csv', index=False)
+test_df.to_csv('test_feat_means.csv', index=False)
+
