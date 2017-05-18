@@ -145,8 +145,9 @@ if __name__ == '__main__':
     
     valid_fields = [x for x in valid_fields if not '_bend_' in x or '_abs' in x]
     
-    pvalues = pd.DataFrame(np.full((len(valid_fields), 2), np.nan),
-                           columns = ['trp-4', 'tbh-1'], index=valid_fields)
+    
+    pvalues = pd.DataFrame(np.full((len(valid_fields), 3), np.nan),
+                           columns = ['trp-4', 'tbh-1', 'CB4856'], index=valid_fields)
     
     
     for strain, dat_strain in strain_group:
@@ -159,9 +160,11 @@ if __name__ == '__main__':
     print('trp-4')
     print(pvalues['trp-4'].sort_values()[:20])
     
-    print('tbh-1')
+    print('tbhc-1')
     print(pvalues['tbh-1'].sort_values()[:20])
     
+    print('CB4856')
+    print(pvalues['CB4856'].sort_values()[:20])
     #%%
 #    data = pd.concat((dat_real, dat_simulation))
 #    pdf_file = 'simulation_vs_real_boxplot.pdf'
@@ -179,7 +182,7 @@ if __name__ == '__main__':
 #            pdf_id.savefig(fig)
 #            plt.close(fig)
     #%%
-    data = pd.concat((dat_real, dat_simulation))
+    data = pd.concat((dat_train, dat_simulation))
     
     fig1= plt.figure(figsize=(7,5))
     data_strain = data[data['strain'].isin(['N2', 'trp-4'])]
@@ -201,12 +204,29 @@ if __name__ == '__main__':
     ax.legend_.remove()
     ax.legend(loc='best')
     
-    pdf_file = 'simulation_vs_real_boxplot.pdf'
+    pdf_file = 'simulation_vs_train_boxplot.pdf'
     with PdfPages(pdf_file) as pdf_id:
         for fig in [fig1, fig2]:
             pdf_id.savefig(fig)
             plt.close(fig)
+    #%%
+    data = pd.concat((dat_train, dat_simulation))
+    valid_strains = ['N2', 'CB4856']
+    pdf_file = 'CB4856_simulation_vs_train_boxplot.pdf'
+    with PdfPages(pdf_file) as pdf_id:
+        for feat in ['head_speed_pos', 'midbody_speed_pos', 'tail_speed_pos']:
+            fig=plt.figure(figsize=(7,5))
+            data_strain =  data[data['strain'].isin(valid_strains)]
+            sns.boxplot(x='strain', 
+                        y=feat, 
+                        hue ='data_type', 
+                        data=data_strain,
+                        order=valid_strains) 
+            ax.legend_.remove()
+            ax.legend(loc='best')
+            pdf_id.savefig(fig)
     
+
     #%%
 #    good = (all_feats['stat_type'] == 'means') & \
 #           (all_feats['data_type'].isin(['real','low_noise']))

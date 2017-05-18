@@ -23,7 +23,8 @@ def select_real_files(main_dir):
     valid_strains = {
             "N2":"Schafer Lab N2 (Bristol, UK)",
             "trp-4":"trp-4(sy695)I",
-            "tbh-1":"tbh-1(n3247)X"
+            "tbh-1":"tbh-1(n3247)X",
+            'CB4856':"C. elegans Wild Isolate (Hawaii, USA)"
             }
     
     
@@ -36,7 +37,7 @@ def select_real_files(main_dir):
         JOIN strains AS s ON s.id = strain_id
         JOIN results_summary AS r ON exp.id = r.experiment_id 
         JOIN arenas AS a ON a.id = arena_id
-        WHERE genotype = "{}"
+        WHERE s.description = "{}"
         AND f.name = "END"
         AND a.name NOT LIKE "%liquid%"
         AND total_time BETWEEN 880 AND 920

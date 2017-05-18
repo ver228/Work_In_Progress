@@ -25,7 +25,7 @@ def _get_type_str(basename, types_list):
             return type_str
     
 def get_strain(basename):
-    strain = _get_type_str(basename, ['N2', 'tbh-1', 'trp-4'])
+    strain = _get_type_str(basename, ['N2', 'tbh-1', 'trp-4', 'CB4856'])
     if not strain:
         strain = ''
     return strain
