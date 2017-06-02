@@ -150,13 +150,20 @@ if __name__ == '__main__':
               jitter=True, size=10,  linewidth=0) 
     
     #%%
-    data = [(k, (p['centre'] - p['before'])) for k,p in probs]
+    data = [(k, (p['centre'] - p['after'])) for k,p in probs]
     data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
     df = pd.DataFrame(data=data, columns=['exp', 'delP'])
+    plt.figure()
     sns.stripplot(x="exp", y="delP", data=df,
               jitter=True, size=5,  linewidth=0) 
+    #%%
+    from scipy.stats import ttest_ind
+    gg = df.groupby('exp')
     
     
+    a = gg.get_group('A7-B3')['delP'].values
+    b = gg.get_group('A9-B1')['delP'].values
+    t, pprob = ttest_ind(a, b)
     #%%
 #        l_on = light_on[dat['timestamp']]
 #        l_off = light_off[dat['timestamp']]
