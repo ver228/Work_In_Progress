@@ -10,6 +10,7 @@ import tables
 import numpy as np
 import pandas as pd
 import matplotlib.pylab as plt
+from scipy.stats import ttest_ind
 from tierpsy.helper.misc import replace_subdir, remove_ext
 from tierpsy.helper.params import read_fps
 
@@ -29,15 +30,13 @@ def read_light_data(mask_file):
     light_on = mean_intensity >  med + s*6
     
     return light_on
-#%%
+
 def get_light_off(light_on, half_win):
     light_off = ~light_on
     light_off = light_off & np.roll(light_off.copy(), half_win) & np.roll(light_off.copy(), -half_win)
     return light_off
 
 def window_reversal(motion_modes, window_size):
-    
-    #%%
     window_size = window_size if window_size % 2 == 1 else window_size + 1
     
     half_win = int(window_size/2)
@@ -97,6 +96,9 @@ def get_reversal_probs(results_dir, base_name, window_size):
     feat_file = os.path.join(results_dir, base_name + '_features.hdf5')
     
     mask_dir = replace_subdir(results_dir, 'Results', 'MaskedVideos')
+    if not os.path.exists(mask_dir):
+        mask_dir = results_dir
+    
     mask_file = os.path.join(mask_dir, base_name +'.hdf5')
     
     
@@ -116,12 +118,77 @@ def get_reversal_probs(results_dir, base_name, window_size):
     
     return probs
 
+
+def find_pulse_rev_frac(feat_timeseries, index, window_size):
+    w_ini = index
+    w_fin = index+window_size
+    good = (feat_timeseries['timestamp']>=w_ini) & (feat_timeseries['timestamp']<=w_fin)
+    
+    w_dat = feat_timeseries.loc[good]
+    
+    has_reversal = []
+    for worm_index, g_dat in w_dat.groupby('worm_index'):
+        has_reversal.append(np.any(g_dat['motion_modes'] == -1))
+    
+    rev_frac = np.mean(has_reversal)
+    
+    return rev_frac
+
+def find_rev_frac(results_dir, base_name, expected_pulse_size_s, check_window_s):
+    feat_file, mask_file = get_names(results_dir, base_name)
+    
+    fps = read_fps(feat_file)
+    expected_pulse_size = fps*expected_pulse_size_s
+    check_window = fps*check_window_s
+    
+    light_on = read_light_data(mask_file)
+    with pd.HDFStore(feat_file, 'r') as fid:
+        feat_timeseries = fid['/features_timeseries']
+        
+    feat_timeseries['timestamp'] = feat_timeseries['timestamp'].astype(np.int)
+    #%%
+    #find the indexes where the pulses start and end
+    switches = np.diff(light_on.astype(np.int))
+    turn_on, = np.where(switches==1)
+    turn_off, = np.where(switches==-1)
+    assert turn_on.size == turn_off.size
+    #%%
+    #find the reversal fraction for each pulse
+    rev_fracs = []
+    for ini, fin in zip(turn_on, turn_off):
+        if fin-ini < expected_pulse_size/2:
+            #the pulse is too short, let's ignore it
+            continue
+        
+        before = find_pulse_rev_frac(feat_timeseries, ini-expected_pulse_size, check_window)
+        centre = find_pulse_rev_frac(feat_timeseries, ini, check_window)
+        after = find_pulse_rev_frac(feat_timeseries, fin+expected_pulse_size, check_window)
+
+        
+        rev_fracs.append((before, centre, after))
+    return rev_fracs
+
+def get_names(results_dir, base_name):
+    feat_file = os.path.join(results_dir, base_name + '_features.hdf5')
+    
+    mask_dir = replace_subdir(results_dir, 'Results', 'MaskedVideos')
+    if not os.path.exists(mask_dir):
+        mask_dir = results_dir
+    
+    mask_file = os.path.join(mask_dir, base_name +'.hdf5')
+    
+    return feat_file, mask_file
+
 if __name__ == '__main__':
     import os
     import seaborn as sns
     
-    results_dir = '/Volumes/behavgenom_archive$/Avelino/screening/David_Miller/Results/ATR_210417/'
-    window_size = 250
+    #results_dir = '/Volumes/behavgenom_archive$/Avelino/screening/David_Miller/Results/ATR_210417/'
+    results_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    
+    
+    expected_pulse_size_s = 10
+    check_window_s = 5
     
     
     fnames = [x for x in os.listdir(results_dir) if x.endswith('.hdf5')]
@@ -130,40 +197,121 @@ if __name__ == '__main__':
     probs = []
     for base_name in base_names:
         print(base_name)
-        dat = get_reversal_probs(results_dir, base_name, window_size)
+        rev_fracs = find_rev_frac(results_dir, base_name, expected_pulse_size_s, check_window_s)
+        rev_fracs = np.array(rev_fracs).T
+        
+        frac_before = rev_fracs[1,:] - rev_fracs[0,:]
+        frac_after = rev_fracs[2,:] - rev_fracs[1,:]
+        
         exp_name = '-'.join(base_name.split('_')[0:2])
-        probs.append((exp_name, dat))
-
+        probs.append((exp_name, (frac_before, frac_after)))
+        
+    #%%
+    data = [(exp_name, np.mean(frac_a), np.mean(frac_b))for exp_name, (frac_a, frac_b) in probs]
+    
+    #%%
+    
+    data = [[(exp_name, a,b) for a,b in zip(*dd)] for exp_name, dd in probs]
+    data = sum(data, [])
+    
+    #%%
+    data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
+    df = pd.DataFrame(data=data, columns=['names', 'before', 'after'])
+    
+    plt.figure()
+    sns.boxplot(x="names", y="before", data=df)
+    sns.stripplot(x="names", y="before", data=df,
+              jitter=True, size=5,  linewidth=0, color="k")
+    plt.xlabel('Strains Numbers')
+    plt.ylabel('Change in Reversal Fraction Light OFF to ON')
+    plt.savefig('Change Fraction Before Pulse.png')
+    
+    #%%
+    
+    plt.figure()
+    sns.boxplot(x="names", y="after", data=df)
+    sns.stripplot(x="names", y="after", data=df,
+              jitter=True, size=5,  linewidth=0, color="k")
+    plt.xlabel('Strains Numbers')
+    plt.ylabel('Change in Reversal Fraction Light ON to OFF')
+    plt.savefig('Change Fraction After Pulse.png')
+    #%%
+    
+    for region_type in ['before', 'after']:
+        for frac_type in ['A7-B3', 'A9-B1']:
+            gg = df.groupby('names')
+            a = gg.get_group(frac_type)[region_type].values
+            b = gg.get_group('A10-B0')[region_type].values    
+            t, pprob = ttest_ind(a, b)
+            print(frac_type, region_type, pprob)
+    #%%
+    base_name = [x for x in base_names if 'A10_B0' in x][0]
+    feat_file, mask_file = get_names(results_dir, base_name)
+    
+    light_on = read_light_data(mask_file)
+    with pd.HDFStore(feat_file, 'r') as fid:
+        feat_timeseries = fid['/features_timeseries']
+    feat_timeseries['timestamp'] = feat_timeseries['timestamp'].astype(np.int)
+    #%%
+    fps = read_fps(feat_file)
+    
+    for worm_index, dat in feat_timeseries.groupby('worm_index'):
+        #print(worm_index)
+        if worm_index !=15:
+            continue
+        yy = dat['head_speed']
+        xx_i = dat['timestamp']
+        xx = xx_i/fps
+        
+        rr = (np.min(yy), np.max(yy))
+        pulse = light_on[xx_i]
+        pulse = pulse*(rr[1]-rr[0]) + rr[0]
+        
+        plt.figure(figsize=(12, 5))
+        plt.plot(xx, yy)
+        plt.plot(xx, pulse, 'o')
+        
+        plt.xlabel('Time (s)')
+        plt.ylabel('Midbody Speed (microns/s)')
+        #plt.savefig('Strain_A_Speed.png')
 #%%
-    data = []
-    for k, p in probs:
-        for t, val in p.items():
-            data.append((k, t, val))
+#    probs = []
+#    for base_name in base_names:
+#        print(base_name)
+#        dat = get_reversal_probs(results_dir, base_name, window_size)
+#        exp_name = '-'.join(base_name.split('_')[0:2])
+#        probs.append((exp_name, dat))
 
-    data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
-    
-    df = pd.DataFrame(data=data, columns=['names', 'type', 'P'])
-    
-    
-    plt.figure()
-    sns.stripplot(x="names", y="P", hue='type', data=df,
-              jitter=True, size=10,  linewidth=0) 
-    
-    #%%
-    data = [(k, (p['centre'] - p['after'])) for k,p in probs]
-    data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
-    df = pd.DataFrame(data=data, columns=['exp', 'delP'])
-    plt.figure()
-    sns.stripplot(x="exp", y="delP", data=df,
-              jitter=True, size=5,  linewidth=0) 
-    #%%
-    from scipy.stats import ttest_ind
-    gg = df.groupby('exp')
-    
-    
-    a = gg.get_group('A7-B3')['delP'].values
-    b = gg.get_group('A9-B1')['delP'].values
-    t, pprob = ttest_ind(a, b)
+##%%
+#    data = []
+#    for k, p in probs:
+#        for t, val in p.items():
+#            data.append((k, t, val))
+#
+#    data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
+#    
+#    df = pd.DataFrame(data=data, columns=['names', 'type', 'P'])
+#    
+#    
+#    plt.figure()
+#    sns.stripplot(x="names", y="P", hue='type', data=df,
+#              jitter=True, size=10,  linewidth=0) 
+#    
+#    #%%
+#    data = [(k, (p['centre'] - p['after'])) for k,p in probs]
+#    data = sorted(data, key=lambda x : int(x[0].partition('-')[0][1:]))
+#    df = pd.DataFrame(data=data, columns=['exp', 'delP'])
+#    plt.figure()
+#    sns.stripplot(x="exp", y="delP", data=df,
+#              jitter=True, size=5,  linewidth=0) 
+#    #%%
+#    from scipy.stats import ttest_ind
+#    gg = df.groupby('exp')
+#    
+#    
+#    a = gg.get_group('A7-B3')['delP'].values
+#    b = gg.get_group('A9-B1')['delP'].values
+#    t, pprob = ttest_ind(a, b)
     #%%
 #        l_on = light_on[dat['timestamp']]
 #        l_off = light_off[dat['timestamp']]
@@ -190,8 +338,3 @@ if __name__ == '__main__':
 #        r_norm[r_norm==1] = yy[1]
 #        r_norm[r_norm==-1] = yy[0]
 #        plt.plot(dat['timestamp'], r_norm, 'x')
-#%%
-def something(A):
-    def _sm(x):
-        return x+1
-    return map(A, _sm)
