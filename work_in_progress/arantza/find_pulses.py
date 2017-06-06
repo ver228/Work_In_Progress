@@ -8,9 +8,13 @@ import numpy as np
 import os
 import glob
 import pandas as pd
+from matplotlib.backends.backend_pdf import PdfPages
+
 from tierpsy.helper.misc import replace_subdir, remove_ext
 from tierpsy.helper.params import read_fps
-from scipy.stats import ttest_ind
+#from scipy.stats import ttest_ind
+
+from scipy.stats import ranksums, wilcoxon, ttest_ind
 import statsmodels.stats.multitest as smm
 
 import matplotlib.pylab as plt
@@ -24,13 +28,13 @@ for feat_name, feat_info in wStats.features_info.iterrows():
     motion_types = ['']
     if feat_info['is_time_series']:
         motion_types += ['_forward', '_paused', '_backward']
+    
     for mtype in motion_types:
         sub_name = feat_name + mtype
-        feat_avg_names.append(sub_name)
         if feat_info['is_signed']:
             feat_avg_names.append(sub_name + '_abs')
             #if 'speed' in feat_name:
-            #    for atype in ['_abs', '_neg', '_pos']:
+            #    for atype in ['', '_abs', '_neg', '_pos']:
             #        feat_avg_names.append(sub_name + atype)
             #else:
             #    feat_avg_names.append(sub_name + '_abs')
@@ -157,8 +161,8 @@ if __name__ == '__main__':
         mm = before_feats.mean(skipna=True)
         ss = before_feats.std(skipna=True)
         
-        before_feats = (before_feats-mm)/ss
-        after_feats = (after_feats-mm)/ss
+        #before_feats = (before_feats-mm)/ss
+        #after_feats = (after_feats-mm)/ss
         
         before_feats['region'] = 'before'
         after_feats['region'] = 'after'
@@ -184,44 +188,40 @@ if __name__ == '__main__':
         #print(os.path.basename(mask_files[vid_type]))
         p_values, pvals_corrected = get_p_values(dat)
         
-        for iplot, (col, p_val) in enumerate(pvals_corrected[:tot_plots].iteritems()):
-            if iplot % tot_plots == 0:
-                plt.figure(figsize=(15,15))
-                plt.suptitle(vid_type)
-        
-            
-            plt.subplot(tot_rows, tot_cols, (iplot%tot_plots)+1)
-            ax1 =sns.boxplot(x="region", 
-                              y=col,
-                              data=dat, 
-                              order=lab_order)
-            ax2 =sns.stripplot(x="region", 
-                              y=col,
-                              data=dat, 
-                              order=lab_order,
-                             jitter=True,
-                             color="r",
-                             alpha=.5)
-            
-            plt.title(col)
-            plt.ylabel('')
-            plt.xlabel('')
-            bot, top = plt.ylim()
-            top = 1.1*top
-            
-            if (iplot%tot_plots)//tot_cols + 1 < tot_rows:
-                ax1.get_xaxis().set_ticks([])
-                ax2.get_xaxis().set_ticks([])
+        with PdfPages(vid_type + '.pdf') as pdf:
+            for iplot, col in enumerate(pvals_corrected.index):
                 
-            
-            p_str = 'p=%01.4f' % p_val
-            plt.text(0.1, 0.9,p_str, transform=ax2.transAxes)
-            plt.ylim((bot, top))
+                fig = plt.figure(figsize=(5,5))
+                ax1 =sns.boxplot(x="region", 
+                                  y=col,
+                                  data=dat, 
+                                  order=lab_order,
+                                   palette="binary")
+                ax2 =sns.stripplot(x="region", 
+                                  y=col,
+                                  data=dat, 
+                                  order=lab_order,
+                                  hue='video_id',
+                                  jitter=True)
+                ax2.legend_.remove()
+                
+                plt.title(col)
+                plt.ylabel('')
+                plt.xlabel('')
+                bot, top = plt.ylim()
+                top = 1.1*top
+                
+                p_str = 'p=%01.4f    pc=%01.4f' % (p_values[col], pvals_corrected[col])
+                plt.text(0.1, 0.95,p_str, transform=ax2.transAxes)
+                plt.ylim((bot, top))
+                
+                pdf.savefig(fig)
         
-        
-            
-        break
         feat_dats[vid_type] = pvals_corrected
+        
+        
+        print(vid_type.upper())
+        print(p_values[p_values<0.1])
     
     #%%
     

@@ -13,6 +13,7 @@ import matplotlib.pylab as plt
 from scipy.stats import ttest_ind
 from tierpsy.helper.misc import replace_subdir, remove_ext
 from tierpsy.helper.params import read_fps
+from matplotlib.backends.backend_pdf import PdfPages
 
 def read_light_data(mask_file):
     with tables.File(mask_file) as fid:
