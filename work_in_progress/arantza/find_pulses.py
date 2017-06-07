@@ -10,6 +10,7 @@ import glob
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
+import seaborn as sns
 from tierpsy.helper.misc import replace_subdir, remove_ext
 from tierpsy.helper.params import read_fps
 #from scipy.stats import ttest_ind
@@ -20,6 +21,8 @@ import statsmodels.stats.multitest as smm
 import matplotlib.pylab as plt
 
 from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormStats
+
+from oig8_pulses import read_input, get_names
 
 
 wStats = WormStats()
@@ -70,21 +73,12 @@ def get_pulses_indexes(light_on, window_size):
     
     return turn_on[good], turn_off[good]
 
-def get_names(results_dir, base_name):
-    feat_file = os.path.join(results_dir, base_name + '_features.hdf5')
-    
-    mask_dir = replace_subdir(results_dir, 'Results', 'MaskedVideos')
-    if not os.path.exists(mask_dir):
-        mask_dir = results_dir
-    
-    mask_file = os.path.join(mask_dir, base_name +'.hdf5')
-    
-    return feat_file, mask_file
+
 
 def get_p_values(dat):
     #%%
-    feat_x = dat[dat['region']=='before']
-    feat_y = dat[dat['region']=='after']
+    feat_x = dat[dat['region']=='Before']
+    feat_y = dat[dat['region']=='After']
         
     p_values = []
     for feat in feat_avg_names:
@@ -111,37 +105,44 @@ def get_p_values(dat):
         pvals_corrected = pd.Series()
     #%%
     return p_values, pvals_corrected
-
+#%%
+def get_vid_type(base_name):
+    if 'control' in base_name:
+        vid_type = 'Control'
+    elif 'herm' in base_name:
+        vid_type = 'Hermaphrodite'
+    elif 'male' in base_name:
+        vid_type = 'Male'
+    else:
+        raise ValueError()
+        
+    return vid_type
+#%%
 if __name__ == '__main__':
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos'
-    mask_dir = os.path.join(mask_dir, 'oig8')
+    results_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/Results/oig8'
+
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Arantza/MaskedVideos'
     
-    window_size_s = 5
+    expected_pulse_size_s = 5
     
     min_traj_s = 45
     
-    mask_files = glob.glob(os.path.join(mask_dir, '**', '*.hdf5'), recursive=True)
+    fnames = [x for x in os.listdir(results_dir) if x.endswith('.hdf5')]
+    base_names = sorted(set(map(remove_ext, fnames)))
     
     all_data = pd.DataFrame()
-    for vid_id, mask_file in enumerate(sorted(mask_files)):
-        bn = os.path.basename(mask_file)
-        print(bn)
+    for vid_id, base_name in enumerate(sorted(base_names)):
+        feat_file, mask_file = get_names(results_dir, base_name)
         
-        if 'control' in bn:
-            vid_type = 'control'
-        elif 'herm' in bn:
-            vid_type = 'hermaphrodite'
-        elif 'male' in bn:
-            vid_type = 'male'
-        else:
-            raise ValueError()
+        vid_type = get_vid_type(base_name)
         
-        feat_file = replace_subdir(remove_ext(mask_file), 'MaskedVideos', 'Results') + '_features.hdf5'
+        
+        feat_file = replace_subdir(remove_ext(mask_file), 'MaskedVideos', 'Results') + '_feat_manual.hdf5'
+        
         light_on = read_light_data(mask_file)
         fps = read_fps(mask_file)
-        window_size = fps*window_size_s
-        turn_on, turn_off = get_pulses_indexes(light_on, window_size)
+        expected_pulse_size = fps*expected_pulse_size_s
+        turn_on, turn_off = get_pulses_indexes(light_on, expected_pulse_size)
         
         min_traj = fps*min_traj_s
         with pd.HDFStore(feat_file, 'r') as fid:
@@ -158,14 +159,13 @@ if __name__ == '__main__':
         before_feats = feats.loc[before_ind, valid_cols]
         after_feats = feats.loc[after_ind,  valid_cols]
         
-        mm = before_feats.mean(skipna=True)
-        ss = before_feats.std(skipna=True)
-        
+        #mm = before_feats.mean(skipna=True)
+        #ss = before_feats.std(skipna=True)
         #before_feats = (before_feats-mm)/ss
         #after_feats = (after_feats-mm)/ss
         
-        before_feats['region'] = 'before'
-        after_feats['region'] = 'after'
+        before_feats['region'] = 'Before'
+        after_feats['region'] = 'After'
         feat_vid_N = pd.concat([before_feats, after_feats])
         
         
@@ -176,53 +176,138 @@ if __name__ == '__main__':
         all_data = pd.concat([all_data , feat_vid_N])
     
     #%%
-    import seaborn as sns
+    
     feat_dats = {}
     tot_rows = 3
     tot_cols = 5
     tot_plots = tot_rows*tot_cols
     
-    lab_order = ['before', 'after']
+    lab_order = ['Before', 'After']
+    valid_feats = {}
     #video_id vid_type
     for vid_type, dat in all_data.groupby('vid_type'):
         #print(os.path.basename(mask_files[vid_type]))
         p_values, pvals_corrected = get_p_values(dat)
+        feat_dats[vid_type] = pvals_corrected
         
-        with PdfPages(vid_type + '.pdf') as pdf:
-            for iplot, col in enumerate(pvals_corrected.index):
+        
+        val = pvals_corrected[pvals_corrected<0.05]
+        val_feats = val.index.values
+        
+        print(vid_type.upper())
+        print(val)
+        
+        
+        if val_feats.size == 0:
+            continue
+        
+        valid_feats[vid_type] = val_feats
+        with PdfPages(vid_type + '_traj.pdf') as pdf:
+            for iplot, feat in enumerate(val_feats):
                 
                 fig = plt.figure(figsize=(5,5))
                 ax1 =sns.boxplot(x="region", 
-                                  y=col,
+                                  y=feat,
                                   data=dat, 
                                   order=lab_order,
                                    palette="binary")
                 ax2 =sns.stripplot(x="region", 
-                                  y=col,
+                                  y=feat,
                                   data=dat, 
                                   order=lab_order,
                                   hue='video_id',
                                   jitter=True)
                 ax2.legend_.remove()
                 
-                plt.title(col)
+                plt.title(feat)
                 plt.ylabel('')
                 plt.xlabel('')
                 bot, top = plt.ylim()
                 top = 1.1*top
                 
-                p_str = 'p=%01.4f    pc=%01.4f' % (p_values[col], pvals_corrected[col])
+                p_str = 'p=%01.4f    pc=%01.4f' % (p_values[feat], pvals_corrected[feat])
                 plt.text(0.1, 0.95,p_str, transform=ax2.transAxes)
                 plt.ylim((bot, top))
                 
                 pdf.savefig(fig)
-        
-        feat_dats[vid_type] = pvals_corrected
-        
-        
-        print(vid_type.upper())
-        print(p_values[p_values<0.1])
-    
+                plt.close()
+    #%%
+    vid_groups = {}
+    for bn in base_names:
+        vid_type = get_vid_type(bn)
+        if not vid_type in vid_groups:
+            vid_groups[vid_type] = []
+        vid_groups[vid_type].append(bn)
     #%%
     
+    mean_feats = {}
+    for vid_type in vid_groups:
+        df = pd.DataFrame()
+        #feat_m = []
+        for base_name in vid_groups[vid_type]:
+            feat_ranges, feat_timeseries, fps = \
+            read_input(results_dir, base_name, 0, expected_pulse_size_s)
+            turn_on, turn_off = feat_ranges['During']
+            
+            #I get the absolute value of everything because that's what i get for the features
+            feat_timeseries = feat_timeseries.abs()
+            
+            #normalize data by when the lamp was on
+            feat_timeseries['timestamp'] -= turn_on
+            
+            df = pd.concat((df, feat_timeseries))
+            
+            #get the mean value at a given timestamp
+            #dd = feat_timeseries.groupby('timestamp').agg('mean')
+            #feat_m.append(dd)
+         
+        #mean_feats[vid_type] = feat_m
+        mean_feats[vid_type] = df.groupby('timestamp').agg('mean')
         
+#%% 
+    win_size = int(min_traj_s*fps)
+    
+    from scipy.signal import medfilt, savgol_filter
+    def _clean_name(feat):
+        post_fix_s1= ['_abs', '_pos', '_neg']
+        post_fix_s2 = ['_forward', '_backward', '_paused']
+        
+        for ss in post_fix_s1:
+            if feat.endswith(ss):
+                feat = feat.replace(ss, '')
+                break
+            
+        for ss in post_fix_s2:
+            if feat.endswith(ss):
+                feat = feat.replace(ss, '')
+                break
+        return feat
+        
+    #%%
+    for vid_type in valid_feats:
+        df = mean_feats[vid_type]
+        #vid_dfs = mean_feats[vid_type]
+        
+        feats = valid_feats[vid_type]
+        feats = set(map(_clean_name, feats))
+        
+        
+        for feat in feats:
+        #for df in vid_dfs:
+            yy = df[feat]
+            yys = savgol_filter(yy, win_size, 3, mode='nearest')
+            yys[:win_size] = np.nan
+            yys[-win_size:] = np.nan
+            
+            xx = df.index
+            
+            plt.figure(figsize=(12,5))
+            plt.plot(xx, yy, '.', color = '0.75')
+            plt.plot(xx, yys, 'r')
+            plt.plot((0,0), plt.ylim(), 'k:')
+            
+            plt.title(feat)
+
+
+
+

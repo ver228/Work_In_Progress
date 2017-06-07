@@ -113,6 +113,7 @@ if __name__ == '__main__':
     #%%
     with PdfPages('N_Labels.pdf') as pdf:
         tlabel = {'control':'Males Control', 'herm':'Hermaphrodites', 'male':'Males'}
+        
         for vt, dat in data.items():
             ini, fin = zip(*time_ranges[vt])
             
@@ -132,6 +133,9 @@ if __name__ == '__main__':
             plt.legend(['Worm Clusters', 'Single Worms'])
             plt.xlabel('Time from Light Pulse (s)')
             plt.ylabel('N Labels')
+            
+            
+            pdf.savefig(fig)
             
             
             
