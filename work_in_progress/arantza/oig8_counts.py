@@ -120,11 +120,13 @@ if __name__ == '__main__':
             xl = (max(ini)/fps, min(fin)/fps)
             
             n_worms = dat.loc[dat['worm_label']==1, 'frame_number'].value_counts()
+            n_worms = n_worms.sort_index()
             n_cluster = dat.loc[dat['worm_label']==2, 'frame_number'].value_counts()
+            n_cluster = n_cluster.sort_index()
             
-            fig = plt.figure()
-            plt.plot(n_cluster.index/fps, n_cluster.values.astype(np.int), '.')
-            plt.plot(n_worms.index/fps, n_worms.values.astype(np.int), '.')
+            fig = plt.figure(figsize=(12,5))
+            plt.plot(n_cluster.index/fps, n_cluster.values.astype(np.int))#, '.')
+            plt.plot(n_worms.index/fps, n_worms.values.astype(np.int))#, '.')
             plt.plot((0,0), plt.ylim(), 'k:')
             
             

@@ -161,10 +161,16 @@ def plot_timeseries(xx, yy, vlines, str_t):
     
     plt.plot((vlines[1], vlines[1]), yl, 'k:')
     plt.plot((vlines[4], vlines[4]), yl , 'k:')
-    plt.xlim((vlines[0], vlines[-1]))
+    #plt.xlim((vlines[0], vlines[-1])) 
+    
+    dd = vlines[3] - vlines[2]
+    
+    plt.xlim((vlines[2]-dd, vlines[3] +dd))  #dirty change to zoom into the pulse region
+    
     plt.ylabel(feat)
     
-    plt.xlabel('Time (s)')
+    #plt.xlabel('Time (s)')
+    plt.xlabel('Frames')
     plt.title(str_t)
     return fig
 
@@ -188,6 +194,7 @@ def get_data_for_plot(valid_feats, results_dir, base_name, base_window_s, expect
         for feat in valid_feats:
             str_t = '{} : {}'.format(int(ind), base_name)
             
+            fps = 1 #I CHANGED THIS TO HAVE DATA IN FRAMES
             yy = feats_dat[feat].values
             tt = feats_dat['timestamp'].values
             xx = tt/fps
@@ -351,6 +358,12 @@ if __name__ == '__main__':
                 plt.close(fig)
     #%%
     
+    #I want to force to plot this features
+    for x in tlabel:
+        if x not in significant_feats:
+            significant_feats[x] = []
+        significant_feats[x] += ['head_motion_direction_dd', 'tail_motion_direction_dd', 'eigen_projection_4_dd']
+
     for exp_group in significant_feats:
         if len(significant_feats[exp_group]) == 0:
             #do not create an empty file if there are not valid feats

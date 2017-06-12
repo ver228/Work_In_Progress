@@ -228,7 +228,8 @@ if __name__ == '__main__':
                     if ii % n_rows == 0:
                         fig = plt.figure(figsize=(20,12))
                     
-                    plt.subplot(n_rows,1,(ii%n_rows)+1)
+                    irow = (ii%n_rows)+1
+                    plt.subplot(n_rows,1,irow)
                     plt.plot(dat['timestamp'], dat[feat])
                     yy = plt.ylim()
                     plt.plot(light_on*yy[1], 'o', markersize=3)
@@ -237,7 +238,8 @@ if __name__ == '__main__':
                     plt.title(feat)
                     
                     plt.suptitle(worm_index)
-                    plt.xlabel('Frame Number')
+                    if irow == n_rows or ii == len(feat_names)-1:
+                        plt.xlabel('Frame Number')
                     
                 if worm_index == 5:
                     fig.savefig('{}.png'.format(worm_index))
