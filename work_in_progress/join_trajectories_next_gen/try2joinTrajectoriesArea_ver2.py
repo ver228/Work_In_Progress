@@ -13,10 +13,9 @@ import cv2
 import os 
 import matplotlib.pylab as plt
 
-from tierpsy.analysis.ske_filt.getFilteredSkels import saveModifiedTrajData
 from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
 from tierpsy.analysis.ske_create.helperIterROI import getWormROI
-from tierpsy.helper.misc import WLAB
+from tierpsy.helper.misc import WLAB, save_modified_table
 
 def getStartEndTraj(trajectories_data):
     traj_limits = OrderedDict()
@@ -134,7 +133,7 @@ def extractWormContours(masked_image_file, traj_limits, buf_size = 5):
                     final_cnt[int(row['worm_index'])] = worm_cnt
                     
         return initial_cnt, final_cnt 
-#%% 
+ 
 def getPossibleConnections(traj_limits, max_gap = 25):
     connect_before = OrderedDict()
     connect_after = OrderedDict()
@@ -562,7 +561,10 @@ if __name__ == '__main__':
     #masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/test_5/CSTCTest_Ch1_18112015_075624.hdf5'
     masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/join/N2_worm1_F1-3_Set3_Pos5_Ch2_26012017_151526.hdf5'
     #masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/tests/join/N2_worm10_F1-3_Set1_Pos4_Ch2_26012017_143133.hdf5'
+    #masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/oig8/oig-8_ChR2_ATR_males_5_Ch1_11052017_165213.hdf5'
+    
     skeletons_file = masked_image_file.replace('MaskedVideos', 'Results')[:-5] + '_skeletons.hdf5'
+    
     
 #    dd = os.path.dirname(masked_image_file)
 #    ff = os.path.basename(masked_image_file).replace('.hdf5', '_skeletons.hdf5')
@@ -682,7 +684,7 @@ if __name__ == '__main__':
     trajectories_data.loc[good, 'auto_label'] = WLAB['BAD']
 
     #let's save this data into the skeletons file
-    saveModifiedTrajData(skeletons_file, trajectories_data)
+    save_modified_table(skeletons_file, trajectories_data, 'trajectories_data')
     
     #%%
     #create a dictionary to map from old to new indexes  
