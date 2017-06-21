@@ -18,7 +18,7 @@ from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
 from tierpsy.analysis.compress.compressVideo import IMG_FILTERS
 from tierpsy.analysis.ske_init.filterTrajectModel import shift_and_normalize
 
-def _plot_seq(seq_worm, irow=0, n_rows=1):
+def plot_seq(seq_worm, irow=0, n_rows=1):
     seq_size = seq_worm.shape[0]
     for ii, img in enumerate(seq_worm):
         nn = ii+1 + seq_size*irow
@@ -26,7 +26,7 @@ def _plot_seq(seq_worm, irow=0, n_rows=1):
         plt.imshow(img, interpolation='none', cmap='gray')
         plt.axis('off')
 
-def _read_egg_events(fname = 'manually_verified.xlsx'):
+def read_egg_events(fname = 'manually_verified.xlsx'):
     egg_lists = pd.read_excel(fname)
     all_eggs = []
     for ii, row in egg_lists.iterrows():
@@ -42,7 +42,7 @@ def _read_egg_events(fname = 'manually_verified.xlsx'):
     egg_events = pd.DataFrame(all_eggs, columns=['base_name', 'frame_number'])
     return egg_events
 
-def _get_files(cur, base_name):
+def get_files(cur, base_name):
     sql = '''
     select results_dir
     from experiments
@@ -56,7 +56,7 @@ def _get_files(cur, base_name):
     
     return masked_file, skel_file
 #%%
-def _get_index(events_tot, val_frac, test_frac):
+def get_index(events_tot, val_frac, test_frac):
     rand_seed = 1337
     np.random.seed(rand_seed)  # for reproducibility
     
@@ -71,12 +71,12 @@ def _get_index(events_tot, val_frac, test_frac):
     
     return all_ind
 
-def _randomize_by_event(egg_event_id, val_frac, test_frac):
+def randomize_by_event(egg_event_id, val_frac, test_frac):
     events_tot = egg_event_id.size
     
     #randomize by individual event
     uevents = np.unique(egg_event_id)
-    dd = _get_index(uevents.size,  val_frac, test_frac)
+    dd = get_index(uevents.size,  val_frac, test_frac)
     event_set = {x:uevents[val] for x,val in dd.items()}
     
     #assing a number to each flag, just to ease calculation
@@ -103,7 +103,7 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
     with tables.File(training_file, 'r') as fid:
         egg_event_id = fid.get_node('/egg_event_id')[:]
     
-    all_ind = _randomize_by_event(egg_event_id, val_frac, test_frac)
+    all_ind = randomize_by_event(egg_event_id, val_frac, test_frac)
     with tables.File(training_file, 'r+') as fid:
         if '/partitions' in fid:
             fid.remove_node('/partitions', recursive=True)
@@ -114,7 +114,7 @@ def add_train_indexes(training_file, val_frac = 0.1, test_frac = 0.1):
             fid.create_array(grp, field, obj=indexes)
 #%%
 if __name__ == '__main__':
-    training_file = 'samples_eggs_resized.hdf5'
+    training_file = 'samples_eggs_resized_seq.hdf5'
     roi_size = 128
     roi_fixed = -1
     win_d = 2
@@ -126,103 +126,97 @@ if __name__ == '__main__':
     conn = pymysql.connect(host='localhost', db = 'single_worm_db')
     cur = conn.cursor()
     
-    egg_events = _read_egg_events()
+    egg_events = read_egg_events()
     tot_events = len(egg_events)
     
-    tot_samples = 0
-    with h5py.File(training_file, 'w') as fid:
-        egg_events.to_hdf(training_file, 'eggs_data')
-        #egg_events = egg_events[:10]
-        
-        egg_X = fid.create_dataset('/egg_laying_X', 
-                                     (tot_events, win_size, roi_size,roi_size),
-                                     dtype=np.float,
-                                     maxshape=(None, win_size, roi_size,roi_size),
-                                     chunks=(1, win_size, roi_size,roi_size),
-                                     **IMG_FILTERS)
-        
-        egg_X_diff = fid.create_dataset('/egg_laying_X_diff', 
-                                     (tot_events, win_size-1, roi_size,roi_size),
-                                     dtype=np.float,
-                                     maxshape=(None, win_size-1, roi_size,roi_size),
-                                     chunks=(1, win_size-1, roi_size,roi_size),
-                                     **IMG_FILTERS)
-
-        egg_Y = fid.create_dataset('/egg_laying_Y', 
-                                     (tot_events,),
-                                     dtype=np.int,
-                                     maxshape=(None,),
-                                     **IMG_FILTERS)
-        
-        event_ids = fid.create_dataset('/egg_event_id', 
-                                     (tot_events,),
-                                     dtype=np.int,
-                                     maxshape=(None,),
-                                     **IMG_FILTERS)
-        
-        vid_group = egg_events.groupby('base_name')
-        tot_vids = len(vid_group)
-        for ivid, (base_name, eggs) in enumerate(vid_group):
-            print(ivid+1, tot_vids, base_name)
-            masked_file, skel_file = _get_files(cur, base_name)
-            
-            with pd.HDFStore(skel_file, 'r') as fid:
-                trajectories_data = fid['/trajectories_data']
-            
-            for irow, egg_frame in eggs['frame_number'].iteritems():
-                g_range = [egg_frame-win_d, egg_frame+win_d]
-                b1_range = [x-win_offset for x in g_range]
-                b2_range = [x+win_offset for x in g_range]
-                
-                ranges = zip((-1,0,1), (b1_range, g_range, b2_range))
-                
-                for lab, ran in ranges:
-                    if lab != 0: 
-                        #ensure there is no good event in the ranges that are suppose to be negative
-                        if any((x>=ran[0] and x<=ran[1]) for x in eggs['frame_number'].values):
-                            continue
-                
-                    worm_rois = np.zeros((win_size, roi_size, roi_size), dtype=np.float)
-                    worm_rois_d = np.zeros((win_size-1, roi_size, roi_size), dtype=np.float)
-                    prev_img = None
-                    
-                    empty_array = True
-                    for ii, frame_number in enumerate(range(ran[0], ran[1]+1)):
-                        output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size=roi_fixed)
-                        if output is not None:
-                            row, worm_roi, roi_corner = output
-                            
-                            worm_roi = worm_roi.astype(np.float)
-                            worm_roi = shift_and_normalize(worm_roi)
-                            if worm_roi.shape[0] != roi_size:
-                                worm_roi = cv2.resize(worm_roi, (roi_size,roi_size))
-                            worm_rois[ii] = worm_roi
-                            empty_array = False
-                            
-                            if prev_img is not None:
-                                mask = (worm_roi*prev_img) != 0
-                                worm_diff = np.zeros_like(worm_roi)
-                                worm_diff[mask] = worm_roi[mask] - prev_img[mask]
-                                worm_rois_d[ii-1] = worm_diff
-                            prev_img = worm_roi
-                        
-                        
-                            
-                    if not empty_array:
-                        #worm_rois_n = shift_and_normalize(worm_rois)
-                        egg_X[tot_samples] = worm_rois
-                        egg_Y[tot_samples] = lab
-                        event_ids[tot_samples] = irow
-                        
-                        egg_X_diff[tot_samples] = worm_rois_d
-                        
-                        tot_samples += 1
-                        if event_ids.size <= tot_samples:
-                            for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
-                                datset.resize(tot_samples+ 100, axis=0)                
-        
-        #close and add a randomized training set
-        for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
-            datset.resize(tot_samples, axis=0)
+    #%%
     
-    add_train_indexes(training_file)
+#    tot_samples = 0
+#    with h5py.File(training_file, 'w') as fid:
+#        egg_events.to_hdf(training_file, 'eggs_data')
+#        #egg_events = egg_events[:10]
+#        
+#        egg_X = fid.create_dataset('/egg_laying_X', 
+#                                     (tot_events, win_size, roi_size,roi_size),
+#                                     dtype=np.float,
+#                                     maxshape=(None, win_size, roi_size,roi_size),
+#                                     chunks=(1, win_size, roi_size,roi_size),
+#                                     **IMG_FILTERS)
+#        egg_Y = fid.create_dataset('/egg_laying_Y', 
+#                                     (tot_events,),
+#                                     dtype=np.int,
+#                                     maxshape=(None,),
+#                                     **IMG_FILTERS)
+#        
+#        event_ids = fid.create_dataset('/egg_event_id', 
+#                                     (tot_events,),
+#                                     dtype=np.int,
+#                                     maxshape=(None,),
+#                                     **IMG_FILTERS)
+#        
+#        vid_group = egg_events.groupby('base_name')
+#        tot_vids = len(vid_group)
+#        for ivid, (base_name, eggs) in enumerate(vid_group):
+#            print(ivid+1, tot_vids, base_name)
+#            masked_file, skel_file = _get_files(cur, base_name)
+#            
+#            with pd.HDFStore(skel_file, 'r') as fid:
+#                trajectories_data = fid['/trajectories_data']
+#            
+#            for irow, egg_frame in eggs['frame_number'].iteritems():
+#                g_range = [egg_frame-win_d, egg_frame+win_d]
+#                b1_range = [x-win_offset for x in g_range]
+#                b2_range = [x+win_offset for x in g_range]
+#                
+#                ranges = zip((-1,0,1), (b1_range, g_range, b2_range))
+#                
+#                for lab, ran in ranges:
+#                    if lab != 0: 
+#                        #ensure there is no good event in the ranges that are suppose to be negative
+#                        if any((x>=ran[0] and x<=ran[1]) for x in eggs['frame_number'].values):
+#                            continue
+#                
+#                    worm_rois = np.zeros((win_size, roi_size, roi_size), dtype=np.float)
+#                    worm_rois_d = np.zeros((win_size-1, roi_size, roi_size), dtype=np.float)
+#                    prev_img = None
+#                    
+#                    empty_array = True
+#                    for ii, frame_number in enumerate(range(ran[0], ran[1]+1)):
+#                        output = getROIfromInd(masked_file, trajectories_data, frame_number, 1, roi_size=roi_fixed)
+#                        if output is not None:
+#                            row, worm_roi, roi_corner = output
+#                            
+#                            worm_roi = worm_roi.astype(np.float)
+#                            worm_roi = shift_and_normalize(worm_roi)
+#                            if worm_roi.shape[0] != roi_size:
+#                                worm_roi = cv2.resize(worm_roi, (roi_size,roi_size))
+#                            worm_rois[ii] = worm_roi
+#                            empty_array = False
+#                            
+#                            if prev_img is not None:
+#                                mask = (worm_roi*prev_img) != 0
+#                                worm_diff = np.zeros_like(worm_roi)
+#                                worm_diff[mask] = worm_roi[mask] - prev_img[mask]
+#                                worm_rois_d[ii-1] = worm_diff
+#                            prev_img = worm_roi
+#                        
+#                        
+#                            
+#                    if not empty_array:
+#                        #worm_rois_n = shift_and_normalize(worm_rois)
+#                        egg_X[tot_samples] = worm_rois
+#                        egg_Y[tot_samples] = lab
+#                        event_ids[tot_samples] = irow
+#                        
+#                        egg_X_diff[tot_samples] = worm_rois_d
+#                        
+#                        tot_samples += 1
+#                        if event_ids.size <= tot_samples:
+#                            for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
+#                                datset.resize(tot_samples+ 100, axis=0)                
+#        
+#        #close and add a randomized training set
+#        for datset in [egg_X, egg_Y, event_ids, egg_X_diff]:
+#            datset.resize(tot_samples, axis=0)
+#    
+#    add_train_indexes(training_file)
