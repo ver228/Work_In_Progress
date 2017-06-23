@@ -7,17 +7,15 @@ Created on Mon Jun 19 14:51:07 2017
 """
 import tables
 import numpy as np
-import matplotlib.pylab as plt
 import cv2
-import glob
-import os
-import fnmatch
+
 from skimage.transform import hough_circle, hough_circle_peaks
 from skimage.morphology import disk
+from skimage.filters import threshold_otsu
 from scipy.interpolate import interp1d
 from statsmodels.nonparametric.smoothers_lowess import lowess
+
 from tierpsy.helper.misc import TimeCounter, print_flush, get_base_name
-from skimage.filters import threshold_otsu
 
 def skeletonize(img):
     """ OpenCV function to return a skeletonized version of img, a Mat object"""
@@ -74,8 +72,8 @@ def get_patch_mask(img, min_area = None, max_area = None, block_size = None):
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, disk(3), iterations=3)
     #plt.imshow(mask)
     #%%
-    IM_LIMX = img.shape[0] - 2
-    IM_LIMY = img.shape[1] - 2
+    #IM_LIMX = img.shape[0] - 2
+    #IM_LIMY = img.shape[1] - 2
     # find the contour of the connected objects (much faster than labeled
     # images)
     _, contours, hierarchy = cv2.findContours(
@@ -86,21 +84,21 @@ def get_patch_mask(img, min_area = None, max_area = None, block_size = None):
     mask = np.zeros(img.shape, dtype=img.dtype)
     for ii, contour in enumerate(contours):
         # eliminate blobs that touch a border
-        keep = not np.any(contour == 1) and \
-            not np.any(contour[:, :, 0] ==  IM_LIMY)\
-            and not np.any(contour[:, :, 1] == IM_LIMX)
-        if keep:
-            area = cv2.contourArea(contour)
-            if (area >= min_area):
-                '''
-                If there is a blob with a very high area it is likely 
-                the mask captured the whole food patch. Do not fill the contour of those areas, 
-                otherwise the skeletonization produce weird results.
-                '''
-                if area >= max_area:
-                    cv2.drawContours(mask, contours, ii, 1)
-                else:
-                    cv2.drawContours(mask, contours, ii, 1, cv2.FILLED)
+        #keep = not np.any(contour == 1) and \
+        #    not np.any(contour[:, :, 0] ==  IM_LIMY)\
+        #    and not np.any(contour[:, :, 1] == IM_LIMX)
+        #if keep:
+        area = cv2.contourArea(contour)
+        if (area >= min_area):
+            '''
+            If there is a blob with a very high area it is likely 
+            the mask captured the whole food patch. Do not fill the contour of those areas, 
+            otherwise the skeletonization produce weird results.
+            '''
+            if area >= max_area:
+                cv2.drawContours(mask, contours, ii, 1)
+            else:
+                cv2.drawContours(mask, contours, ii, 1, cv2.FILLED)
     
     
     #%%
@@ -115,7 +113,7 @@ def get_best_circles(mask, resize_factor = 8):
     #%%
     min_size = min(mask.shape)
     resize_factor = min_size/max(128, min_size/resize_factor)
-    dsize = tuple(int(x/resize_factor) for x in mask.shape)
+    dsize = tuple(int(x/resize_factor) for x in mask.shape[::-1])
     
     mask_s = cv2.dilate(mask, disk(resize_factor/2))
     mask_s = cv2.resize(mask_s,dsize)
@@ -145,7 +143,7 @@ def mask_to_food_contour(mask, n_bins = 90, frac_lowess=0.05, is_debug=False):
     5) Transform back into cartesian coordinates.
     '''
     #%%
-    h_res = get_best_circles(mask)
+    h_res = get_best_circles(mask.copy())
     _, cy0, cx0, r0 =  h_res[0]
     
     
@@ -192,6 +190,7 @@ def mask_to_food_contour(mask, n_bins = 90, frac_lowess=0.05, is_debug=False):
     #%%
     if is_debug:
         from skimage.draw import circle_perimeter
+        import matplotlib.pylab as plt
         
         plt.figure(figsize=(5,5))
         for ii, (acc, cx, cy, cr) in enumerate(h_res[0:1]):
@@ -251,8 +250,12 @@ def get_food_contour(mask_video,
     base_name = get_base_name(mask_video)
     print_flush('{} Calculating food contour...'.format(base_name))
     
-    with tables.File(mask_video, 'r') as fid:
-        full_data = fid.get_node('/full_data')[:5] # I am using the first two images to calculate this info
+    try:
+        with tables.File(mask_video, 'r') as fid:
+            full_data = fid.get_node('/full_data')[:5] # I am using the first two images to calculate this info
+    except tables.exceptions.NoSuchNodeError:
+        return None, None
+        
     img = np.max(full_data[:2], axis=0)
     #dark_mask = get_dark_mask(full_data)
     
@@ -266,23 +269,28 @@ def get_food_contour(mask_video,
     #%%
     if is_debug:
         from skimage.draw import circle_perimeter
+        import matplotlib.pylab as plt
+        
         cpx, cpy = circle_perimeter(*best_fit[1:])
         
         plt.figure(figsize=(5,5))        
         plt.gca().xaxis.set_ticklabels([])
         plt.gca().yaxis.set_ticklabels([])
         
-        (px, py) = np.where(mask)
+        (px, py) = np.where(skeletonize(mask))
         plt.imshow(img, cmap='gray')
         plt.plot(py, px, '.')
         plt.plot(cpx, cpy, '.r')
         plt.plot(circy, circx, '.')
         plt.suptitle(base_name)
+        plt.grid('off')
     #%%
     return circx, circy
 
 if __name__ == '__main__':
-    
+    import glob
+    import os
+    import fnmatch
     
     exts = ['']
 
@@ -293,24 +301,25 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
-    mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
+    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
+    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    
     fnames = [x for x in fnames if any(fnmatch.fnmatch(x, ext) for ext in exts)]
     
     for mask_video in fnames:
         circx, circy = get_food_contour(mask_video, is_debug=True)
         
+        break
         
         
         
-        
-#%%
-min_area = None
-n_bins = 90
-is_debug=True
-frac_lowess=0.1
-
-max_area = None
-block_size = None
+    #%%
+    min_area = None
+    n_bins = 90
+    is_debug=True
+    frac_lowess=0.1
+    
+    max_area = None
+    block_size = None
