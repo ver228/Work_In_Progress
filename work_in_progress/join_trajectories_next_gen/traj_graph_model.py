@@ -12,27 +12,16 @@ Created on Mon Feb 22 17:46:36 2016
 
 @author: ajaver
 """
-import pandas as pd
 import tables
 import numpy as np
 from collections import OrderedDict
 import cv2
 import networkx as nx
-
-from fix_wrong_merges import ImageRigBuff, get_traj_limits, fix_wrong_merges
-
-from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
-from tierpsy.analysis.ske_create.helperIterROI import getWormROI
+import warnings
+from fix_wrong_merges import ImageRigBuff, get_border_cnt, get_traj_limits, fix_wrong_merges
 from tierpsy.helper.misc import WLAB, save_modified_table
 
-def get_roi_cnts(img, x, y, roi_size, thresh, max_area):
-    worm_img, roi_corner = getWormROI(img, x, y, roi_size)
-    worm_mask, worm_cnt, _ = getWormMask(worm_img, thresh)
-    if worm_cnt.size > 0:
-        worm_cnt += roi_corner   
-    return worm_cnt                 
-
-def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 5):
+def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 11):
     grouped_t0 = traj_limits.groupby('t0')
     grouped_tf = traj_limits.groupby('tf')
     
@@ -45,22 +34,30 @@ def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 5):
     with tables.File(masked_image_file, 'r') as fid:
         mask_group = fid.get_node('/mask')
         ir = ImageRigBuff(mask_group, buf_size)
-        
         for frame_number in np.unique(np.concatenate((uT0,uTf))):
             #img = mask_group[frame_number]
-            img = ir.get_buffer(frame_number)
-            img = np.min(img, axis=0)
+            
+            img_c, img_r = ir.get_buff_reduced(frame_number)
+
             if frame_number in uT0:
                 dd = grouped_t0.get_group(frame_number)
                 for ff, row in dd.iterrows():
-                    worm_cnt = get_roi_cnts(img, row['x0'], row['y0'], 
-                                         row['roi_size'], row['th0'], row['a0']/2)
+                    roi_data = (row['x0'], 
+                                row['y0'], 
+                                row['roi_size'], 
+                                row['th0'], 
+                                row['a0']/2)
+                    worm_cnt = get_border_cnt(img_r, img_c, roi_data)
                     initial_cnt[int(row['worm_index'])] = worm_cnt
             if frame_number in uTf:
                 dd = grouped_tf.get_group(frame_number) 
                 for ff, row in dd.iterrows():
-                    worm_cnt = get_roi_cnts(img, row['xf'], row['yf'], 
-                                         row['roi_size'], row['thf'], row['af']/2)
+                    roi_data = (row['xf'], 
+                                row['yf'], 
+                                row['roi_size'], 
+                                row['thf'], 
+                                row['af']/2)
+                    worm_cnt = get_border_cnt(img_r, img_c, roi_data)
                     final_cnt[int(row['worm_index'])] = worm_cnt
                     
         return initial_cnt, final_cnt 
@@ -190,7 +187,7 @@ if __name__ == '__main__':
     for mask_video in fnames:
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
         
-        
+        print(os.path.basename(mask_video))
         #%%
         print('Fixing wrong merge events.')
         trajectories_data, splitted_points = \
@@ -199,23 +196,23 @@ if __name__ == '__main__':
                          min_area_limit=50,
                          worm_index_type='worm_index_joined')
         #%%
-        print('Getting the trajectories starting and ending points.')
+        #Getting the trajectories starting and ending points.
         traj_limits = get_traj_limits(trajectories_data, 
                                       worm_index_type='worm_index_auto')
         
-        print('Getting possible connecting point.')
+        #Getting possible connecting point.
         connect_before, connect_after = \
         get_possible_connections(traj_limits, max_gap = 25)
         
-        print('Extracting worm contours from trajectory limits.')
+        #Extracting worm contours from trajectory limits.
         initial_cnt, final_cnt = get_traj_limits_cnts(mask_video, traj_limits)
     
         
-        print('Looking for overlaping fraction between contours.')
+        #Looking for overlaping fraction between contours.
         after_ratio = get_intersect_ratio(connect_after, final_cnt, initial_cnt)
         before_ratio = get_intersect_ratio(connect_before, initial_cnt, final_cnt)
         
-        print('Getting connections between trajectories.')    
+        #Getting connections between trajectories.  
         edges_after = select_near_nodes(connect_after, after_ratio, traj_limits['t0'], min_intersect = min_area_intersect)
         edges_before = select_near_nodes(connect_before, before_ratio, -traj_limits['tf'], min_intersect = min_area_intersect)
         #switch so the lower index is first    
@@ -238,17 +235,44 @@ if __name__ == '__main__':
         frac_skeletons = dat['is_good_skel']/dat['frame_number']
         #maybe use movement?
         
-        likely_single_worms = frac_skeletons[frac_skeletons>min_frac_skel].index
+        likely_single_worms = set(frac_skeletons[frac_skeletons>min_frac_skel].index)
         #%%
         bad_particles = []
         for gg in nx.connected_component_subgraphs(DG.to_undirected()):
             g_nodes = gg.nodes()
             if not any(x in likely_single_worms for x in g_nodes):
                 bad_particles += g_nodes
-                
+        
+        good_nodes = set(DG.nodes()) - set(bad_particles)
+        DG_f = DG.subgraph(good_nodes)
+        
         #%%
+        weird_nodes = []
+        for node in likely_single_worms:
+            ins = DG.predecessors(node)
+            outs = DG.successors(node)
+            
+            if len(ins)>1 or len(outs) >1:
+                warnings.warns('Weird single worm merged/split {} {} {}'.format(node, ins, outs))
+            
+            if len(ins) > 1:
+                weird_nodes += ins
+            elif len(outs) > 1:
+                weird_nodes += outs
         
+        if weird_nodes:
+            weird_nodes = set(weird_nodes) - likely_single_worms
+            
+            print(weird_nodes)
+        #%%
+        nodes2check = {x:0 for x in good_nodes - set(likely_single_worms)}
+        knonwn_sizes = {x:1 for x in likely_single_worms}
         
+        remaining_nodes = {}
+        for node in nodes2check:
+            ins = DG.predecessors(node)
+            outs = DG.successors(node)
+            
 #        dd = {}
 #        possible_cluster
 #        for node in DG.nodes():
@@ -276,3 +300,5 @@ if __name__ == '__main__':
         
         #let's save this data into the skeletons file
         save_modified_table(skeletons_file, trajectories_data, 'trajectories_data')
+        
+        

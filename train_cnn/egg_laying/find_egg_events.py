@@ -147,7 +147,8 @@ def process_data(input_d):
 
 if __name__ == '__main__':
     #%%
-    save_results_dir = './results'
+    #save_results_dir = './results'
+    save_results_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/results'
     if not os.path.exists(save_results_dir):
         os.makedirs(save_results_dir)
     
@@ -156,14 +157,14 @@ if __name__ == '__main__':
     #model_trained_path = 'model_egg_laying_diff_20170309_193209.h5'
     
     model_paths = '/Volumes/behavgenom_archive$/Avelino/neural_networks/eggs_tests/logs/main_20170328_180144/'
-    model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
-    model_resized = load_model(model_path_resized)
     
     
     egg_events = read_egg_events()
     
     #process only files that has not been finished
     files_done = [x.replace('_eggs.csv', '') for x in os.listdir(save_results_dir) if x.endswith('_eggs.csv')]
+    
+    
     idone = egg_events.base_name.isin(files_done)
     egg_events = egg_events[~idone]
     
@@ -171,10 +172,12 @@ if __name__ == '__main__':
     cur = conn.cursor()
     
     vid_group = egg_events.groupby('base_name')
-    #%%
     tot = len(vid_group)
     
     
+    #%%
+    model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
+    model_resized = load_model(model_path_resized)
     
     results = []
     gg = [x for x in vid_group]

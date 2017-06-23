@@ -21,8 +21,6 @@ import cv2
 from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
 from tierpsy.analysis.ske_create.helperIterROI import getWormROI
 
-import matplotlib.pylab as plt
-
 class ImageRigBuff:
     #ring buffer class to avoid having to read the same image several times
     def __init__(self, mask_group, buf_size):
@@ -42,9 +40,11 @@ class ImageRigBuff:
         bot = max(next_frame-self.win_size, self.current_time+self.win_size+1)        
         top = min(self.last_frame, next_frame + self.win_size)
         self.current_time = next_frame
+        self.ind_center =  self.current_time - bot
         
         
         Idum = self.mask_group[bot:top+1]
+        
         #print('A', bot, top, Idum.shape)
                 
         for ii in range(Idum.shape[0]):
@@ -54,6 +54,17 @@ class ImageRigBuff:
                 self.ind = 0
         
         return self.I_buff
+    
+    def get_buff_reduced(self, next_frame):
+        img = self.get_buffer(next_frame).copy()
+        img_c = img[self.ind_center]
+        
+        img[img==0] = 255
+        img_r = np.min(img, axis=0)
+        img_r[img_r==255] = 0
+        
+        return img_c, img_r
+    
 
 def get_traj_limits(trajectories_data, 
                     worm_index_type='worm_index_joined', 
@@ -172,12 +183,41 @@ def get_break_points(trajectories_data, min_area_limit=0.5, worm_index_type='wor
     
     return break_points
 
-def get_roi_cnts(img, x, y, roi_size, thresh, max_area):
-    worm_img, roi_corner = getWormROI(img, x, y, roi_size)
-    worm_mask, worm_cnt, _ = getWormMask(worm_img, thresh, strel_size=5)
-    if worm_cnt.size > 0:
-        worm_cnt += roi_corner   
-    return worm_cnt 
+
+
+def get_border_cnt(img_r, img_c, roi_dat, border_range=2):
+
+    im_size = img_r.shape
+    def _is_border(cnt):
+        IM_LIMX = im_size[0] - border_range - 1
+        IM_LIMY = im_size[1] - border_range - 1 
+        if len(cnt)== 0:
+            return False
+        else:
+            return np.any(cnt <= border_range) | \
+            np.any(cnt[:, 0] >=  IM_LIMY) | \
+            np.any(cnt[:, 1] >= IM_LIMX)
+
+    
+    def _get_roi_cnts(img, x, y, roi_size, thresh, max_area):
+        worm_img, roi_corner = getWormROI(img, x, y, roi_size)
+        worm_mask, worm_cnt, _ = getWormMask(worm_img, 
+                                             thresh, 
+                                             min_blob_area=max_area,
+                                             strel_size=5)
+        if worm_cnt.size > 0:
+            worm_cnt += roi_corner   
+        return worm_cnt 
+      
+    worm_cnt_c = _get_roi_cnts(img_c, *roi_dat)
+    if _is_border(worm_cnt_c):
+        worm_cnt = worm_cnt_c
+    else:
+        worm_cnt = _get_roi_cnts(img_r, *roi_dat)
+    
+    return worm_cnt  
+
+
 
 def get_area_overlaps(mask_video, break_points, buf_size = 11):
     #%%
@@ -197,13 +237,11 @@ def get_area_overlaps(mask_video, break_points, buf_size = 11):
         ir = ImageRigBuff(mask_group, buf_size=buf_size)
         
         for t in sorted(indexInFrame):
-            img_b = ir.get_buffer(t)
-            img_b[img_b==0] = 255
-            img = np.min(img_b, axis=0)
-            img[img==255] = 0
             
+            img_c, img_r = ir.get_buff_reduced(t)
+
             for ind in indexInFrame[t]:
-                worm_cnt[ind, t] = get_roi_cnts(img, *roi_data[ind, t])
+                worm_cnt[ind, t] = get_border_cnt(img_r, img_c, roi_data[ind, t])
                 
                 #if ind == 34:
                 #    plt.figure()
