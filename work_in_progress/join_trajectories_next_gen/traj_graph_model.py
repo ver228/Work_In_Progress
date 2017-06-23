@@ -253,7 +253,7 @@ if __name__ == '__main__':
             outs = DG.successors(node)
             
             if len(ins)>1 or len(outs) >1:
-                warnings.warns('Weird single worm merged/split {} {} {}'.format(node, ins, outs))
+                warnings.warn('{} {} {} Weird single worm merged/split.'.format(node, ins, outs))
             
             if len(ins) > 1:
                 weird_nodes += ins
