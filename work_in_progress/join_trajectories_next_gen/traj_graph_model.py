@@ -265,13 +265,59 @@ if __name__ == '__main__':
             
             print(weird_nodes)
         #%%
-        nodes2check = {x:0 for x in good_nodes - set(likely_single_worms)}
-        knonwn_sizes = {x:1 for x in likely_single_worms}
+        #i need to add a node to the outside of the plate...
+        edges_order = {x:i for i,x in enumerate(DG_f.edges())}
         
-        remaining_nodes = {}
-        for node in nodes2check:
-            ins = DG.predecessors(node)
-            outs = DG.successors(node)
+        #nodes2check = {x:0 for x in good_nodes - set(likely_single_worms)}
+        #knonwn_sizes = {x:1 for x in likely_single_worms}
+        
+        A = []
+        B = []
+        
+        #remaining_nodes = {}
+        for node in DG_f.nodes():
+            ins = DG_f.predecessors(node)
+            outs = DG_f.successors(node)
+            
+            edges_ins = [(ini, node) for ini in ins]
+            edges_outs =  [(node, out) for out in outs]
+            
+            assert all(x in edges_order for x in edges_ins+edges_outs)
+            
+            if edges_ins and edges_outs:
+                a = np.zeros(len(edges_order))
+                for ini in edges_ins:
+                    a[edges_order[ini]] = 1
+                for out in edges_outs:
+                    a[edges_order[out]] = -1
+                
+                A.append(a)
+                B.append(0)
+            
+            if node in likely_single_worms:
+                if edges_ins:
+                    a = np.zeros(len(edges_order))
+                    for ini in edges_ins:
+                        a[edges_order[ini]] = 1
+                    A.append(a)
+                    B.append(1)
+                if edges_outs:
+                    a = np.zeros(len(edges_order))
+                    for out in edges_outs:
+                        a[edges_order[out]] = -1
+                    A.append(a)
+                    B.append(-1)
+                
+        #%%
+        A = np.array(A)
+        B = np.array(B)
+        print(np.linalg.lstsq(A,B))
+            
+            
+            
+            
+        #%%
+            
             
 #        dd = {}
 #        possible_cluster
