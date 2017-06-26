@@ -25,8 +25,8 @@ get_traj_limits, fix_wrong_merges
 
 def get_traj_limits_cnts(mask_video, 
                          traj_limits, 
-                         buf_size = 11,
-                         border_range=10):
+                         buf_size,
+                         border_range):
     #%%
     grouped_t0 = traj_limits.groupby('t0')
     grouped_tf = traj_limits.groupby('tf')
@@ -80,7 +80,7 @@ def get_traj_limits_cnts(mask_video,
                     
         return initial_cnt, final_cnt 
  
-def get_possible_connections(traj_limits, max_gap = 25):
+def get_possible_connections(traj_limits, max_gap):
     connect_before = OrderedDict()
     connect_after = OrderedDict()
     
@@ -167,7 +167,10 @@ def get_intersect_ratio(connect_dict, node1_cnts, node2_cnts):
         
     return intersect_ratio
 
-def select_near_nodes(connect_dict, ratio_dict, time_table, min_intersect = 0.5):
+def select_near_nodes(connect_dict, 
+                      ratio_dict, 
+                      time_table, 
+                      min_intersect):
     posible_nodes = []
     for node1 in connect_dict:
         node2_dat = []
@@ -186,7 +189,12 @@ def select_near_nodes(connect_dict, ratio_dict, time_table, min_intersect = 0.5)
         posible_nodes.append((node1, node2_dat[0]))
     return posible_nodes
 
-def create_conn_graph(mask_video, trajectories_data):
+def create_conn_graph(mask_video, 
+                      trajectories_data,
+                      buf_size,
+                      border_range,
+                      max_conn_gap,
+                      min_area_intersect):
     #Getting the trajectories starting and ending points.
     traj_limits = get_traj_limits(trajectories_data, 
                                   worm_index_type='worm_index_auto', 
@@ -202,7 +210,7 @@ def create_conn_graph(mask_video, trajectories_data):
     
     #Getting possible connecting point.
     connect_before, connect_after = \
-    get_possible_connections(traj_limits, max_gap = 25)
+    get_possible_connections(traj_limits, max_gap = max_conn_gap)
     
     #Looking for overlaping fraction between contours.
     after_ratio = get_intersect_ratio(connect_after, final_cnt, initial_cnt)
@@ -225,7 +233,7 @@ def create_conn_graph(mask_video, trajectories_data):
     
     return DG, initial_cnt, final_cnt
 
-def get_likely_worms(trajectories_data, min_frac_skel = 0.25):
+def get_likely_worms(trajectories_data, min_frac_skel):
     '''
     I am using the number of good skeletons as a proxy for a trajectory to be a worm.
     It might be better to use a neural network in the future.
@@ -240,20 +248,44 @@ def get_likely_worms(trajectories_data, min_frac_skel = 0.25):
     
     return likely_single_worms
 
+def add_border_egdes(DG_f, initial_cnt, final_cnt):
+    '''I am adding possible edges to the border of the video labeled as -100.
+    I am doing it after removing the bad nodes because otherwise some of those 
+    bad nodes will appear connected to the main network'''
+    border_edges = []
+    for node in DG_f.nodes():
+        if node in initial_cnt:
+            _,is_border = initial_cnt[node]
+            if is_border:
+                border_edges.append((-100, node))
+        if node in final_cnt:
+            _,is_border = final_cnt[node]
+            if is_border:
+                border_edges.append((node,-100)) 
+    if border_edges:
+        DG_f.add_node(-100)
+        DG_f.add_edges_from(border_edges)
+    return DG_f
+
+def _get_bad_nodes(DG_f, likely_single_worms):
+    bad_nodes = []
+    for gg in nx.connected_component_subgraphs(DG_f.to_undirected()):
+        g_nodes = gg.nodes()
+        if not any(x in likely_single_worms for x in g_nodes):
+            bad_nodes += g_nodes
+    return bad_nodes
+
+
 def remove_bad_nodes(DG, likely_single_worms):
     '''
     I am considering as a bad node, anything that does not connect to a likely worm.
     Again, in the feature I should use a neural network for this.
     '''
     
+    bad_particles = _get_bad_nodes(DG, likely_single_worms)
     bad_particles = []
-    for gg in nx.connected_component_subgraphs(DG.to_undirected()):
-        g_nodes = gg.nodes()
-        if not any(x in likely_single_worms for x in g_nodes):
-            bad_particles += g_nodes
-    
-    
-    #%% This worms are inconsistent (weird).
+
+    # This worms are inconsistent (weird).
     #this are likely a worm gets in the way of a bad particle and confouses the algorithm.
     #Maybe i can fix it but for the moment I will just remove the weird nodes
     weird_nodes = []
@@ -272,42 +304,194 @@ def remove_bad_nodes(DG, likely_single_worms):
     if weird_nodes:
         weird_nodes = set(weird_nodes) - likely_single_worms
         
-        print(weird_nodes)
-            
-    
     good_nodes = set(DG.nodes()) - set(bad_particles) -set(weird_nodes)
     
-    
-    
     DG_f = DG.subgraph(good_nodes)
-    
     return DG_f
 
+def get_nodes_weights(all_nodes, DG_f, edges_weights, likely_single_worms):
+    #intialize node_weights
+    node_weights = {x: 0 for x in all_nodes}
+    for node in DG_f.nodes():
+        if node == -100:
+            continue
+        
+        if node in likely_single_worms:
+            # A likely worm must be 1
+            node_weights[node] = 1 
+            continue
+        
+        edges_in = [(i,node) for i in DG_f.predecessors(node)]
+        edges_out = [(node, i) for i in DG_f.successors(node)]
+        
+        tot_in = sum(edges_weights[e] for e in edges_in)
+        is_neg_in = any(edges_weights[e]<0 for e in edges_in)
+        tot_out = sum(edges_weights[e] for e in edges_out)
+        is_neg_out = any(edges_weights[e]<0 for e in edges_in)
+        
+        if edges_in and edges_out:
+            if tot_in == tot_out and \
+            tot_in >= 0 and \
+            not (is_neg_in or is_neg_out):
+                node_weights[node] = tot_in
+            else:
+                #there was something funny in the fitting
+                node_weights[node] = -min(tot_in, tot_out)
+                if node_weights[node] > 0: 
+                    #this is in case the fit was actually negative
+                    node_weights[node] = -node_weights[node]
+        elif edges_in:
+            #do not have successors (trajectory end)
+            node_weights[node] = tot_in
+        elif edges_out:
+            #do not have predecessors (trajectory start)
+            node_weights[node] = tot_out
+        elif node in likely_single_worms:
+            node_weights[node] = 1
+    return node_weights
+
+def fit_edges_weights(DG_f, likely_single_worms):
+    '''I am trying to solve the equations system to get each edge weight.
+    The sum of the edges weights entering to a node must be equal to
+    the sum of the edges leaving.
+    I am using numpy least squares to solve the equation.
+    '''
+    edges_order = {x:i for i,x in enumerate(DG_f.edges())}
+    A = []
+    B = []
+    for node in DG_f.nodes():
+        if node == -100:
+            continue
+        
+        ins = DG_f.predecessors(node)
+        outs = DG_f.successors(node)
+        
+        edges_ins = [(ini, node) for ini in ins]
+        edges_outs =  [(node, out) for out in outs]
+        
+        assert all(x in edges_order for x in edges_ins+edges_outs)
+        
+        if edges_ins and edges_outs:
+            a = np.zeros(len(edges_order))
+            for ini in edges_ins:
+                a[edges_order[ini]] = 1
+            for out in edges_outs:
+                a[edges_order[out]] = -1
+            
+            A.append(a)
+            B.append(0)
+        
+        if node in likely_single_worms:
+            if edges_ins:
+                a = np.zeros(len(edges_order))
+                for ini in edges_ins:
+                    a[edges_order[ini]] = 1
+                A.append(a)
+                B.append(1)
+            if edges_outs:
+                a = np.zeros(len(edges_order))
+                for out in edges_outs:
+                    a[edges_order[out]] = -1
+                A.append(a)
+                B.append(-1)
+    
+    A = np.array(A)
+    B = np.array(B)
+    best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
+    #for ii, x in zip(edges_order, best_fit):
+    #    print(ii, x)
+    
+    #the weights must be integers so I am approximating here
+    edges_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
+    
+    return edges_weights
+
+def correct_bad_weights(DG, likely_single_worms, node_weights):
+    '''remove the bad nodes, if there is an unconnected set of nodes, 
+    if there are subgraphs with no single worms it is very likely 
+    they are due to an error'''
+    
+    
+    def _correct_bad_w():
+        DG_f2 = DG.copy()
+        for node in node_weights:
+            if node_weights[node] <= 0 :
+                DG_f2.remove_node(node)
+        return _get_bad_nodes(DG_f2, likely_single_worms)
+    
+    for ii in range(5):
+        #I repeat it a few times just to be sure...
+        bad_particles = _correct_bad_w()
+        if not bad_particles:
+            break
+        for n in bad_particles:
+            node_weights[n] = 0
+    
+    return node_weights
+
+def get_node_weights(trajectories_data,
+                     mask_video, 
+                     buf_size,
+                     border_range,
+                     max_conn_gap,
+                     min_area_intersect,
+                     min_frac_skel
+                     ):
+    DG, initial_cnt, final_cnt = create_conn_graph(mask_video, 
+                                                   trajectories_data,
+                                                   buf_size,
+                                                   border_range,
+                                                   max_conn_gap,
+                                                   min_area_intersect)
+    likely_single_worms = get_likely_worms(trajectories_data, 
+                                           min_frac_skel = min_frac_skel)
+    DG_f = remove_bad_nodes(DG, likely_single_worms)
+    DG_f = add_border_egdes(DG_f, initial_cnt, final_cnt)
+    edges_weights = fit_edges_weights(DG_f, likely_single_worms)
+    
+    node_weights = get_nodes_weights(DG.nodes(), 
+                                     DG_f, 
+                                     edges_weights, 
+                                     likely_single_worms)
+    node_weights = correct_bad_weights(DG, likely_single_worms, node_weights)
+    
+    return node_weights, DG
+
+
+#%%
 if __name__ == '__main__':
     import matplotlib.pylab as plt
     import glob
     import os
     from tierpsy.helper.misc import RESERVED_EXT
     
-    max_gap = 25
-    min_area_intersect = 0.5
+    
+    
+    min_area_limit = 50
+            
+    args_graph = dict(
+            max_conn_gap = 25,
+            min_area_intersect = 0.5,
+            buf_size = 11,
+            border_range = 10,
+            min_frac_skel = 0.3
+            )
+            
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     
-    #fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
+    fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+    #fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
     fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     
     for mask_video in fnames:
-        buf_size = 11
-        border_range = 10
         
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
         
@@ -317,127 +501,19 @@ if __name__ == '__main__':
         trajectories_data, splitted_points = \
         fix_wrong_merges(mask_video,
                          skeletons_file, 
-                         min_area_limit=50,
+                         min_area_limit,
                          worm_index_type='worm_index_joined')
-        #%%
-        DG, initial_cnt, final_cnt = create_conn_graph(mask_video, trajectories_data)
         
-        likely_single_worms = get_likely_worms(trajectories_data, min_frac_skel = 0.25)
-        DG_f = remove_bad_nodes(DG, likely_single_worms)
+        print('Creating trajectories graph network.')
+        node_weights, DG = get_node_weights(trajectories_data,
+                                        mask_video,
+                                        **args_graph)
+   
         
-        #%%
-        #I am adding possible edges in to the border of the video. I am doing it now
-        #because otherwise several components will be conected even if they were not before
-        border_edges = []
-        for node in DG_f.nodes():
-            if node in initial_cnt:
-                _,is_border = initial_cnt[node]
-                if is_border:
-                    border_edges.append((-100, node))
-            if node in final_cnt:
-                _,is_border = final_cnt[node]
-                if is_border:
-                    border_edges.append((node,-100)) 
-        if border_edges:
-            DG_f.add_node(-100)
-            DG_f.add_edges_from(border_edges)
+        trajectories_data['cluster_size'] = trajectories_data['worm_index_auto'].map(node_weights)
         
-        
-        #i need to add a node to the outside of the plate...
-        edges_order = {x:i for i,x in enumerate(DG_f.edges())}
-        
-        A = []
-        B = []
-        for node in DG_f.nodes():
-            if node == -100:
-                continue
-            
-            ins = DG_f.predecessors(node)
-            outs = DG_f.successors(node)
-            
-            edges_ins = [(ini, node) for ini in ins]
-            edges_outs =  [(node, out) for out in outs]
-            
-            assert all(x in edges_order for x in edges_ins+edges_outs)
-            
-            if edges_ins and edges_outs:
-                a = np.zeros(len(edges_order))
-                for ini in edges_ins:
-                    a[edges_order[ini]] = 1
-                for out in edges_outs:
-                    a[edges_order[out]] = -1
-                
-                A.append(a)
-                B.append(0)
-            
-            if node in likely_single_worms:
-                if edges_ins:
-                    a = np.zeros(len(edges_order))
-                    for ini in edges_ins:
-                        a[edges_order[ini]] = 1
-                    A.append(a)
-                    B.append(1)
-                if edges_outs:
-                    a = np.zeros(len(edges_order))
-                    for out in edges_outs:
-                        a[edges_order[out]] = -1
-                    A.append(a)
-                    B.append(-1)
-                
-        #%%
-        A = np.array(A)
-        B = np.array(B)
-        best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
-        for ii, x in zip(edges_order, best_fit):
-            print(ii, x)
-        nodes_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
-        #%%
-        #intialize n_worms
-        n_worms = {x: 0 for x in DG.nodes()}
-        
-        for node in DG_f.nodes():
-            if node == -100:
-                continue
-            #%%
-            if node in likely_single_worms:
-                # A likely worm must be 1
-                n_worms[node] = 1 
-                continue
-            
-            edges_in = [(i,node) for i in DG_f.predecessors(node)]
-            edges_out = [(node, i) for i in DG_f.successors(node)]
-            
-            tot_in = sum(nodes_weights[e] for e in edges_in)
-            is_neg_in = any(nodes_weights[e]<0 for e in edges_in)
-            tot_out = sum(nodes_weights[e] for e in edges_out)
-            is_neg_out = any(nodes_weights[e]<0 for e in edges_in)
-            
-            if edges_in and edges_out:
-                if tot_in == tot_out and \
-                tot_in >= 0 and \
-                not (is_neg_in or is_neg_out):
-                    n_worms[node] = tot_in
-                else:
-                    #there was something funny in the fitting
-                    n_worms[node] = -min(tot_in, tot_out)
-                    if n_worms[node] > 0: 
-                        #this is in case the fit was actually negative
-                        n_worms[node] = -n_worms[node]
-            elif edges_in:
-                #do not have successors (trajectory end)
-                n_worms[node] = tot_in
-            elif edges_out:
-                #do not have predecessors (trajectory start)
-                n_worms[node] = tot_out
-            elif node in likely_single_worms:
-                n_worms[node] = 1
-        
-        
-        #%%
-        trajectories_data['cluster_size'] = trajectories_data['worm_index_auto'].map(n_worms)
-        
-        if np.any(trajectories_data['cluster_size']<0):
-            print(n_worms)
+        #if np.any(trajectories_data['cluster_size']<0):
+        #    print(node_weights)
         
         def _label(x):
             if x == 0:
