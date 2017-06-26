@@ -18,10 +18,16 @@ from collections import OrderedDict
 import cv2
 import networkx as nx
 import warnings
-from fix_wrong_merges import ImageRigBuff, get_border_cnt, get_traj_limits, fix_wrong_merges
 from tierpsy.helper.misc import WLAB, save_modified_table
+from fix_wrong_merges import ImageRigBuff, get_border_cnt, \
+get_traj_limits, fix_wrong_merges
 
-def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 11):
+
+def get_traj_limits_cnts(mask_video, 
+                         traj_limits, 
+                         buf_size = 11,
+                         border_range=10):
+    #%%
     grouped_t0 = traj_limits.groupby('t0')
     grouped_tf = traj_limits.groupby('tf')
     
@@ -31,7 +37,9 @@ def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 11):
     initial_cnt = OrderedDict()
     final_cnt = OrderedDict()
     
-    with tables.File(masked_image_file, 'r') as fid:
+    
+    #%%
+    with tables.File(mask_video, 'r') as fid:
         mask_group = fid.get_node('/mask')
         ir = ImageRigBuff(mask_group, buf_size)
         for frame_number in np.unique(np.concatenate((uT0,uTf))):
@@ -47,8 +55,9 @@ def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 11):
                                 row['roi_size'], 
                                 row['th0'], 
                                 row['a0']/2)
-                    worm_cnt = get_border_cnt(img_r, img_c, roi_data)
-                    initial_cnt[int(row['worm_index'])] = worm_cnt
+                    initial_cnt[int(row['worm_index'])] = \
+                    get_border_cnt(img_r, img_c, roi_data, border_range)
+                    
             if frame_number in uTf:
                 dd = grouped_tf.get_group(frame_number) 
                 for ff, row in dd.iterrows():
@@ -57,8 +66,17 @@ def get_traj_limits_cnts(masked_image_file, traj_limits, buf_size = 11):
                                 row['roi_size'], 
                                 row['thf'], 
                                 row['af']/2)
-                    worm_cnt = get_border_cnt(img_r, img_c, roi_data)
-                    final_cnt[int(row['worm_index'])] = worm_cnt
+                    final_cnt[int(row['worm_index'])] = \
+                    get_border_cnt(img_r, img_c, roi_data, border_range)
+                    
+                    
+#                    if ff == 27:
+#                        import matplotlib.pylab
+#                        cnt, _ = get_border_cnt(img_r, img_c, roi_data, border_range)
+#                        plt.figure()
+#                        plt.plot(cnt[:, 0], cnt[:, 1])
+#                        plt.title(ff)
+#                        plt.axis('equal')
                     
         return initial_cnt, final_cnt 
  
@@ -109,17 +127,20 @@ def get_intersect_ratio(connect_dict, node1_cnts, node2_cnts):
 
     intersect_ratio = {}
     for current_ind in connect_dict:
-        current_cnt = node1_cnts[current_ind]
+        current_cnt, is_border = node1_cnts[current_ind]
+        
         if current_cnt.size == 0:
             continue
         bot = np.min(current_cnt, axis=0);
         top = np.max(current_cnt, axis=0);
         
         for pii in connect_dict[current_ind]:
-            if node2_cnts[pii].size == 0:
+            cnt2check, _ = node2_cnts[pii]
+            
+            if cnt2check.size == 0:
                 continue
-            bot_p = np.min(node2_cnts[pii],axis=0);
-            top_p = np.max(node2_cnts[pii],axis=0);
+            bot_p = np.min(cnt2check,axis=0);
+            top_p = np.max(cnt2check,axis=0);
             
             bot = np.min((bot, bot_p), axis=0)
             top = np.max((top, top_p), axis=0)
@@ -133,10 +154,11 @@ def get_intersect_ratio(connect_dict, node1_cnts, node2_cnts):
         area_curr = np.sum(mask_curr)    
         
         for pii in connect_dict[current_ind]:
-            if node2_cnts[pii].size == 0:
+            cnt2check, _ = node2_cnts[pii]
+            if cnt2check.size == 0:
                 continue
             mask_possible = np.zeros(roi_size, np.int32)
-            worm_cnt = [(node2_cnts[pii]-bot).astype(np.int32)];
+            worm_cnt = [(cnt2check-bot).astype(np.int32)];
             cv2.drawContours(mask_possible, worm_cnt, 0, 1, -1)
             
             area_intersect = np.sum(mask_curr & mask_possible)
@@ -164,6 +186,103 @@ def select_near_nodes(connect_dict, ratio_dict, time_table, min_intersect = 0.5)
         posible_nodes.append((node1, node2_dat[0]))
     return posible_nodes
 
+def create_conn_graph(mask_video, trajectories_data):
+    #Getting the trajectories starting and ending points.
+    traj_limits = get_traj_limits(trajectories_data, 
+                                  worm_index_type='worm_index_auto', 
+                                  win_area = buf_size)
+    
+    #Extracting worm contours from each point in trajectory limits.
+    initial_cnt, final_cnt = get_traj_limits_cnts(mask_video, 
+                                                  traj_limits,
+                                                  buf_size=buf_size,
+                                                  border_range=border_range)
+    
+
+    
+    #Getting possible connecting point.
+    connect_before, connect_after = \
+    get_possible_connections(traj_limits, max_gap = 25)
+    
+    #Looking for overlaping fraction between contours.
+    after_ratio = get_intersect_ratio(connect_after, final_cnt, initial_cnt)
+    before_ratio = get_intersect_ratio(connect_before, initial_cnt, final_cnt)
+    
+    #Getting connections between trajectories.  
+    edges_after = select_near_nodes(connect_after, after_ratio, traj_limits['t0'], min_intersect = min_area_intersect)
+    edges_before = select_near_nodes(connect_before, before_ratio, -traj_limits['tf'], min_intersect = min_area_intersect)
+    #switch so the lower index is first    
+    edges_before = [(y,x) for x,y in edges_before]
+    
+    
+    #get unique nodes
+    trajectories_edges = set(edges_after+edges_before)
+    
+    #print('Removing redundant connections.')
+    DG=nx.DiGraph()
+    DG.add_nodes_from(traj_limits.index)
+    DG.add_edges_from(trajectories_edges)
+    
+    return DG, initial_cnt, final_cnt
+
+def get_likely_worms(trajectories_data, min_frac_skel = 0.25):
+    '''
+    I am using the number of good skeletons as a proxy for a trajectory to be a worm.
+    It might be better to use a neural network in the future.
+    '''
+    
+    traj_g = trajectories_data.groupby('worm_index_auto')
+    dat = traj_g.agg({'is_good_skel': np.nansum, 'frame_number': 'count'})
+    frac_skeletons = dat['is_good_skel']/dat['frame_number']
+    #maybe use movement?
+    
+    likely_single_worms = set(frac_skeletons[frac_skeletons>min_frac_skel].index)
+    
+    return likely_single_worms
+
+def remove_bad_nodes(DG, likely_single_worms):
+    '''
+    I am considering as a bad node, anything that does not connect to a likely worm.
+    Again, in the feature I should use a neural network for this.
+    '''
+    
+    bad_particles = []
+    for gg in nx.connected_component_subgraphs(DG.to_undirected()):
+        g_nodes = gg.nodes()
+        if not any(x in likely_single_worms for x in g_nodes):
+            bad_particles += g_nodes
+    
+    
+    #%% This worms are inconsistent (weird).
+    #this are likely a worm gets in the way of a bad particle and confouses the algorithm.
+    #Maybe i can fix it but for the moment I will just remove the weird nodes
+    weird_nodes = []
+    for node in likely_single_worms:
+        ins = DG.predecessors(node)
+        outs = DG.successors(node)
+        
+        #if len(ins)>1 or len(outs) >1:
+        #    warnings.warn('{} {} {} Weird single worm merged/split.'.format(node, ins, outs))
+        
+        if len(ins) > 1:
+            weird_nodes += ins
+        elif len(outs) > 1:
+            weird_nodes += outs
+    
+    if weird_nodes:
+        weird_nodes = set(weird_nodes) - likely_single_worms
+        
+        print(weird_nodes)
+            
+    
+    good_nodes = set(DG.nodes()) - set(bad_particles) -set(weird_nodes)
+    
+    
+    
+    DG_f = DG.subgraph(good_nodes)
+    
+    return DG_f
+
 if __name__ == '__main__':
     import matplotlib.pylab as plt
     import glob
@@ -181,10 +300,15 @@ if __name__ == '__main__':
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
     mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
-    fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+    
+    #fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+    fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
     fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     
     for mask_video in fnames:
+        buf_size = 11
+        border_range = 10
+        
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
         
         print(os.path.basename(mask_video))
@@ -196,86 +320,38 @@ if __name__ == '__main__':
                          min_area_limit=50,
                          worm_index_type='worm_index_joined')
         #%%
-        #Getting the trajectories starting and ending points.
-        traj_limits = get_traj_limits(trajectories_data, 
-                                      worm_index_type='worm_index_auto')
+        DG, initial_cnt, final_cnt = create_conn_graph(mask_video, trajectories_data)
         
-        #Getting possible connecting point.
-        connect_before, connect_after = \
-        get_possible_connections(traj_limits, max_gap = 25)
-        
-        #Extracting worm contours from trajectory limits.
-        initial_cnt, final_cnt = get_traj_limits_cnts(mask_video, traj_limits)
-    
-        
-        #Looking for overlaping fraction between contours.
-        after_ratio = get_intersect_ratio(connect_after, final_cnt, initial_cnt)
-        before_ratio = get_intersect_ratio(connect_before, initial_cnt, final_cnt)
-        
-        #Getting connections between trajectories.  
-        edges_after = select_near_nodes(connect_after, after_ratio, traj_limits['t0'], min_intersect = min_area_intersect)
-        edges_before = select_near_nodes(connect_before, before_ratio, -traj_limits['tf'], min_intersect = min_area_intersect)
-        #switch so the lower index is first    
-        edges_before = [(y,x) for x,y in edges_before]
-        
-        #get unique nodes
-        trajectories_edges = set(edges_after+edges_before)
-        
-        #print('Removing redundant connections.')
-        DG=nx.DiGraph()
-        DG.add_nodes_from(traj_limits.index)
-        DG.add_edges_from(trajectories_edges)
-        
+        likely_single_worms = get_likely_worms(trajectories_data, min_frac_skel = 0.25)
+        DG_f = remove_bad_nodes(DG, likely_single_worms)
         
         #%%
-        min_frac_skel = 0.25
+        #I am adding possible edges in to the border of the video. I am doing it now
+        #because otherwise several components will be conected even if they were not before
+        border_edges = []
+        for node in DG_f.nodes():
+            if node in initial_cnt:
+                _,is_border = initial_cnt[node]
+                if is_border:
+                    border_edges.append((-100, node))
+            if node in final_cnt:
+                _,is_border = final_cnt[node]
+                if is_border:
+                    border_edges.append((node,-100)) 
+        if border_edges:
+            DG_f.add_node(-100)
+            DG_f.add_edges_from(border_edges)
         
-        traj_g = trajectories_data.groupby('worm_index_auto')
-        dat = traj_g.agg({'is_good_skel': np.nansum, 'frame_number': 'count'})
-        frac_skeletons = dat['is_good_skel']/dat['frame_number']
-        #maybe use movement?
         
-        likely_single_worms = set(frac_skeletons[frac_skeletons>min_frac_skel].index)
-        #%%
-        bad_particles = []
-        for gg in nx.connected_component_subgraphs(DG.to_undirected()):
-            g_nodes = gg.nodes()
-            if not any(x in likely_single_worms for x in g_nodes):
-                bad_particles += g_nodes
-        
-        good_nodes = set(DG.nodes()) - set(bad_particles)
-        DG_f = DG.subgraph(good_nodes)
-        
-        #%%
-        weird_nodes = []
-        for node in likely_single_worms:
-            ins = DG.predecessors(node)
-            outs = DG.successors(node)
-            
-            if len(ins)>1 or len(outs) >1:
-                warnings.warn('{} {} {} Weird single worm merged/split.'.format(node, ins, outs))
-            
-            if len(ins) > 1:
-                weird_nodes += ins
-            elif len(outs) > 1:
-                weird_nodes += outs
-        
-        if weird_nodes:
-            weird_nodes = set(weird_nodes) - likely_single_worms
-            
-            print(weird_nodes)
-        #%%
         #i need to add a node to the outside of the plate...
         edges_order = {x:i for i,x in enumerate(DG_f.edges())}
         
-        #nodes2check = {x:0 for x in good_nodes - set(likely_single_worms)}
-        #knonwn_sizes = {x:1 for x in likely_single_worms}
-        
         A = []
         B = []
-        
-        #remaining_nodes = {}
         for node in DG_f.nodes():
+            if node == -100:
+                continue
+            
             ins = DG_f.predecessors(node)
             outs = DG_f.successors(node)
             
@@ -311,35 +387,68 @@ if __name__ == '__main__':
         #%%
         A = np.array(A)
         B = np.array(B)
-        print(np.linalg.lstsq(A,B))
-            
-            
-            
-            
+        best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
+        for ii, x in zip(edges_order, best_fit):
+            print(ii, x)
+        nodes_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
         #%%
+        #intialize n_worms
+        n_worms = {x: 0 for x in DG.nodes()}
+        
+        for node in DG_f.nodes():
+            if node == -100:
+                continue
+            #%%
+            if node in likely_single_worms:
+                # A likely worm must be 1
+                n_worms[node] = 1 
+                continue
             
+            edges_in = [(i,node) for i in DG_f.predecessors(node)]
+            edges_out = [(node, i) for i in DG_f.successors(node)]
             
-#        dd = {}
-#        possible_cluster
-#        for node in DG.nodes():
-#            node_inputs = DG.predecessors(node)
-#            node_outpus = DG.successors(node)
-#            dd[node] = (len(node_inputs), len(node_outpus))
-#            
-#            if (any(x in worm_indexes for x in node_inputs) or  \
-#                any(x in worm_indexes for x in node_outpus)):
-#                possible_cluster.append(node)
-#        possible_cluster = set(possible_cluster)
+            tot_in = sum(nodes_weights[e] for e in edges_in)
+            is_neg_in = any(nodes_weights[e]<0 for e in edges_in)
+            tot_out = sum(nodes_weights[e] for e in edges_out)
+            is_neg_out = any(nodes_weights[e]<0 for e in edges_in)
+            
+            if edges_in and edges_out:
+                if tot_in == tot_out and \
+                tot_in >= 0 and \
+                not (is_neg_in or is_neg_out):
+                    n_worms[node] = tot_in
+                else:
+                    #there was something funny in the fitting
+                    n_worms[node] = -min(tot_in, tot_out)
+                    if n_worms[node] > 0: 
+                        #this is in case the fit was actually negative
+                        n_worms[node] = -n_worms[node]
+            elif edges_in:
+                #do not have successors (trajectory end)
+                n_worms[node] = tot_in
+            elif edges_out:
+                #do not have predecessors (trajectory start)
+                n_worms[node] = tot_out
+            elif node in likely_single_worms:
+                n_worms[node] = 1
         
         
         #%%
-        trajectories_data['auto_label'] = WLAB['U']
+        trajectories_data['cluster_size'] = trajectories_data['worm_index_auto'].map(n_worms)
         
-        good = trajectories_data['worm_index_auto'].isin(likely_single_worms)
-        trajectories_data.loc[good, 'auto_label'] = WLAB['WORM']
+        if np.any(trajectories_data['cluster_size']<0):
+            print(n_worms)
         
-        good = trajectories_data['worm_index_auto'].isin(bad_particles)
-        trajectories_data.loc[good, 'auto_label'] = WLAB['BAD']
+        def _label(x):
+            if x == 0:
+                return WLAB['BAD']
+            elif x == 1:
+                return WLAB['WORM']
+            elif x > 1:
+                return WLAB['WORMS']
+            else:
+                return WLAB['U']
+        trajectories_data['auto_label'] = trajectories_data['cluster_size'].map(_label)
         
         
         assert (trajectories_data['skeleton_id']==trajectories_data.index).all()
