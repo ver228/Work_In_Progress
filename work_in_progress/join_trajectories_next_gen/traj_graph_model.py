@@ -19,6 +19,7 @@ import cv2
 import networkx as nx
 import warnings
 from tierpsy.helper.misc import WLAB, save_modified_table
+
 from fix_wrong_merges import ImageRigBuff, get_border_cnt, \
 get_traj_limits, fix_wrong_merges
 
@@ -27,7 +28,7 @@ def get_traj_limits_cnts(mask_video,
                          traj_limits, 
                          buf_size,
                          border_range):
-    #%%
+    
     grouped_t0 = traj_limits.groupby('t0')
     grouped_tf = traj_limits.groupby('tf')
     
@@ -38,7 +39,6 @@ def get_traj_limits_cnts(mask_video,
     final_cnt = OrderedDict()
     
     
-    #%%
     with tables.File(mask_video, 'r') as fid:
         mask_group = fid.get_node('/mask')
         ir = ImageRigBuff(mask_group, buf_size)
@@ -195,6 +195,7 @@ def create_conn_graph(mask_video,
                       border_range,
                       max_conn_gap,
                       min_area_intersect):
+    #%%
     #Getting the trajectories starting and ending points.
     traj_limits = get_traj_limits(trajectories_data, 
                                   worm_index_type='worm_index_auto', 
@@ -232,14 +233,16 @@ def create_conn_graph(mask_video,
     DG.add_edges_from(trajectories_edges)
     
     return DG, initial_cnt, final_cnt
-
-def get_likely_worms(trajectories_data, min_frac_skel):
+#%%
+def get_likely_worms(trajectories_data, 
+                     min_frac_skel,
+                     worm_index_type):
     '''
     I am using the number of good skeletons as a proxy for a trajectory to be a worm.
     It might be better to use a neural network in the future.
     '''
     
-    traj_g = trajectories_data.groupby('worm_index_auto')
+    traj_g = trajectories_data.groupby(worm_index_type)
     dat = traj_g.agg({'is_good_skel': np.nansum, 'frame_number': 'count'})
     frac_skeletons = dat['is_good_skel']/dat['frame_number']
     #maybe use movement?
@@ -247,7 +250,7 @@ def get_likely_worms(trajectories_data, min_frac_skel):
     likely_single_worms = set(frac_skeletons[frac_skeletons>min_frac_skel].index)
     
     return likely_single_worms
-
+#%%
 def add_border_egdes(DG_f, initial_cnt, final_cnt):
     '''I am adding possible edges to the border of the video labeled as -100.
     I am doing it after removing the bad nodes because otherwise some of those 
@@ -276,7 +279,7 @@ def _get_bad_nodes(DG_f, likely_single_worms):
     return bad_nodes
 
 
-def remove_bad_nodes(DG, likely_single_worms):
+def remove_unconnected_nodes(DG, likely_single_worms):
     '''
     I am considering as a bad node, anything that does not connect to a likely worm.
     Again, in the feature I should use a neural network for this.
@@ -356,11 +359,27 @@ def fit_edges_weights(DG_f, likely_single_worms):
     the sum of the edges leaving.
     I am using numpy least squares to solve the equation.
     '''
-    edges_order = {x:i for i,x in enumerate(DG_f.edges())}
+    #%%
+    known_edges = {}
+    for node in likely_single_worms:
+        ins = DG_f.predecessors(node)
+        outs = DG_f.successors(node)
+        
+        if len(ins) == 1: 
+            known_edges[(ins[0], node)] = 1
+            
+        if len(outs) == 1:
+            known_edges[(node, outs[0])] = 1
+            
+    #%%
+    edges2check = [x for x in DG_f.edges() if not x in known_edges]
+    
+    #%%
+    edges_order = {x:i for i,x in enumerate(edges2check)}
     A = []
     B = []
     for node in DG_f.nodes():
-        if node == -100:
+        if node < 0:
             continue
         
         ins = DG_f.predecessors(node)
@@ -369,41 +388,39 @@ def fit_edges_weights(DG_f, likely_single_worms):
         edges_ins = [(ini, node) for ini in ins]
         edges_outs =  [(node, out) for out in outs]
         
-        assert all(x in edges_order for x in edges_ins+edges_outs)
+        #assert all(x in edges_order for x in edges_ins+edges_outs)
         
         if edges_ins and edges_outs:
             a = np.zeros(len(edges_order))
-            for ini in edges_ins:
-                a[edges_order[ini]] = 1
-            for out in edges_outs:
-                a[edges_order[out]] = -1
+            b = 0
             
-            A.append(a)
-            B.append(0)
-        
-        if node in likely_single_worms:
-            if edges_ins:
-                a = np.zeros(len(edges_order))
-                for ini in edges_ins:
+            for ini in edges_ins:
+                if ini in known_edges:
+                    b -= known_edges[ini]
+                else:
                     a[edges_order[ini]] = 1
-                A.append(a)
-                B.append(1)
-            if edges_outs:
-                a = np.zeros(len(edges_order))
-                for out in edges_outs:
+            for out in edges_outs:
+                if out in known_edges:
+                    b += known_edges[out]
+                else:
                     a[edges_order[out]] = -1
+            
+            if not np.all(a==0):
                 A.append(a)
-                B.append(-1)
+                B.append(b)
     
     A = np.array(A)
     B = np.array(B)
     best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
+    #%%
     #for ii, x in zip(edges_order, best_fit):
     #    print(ii, x)
-    
+    #%%
     #the weights must be integers so I am approximating here
     edges_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
-    
+    for x in known_edges:
+        edges_weights[x] = known_edges[x]
+    #%%
     return edges_weights
 
 def correct_bad_weights(DG, likely_single_worms, node_weights):
@@ -428,7 +445,55 @@ def correct_bad_weights(DG, likely_single_worms, node_weights):
             node_weights[n] = 0
     
     return node_weights
-
+#%%
+def merge_redundant_nodes(DG_f):
+    
+    redundant_nodes = []
+    for node in DG_f:
+        ins = DG_f.predecessors(node)
+        outs = DG_f.successors(node)
+        if len(ins) == 1 and len(outs) == 1:
+            redundant_nodes.append(node)
+    
+    
+    nodes_merged = {}
+    DG_f_merged = DG_f.copy()
+    #reduce nodes consider the case of several successive single connections
+    reduced_g = DG_f.subgraph(redundant_nodes)
+    
+    for sub_g in nx.connected_component_subgraphs(reduced_g.to_undirected()):
+        
+        nodes2check = sub_g.nodes()
+        
+        root_ini = [n for n in nodes2check 
+                    if not DG_f.predecessors(n) in nodes2check]
+        assert len(root_ini)==1 
+        root_ini = root_ini[0]
+        ini_pred = DG_f.predecessors(root_ini)[0]
+        if len(DG_f.successors(ini_pred)) == 1:
+            root_ini = ini_pred
+        
+        root_end = [n for n in nodes2check 
+                    if not DG_f.successors(n) in nodes2check]
+        assert len(root_end)==1 
+        root_end = root_end[0]
+        
+        
+        end_succ = DG_f.successors(root_end)[0]
+        if len(DG_f.predecessors(end_succ)) == 1:
+            root_end = end_succ
+        nodes2remove = [x for x in nodes2check 
+                        if x != root_ini and x!=root_end]
+        
+        if nodes2remove:
+            for n in nodes2remove:
+                nodes_merged[n] = root_ini
+            
+            DG_f_merged.add_edge(root_ini, root_end)
+            DG_f_merged.remove_nodes_from(nodes2remove) 
+       
+    return DG_f_merged, nodes_merged
+#%%
 def get_node_weights(trajectories_data,
                      mask_video, 
                      buf_size,
@@ -437,16 +502,31 @@ def get_node_weights(trajectories_data,
                      min_area_intersect,
                      min_frac_skel
                      ):
+    #%%
     DG, initial_cnt, final_cnt = create_conn_graph(mask_video, 
                                                    trajectories_data,
                                                    buf_size,
                                                    border_range,
                                                    max_conn_gap,
                                                    min_area_intersect)
+    #%%
+    DG_merged = DG
+    DG_merged, nodes_merged = merge_redundant_nodes(DG)
+    
+    assert len(merge_redundant_nodes(DG_merged)[1]) == 0
+    #slower but better (it seems that pandas .replace assumes 1 to 1 mapping)
+    trajectories_data['worm_index_auto'] = \
+    [x if not x in nodes_merged else nodes_merged[x] 
+    for x in trajectories_data['worm_index_auto']]
+    
     likely_single_worms = get_likely_worms(trajectories_data, 
-                                           min_frac_skel = min_frac_skel)
-    DG_f = remove_bad_nodes(DG, likely_single_worms)
+                                           min_frac_skel = min_frac_skel,
+                                           worm_index_type='worm_index_auto')
+    assert len(likely_single_worms-set(DG_merged.nodes())) == 0
+    #%%
+    DG_f = remove_unconnected_nodes(DG_merged, likely_single_worms)
     DG_f = add_border_egdes(DG_f, initial_cnt, final_cnt)
+    #%%
     edges_weights = fit_edges_weights(DG_f, likely_single_worms)
     
     node_weights = get_nodes_weights(DG.nodes(), 
@@ -454,8 +534,8 @@ def get_node_weights(trajectories_data,
                                      edges_weights, 
                                      likely_single_worms)
     node_weights = correct_bad_weights(DG, likely_single_worms, node_weights)
-    
-    return node_weights, DG
+    #%%
+    return node_weights, DG_merged, trajectories_data
 
 
 #%%
@@ -483,8 +563,8 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     
     fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
@@ -494,22 +574,23 @@ if __name__ == '__main__':
     for mask_video in fnames:
         
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
+        if not os.path.exists(skeletons_file):
+            continue
         
-        print(os.path.basename(mask_video))
+        base_name = os.path.basename(mask_video)
         #%%
-        print('Fixing wrong merge events.')
+        
         trajectories_data, splitted_points = \
         fix_wrong_merges(mask_video,
                          skeletons_file, 
-                         min_area_limit,
-                         worm_index_type='worm_index_joined')
-        
+                         min_area_limit
+                         )
+        #%%
         print('Creating trajectories graph network.')
-        node_weights, DG = get_node_weights(trajectories_data,
-                                        mask_video,
-                                        **args_graph)
-   
-        
+        node_weights, DG, trajectories_data = \
+        get_node_weights(trajectories_data,
+                        mask_video,
+                        **args_graph)
         trajectories_data['cluster_size'] = trajectories_data['worm_index_auto'].map(node_weights)
         
         #if np.any(trajectories_data['cluster_size']<0):
@@ -531,5 +612,10 @@ if __name__ == '__main__':
         
         #let's save this data into the skeletons file
         save_modified_table(skeletons_file, trajectories_data, 'trajectories_data')
-        
-        
+#%%
+max_conn_gap = 25
+min_area_intersect = 0.5
+buf_size = 11
+border_range = 10
+min_frac_skel = 0.3
+ 

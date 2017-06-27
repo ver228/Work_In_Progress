@@ -17,10 +17,13 @@ import tables
 import numpy as np
 from collections import OrderedDict
 import cv2
+import json
+from tierpsy.helper.misc import get_base_name, print_flush
 
+from tierpsy.analysis.traj_join.joinBlobsTrajectories import assignBlobTrajDF, joinGapsTrajectoriesDF
 from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
 from tierpsy.analysis.ske_create.helperIterROI import getWormROI
-
+#%%
 class ImageRigBuff:
     #ring buffer class to avoid having to read the same image several times
     def __init__(self, mask_group, buf_size):
@@ -56,22 +59,29 @@ class ImageRigBuff:
         return self.I_buff
     
     def get_buff_reduced(self, next_frame):
+    
         img = self.get_buffer(next_frame).copy()
         img_c = img[self.ind_center]
+        
+        #img[img==0] = np.median(img[img>0])
+        #img_r = np.mean(img, axis=0).astype(np.uint8)
         
         img[img==0] = 255
         img_r = np.min(img, axis=0)
         img_r[img_r==255] = 0
         
+        img_r = cv2.erode(img_r, np.ones((3,3), np.uint8))
+        
         return img_c, img_r
-    
+    #%%
 
 def get_traj_limits(trajectories_data, 
-                    worm_index_type='worm_index_joined', 
-                    win_area = 10):
+                    worm_index_type, 
+                    win_area):
     traj_limits = OrderedDict()
     
     assert worm_index_type in trajectories_data
+    trajectories_data = trajectories_data.dropna()
     grouped_trajectories = trajectories_data.groupby(worm_index_type)
     
     tot_worms = len(grouped_trajectories)
@@ -112,10 +122,17 @@ def get_traj_limits(trajectories_data,
     traj_limits = pd.DataFrame(traj_limits, index=traj_limits['worm_index'])
     return traj_limits 
 
+#%%
 
-def get_break_points(trajectories_data, min_area_limit=0.5, worm_index_type='worm_index_joined'):
+def get_break_points(trajectories_data, 
+                     worm_index_type,
+                     min_area_limit, 
+                     win_area
+                     ):
     trajgrouped = trajectories_data.groupby('frame_number')    
-    traj_limits = get_traj_limits(trajectories_data, worm_index_type=worm_index_type) 
+    traj_limits = get_traj_limits(trajectories_data, 
+                                  worm_index_type=worm_index_type,
+                                  win_area=win_area) 
     
     
     break_points = []
@@ -184,9 +201,13 @@ def get_break_points(trajectories_data, min_area_limit=0.5, worm_index_type='wor
     return break_points
 
 
-
-def get_border_cnt(img_r, img_c, roi_data, border_range=2):
 #%%
+def get_border_cnt(img_r, 
+                   img_c, 
+                   roi_data, 
+                   border_range=2, 
+                   strel_size=11):
+
     im_size = img_r.shape
     def _is_border(cnt):
         IM_LIMX = im_size[0] - border_range - 1
@@ -204,8 +225,8 @@ def get_border_cnt(img_r, img_c, roi_data, border_range=2):
         worm_img, roi_corner = getWormROI(img, x, y, roi_size)
         worm_mask, worm_cnt, _ = getWormMask(worm_img, 
                                              thresh, 
-                                             min_blob_area=max_area,
-                                             strel_size=5)
+                                             min_blob_area=max_area
+                                             )
         if worm_cnt.size > 0:
             worm_cnt += roi_corner   
         return worm_cnt 
@@ -217,12 +238,12 @@ def get_border_cnt(img_r, img_c, roi_data, border_range=2):
         worm_cnt = worm_cnt_c
     else:
         worm_cnt = _get_roi_cnts(img_r, *roi_data)
-    #%%
+    
     return worm_cnt, is_border_b
+#%%
 
 
-
-def get_area_overlaps(mask_video, break_points, buf_size = 11):
+def get_area_overlaps(mask_video, break_points, buf_size):
     #%%
     indexInFrame = {} 
     roi_data = {}
@@ -279,33 +300,39 @@ def get_area_overlaps(mask_video, break_points, buf_size = 11):
             area_intersect = np.sum(mask_check & mask_split)
             area_check = np.sum(mask_check)
             
-            
+            area_overlap[key_tuple] = area_intersect/area_check
 #            try:
-#                if ind_split == 33 or ind_check == 33:
+#                if ind_split == 41 or ind_check == 41:
 #                    import matplotlib.pylab as plt
 #                    plt.figure()
 #                    plt.plot(cnt_split[0][:, 0], cnt_split[0][:, 1])
 #                    plt.plot(cnt_check[0][:, 0], cnt_check[0][:, 1])
 #                    plt.title((ind_split, t_split, ind_check, t_check))
+#                    break
 #            except:
 #                raise
 #                import pdb
 #                pdb.set_trace()
             
             
-            area_overlap[key_tuple] = area_intersect/area_check
+            
             #%%
     return area_overlap
 
-def get_points2split(trajectories_data, 
-                     mask_video, 
-                     worm_index_type='worm_index_joined',
-                     min_area_ratio=0.5,
-                     buf_size = 11):
-    
-    
+def split_trajectories(mask_video, 
+                       trajectories_data, 
+                       worm_index_type, 
+                       min_area_limit,
+                       min_area_ratio,
+                       buf_size):
     #%%
-    break_points = get_break_points(trajectories_data, worm_index_type=worm_index_type)
+    # worm index -1 are invalid values
+    trajectories_data = trajectories_data[trajectories_data[worm_index_type] > 0] 
+    break_points = get_break_points(trajectories_data, 
+                                    worm_index_type=worm_index_type,
+                                    min_area_limit = min_area_limit,
+                                    win_area=buf_size//2
+                                    )
     area_overlap = get_area_overlaps(mask_video, break_points, buf_size=buf_size)
     
     points2split = {}
@@ -317,17 +344,9 @@ def get_points2split(trajectories_data,
             if not t_split in points2split[x[0]]:
                 points2split[x[0]].append(t_split)
     #%%
-    return points2split
-
-def split_trajectories(mask_video, trajectories_data, worm_index_type='worm_index_joined'):
-    #%%
     last_index = trajectories_data[worm_index_type].max()
     traj_grouped_ind = trajectories_data.groupby(worm_index_type)
     
-    points2split = get_points2split(trajectories_data, 
-                                    mask_video,
-                                    worm_index_type)
-    #%%
     worm_index_new = trajectories_data[worm_index_type].copy()
     for worm_ind in points2split:
         
@@ -348,9 +367,9 @@ def split_trajectories(mask_video, trajectories_data, worm_index_type='worm_inde
     return worm_index_new, points2split
 #%% remove small sporious trajectories
 def filter_table_by_area(trajectories_data, 
-                         min_area_limit = 50, 
-                         n_sigma = 6,
-                         worm_index_type='worm_index_joined'):
+                         worm_index_type,
+                         min_area_limit,
+                         n_sigma = 6):
     area_med = trajectories_data['area'].median()
     area_mad = (trajectories_data['area']-area_med).abs().median();
     
@@ -366,29 +385,100 @@ def filter_table_by_area(trajectories_data,
     return trajectories_data_f
 
 
-def fix_wrong_merges(mask_video, skeletons_file, 
-                     min_area_limit=50, 
-                     worm_index_type='worm_index_joined'):
+def rejoin_traj(skeletons_file,
+                min_track_size = None,
+                base_name=''):
+    '''
+    Rejoin trajectories after the thresholding was corrected. 
+    If the BLOB_FEATURES step was not run before just return trajectories_data
+    with worm_index_auto equal to worm_index_auto
+    '''
     #%%
-    #get the trajectories table
     with pd.HDFStore(skeletons_file, 'r') as fid:
         trajectories_data = fid['/trajectories_data']
-    trajectories_data['worm_index_auto'] = trajectories_data['worm_index_joined'].copy()
+        
+        if not '/blob_features' in fid:
+            trajectories_data['worm_index_auto'] = trajectories_data['worm_index_joined'].copy()
+            #return trajectories_data
+        else:
+            blob_features = fid['/blob_features']
+            assert blob_features.shape[0] == trajectories_data.shape[0]
+    
+    with tables.File(skeletons_file, 'r') as fid:
+        dd = fid.get_node('/provenance_tracking/TRAJ_JOIN').read()
+        args_j = json.loads(json.loads(dd.decode())['func_arguments'])
+    
+    
     #%%
+    blob_features['frame_number'] = trajectories_data['frame_number']
+    traj_ind = assignBlobTrajDF(blob_features, 
+                                max_allowed_dist=args_j['max_allowed_dist'], 
+                                area_ratio_lim=args_j['area_ratio_lim'], 
+                                base_name=base_name)
+    
+#    blob_features['worm_index_auto'] =  traj_ind
+#    worm_index_new = joinGapsTrajectoriesDF(blob_features, 
+#                           min_track_size=args_j['min_track_size'],
+#                           max_time_gap=args_j['max_time_gap'], 
+#                           area_ratio_lim=args_j['area_ratio_lim'],
+#                           worm_index_type='worm_index_auto')
+#    
+    trajectories_data['worm_index_auto'] =  traj_ind
+    
+    #%%
+    return trajectories_data
+
+
+def fix_wrong_merges(mask_video, skeletons_file, 
+                     min_area_limit=50):
+    
+    #get the trajectories table
+    base_name = get_base_name(skeletons_file)
+    #%%
+    #trajectories_data = rejoin_traj(skeletons_file, base_name)
+    with pd.HDFStore(skeletons_file, 'r') as fid:
+        trajectories_data = fid['/trajectories_data']
+        
+        trajectories_data_f = trajectories_data.copy()
+        #trajectories_shifted['worm_index_auto'] = trajectories_shifted['worm_index_joined']
+        #if '/blob_features' in fid: 
+        #    blob_features = fid['/blob_features']
+        #    for col in ['coord_x', 'coord_y', 'area']:
+        #        trajectories_shifted[col] = blob_features[col]
+        
+    #%%
+    print_flush(base_name + ' Spliting wrong merge events.')
     max_n_iter = 10 #I do a few iterations because sometimes new trajectories are form when previous ones are splitted 
+    
+    splitted_points = {}
     for ii in range(max_n_iter):
-        trajectories_data_f = filter_table_by_area(trajectories_data, min_area_limit)
+        #%%
+        trajectories_data_f = filter_table_by_area(trajectories_data_f, 
+                                                   worm_index_type = 'worm_index_auto',
+                                                   min_area_limit = min_area_limit
+                                                   )
+        #%%
         worm_index_new, points2split = split_trajectories(mask_video, 
                                             trajectories_data_f, 
-                                            worm_index_type='worm_index_auto')
+                                            worm_index_type='worm_index_auto',
+                                            min_area_limit=25,
+                                            min_area_ratio=0.5,
+                                            buf_size=11
+                                            )
+        #%%
         trajectories_data['worm_index_auto'] =  np.int32(-1) #like that it force the unassigned indexes to be empty
         trajectories_data.loc[worm_index_new.index, 'worm_index_auto'] = worm_index_new.values
         
+        #%%
         #print(points2split)
         if len(points2split) == 0:
             break
-        
-        
+        else:
+            for x in points2split:
+                if not x in splitted_points:
+                    splitted_points[x] = []
+                splitted_points[x] += points2split[x]
+    
         
     #%%
     return trajectories_data, points2split
@@ -407,11 +497,14 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     #fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_males_1_Ch1_11052017_145300.hdf5'))
+    fnames = glob.glob(os.path.join(mask_dir, 'A10_B0_1.5x_25fps_Ch1_21042017_163235.hdf5'))
+    
+    
+    #fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_males_1_Ch1_11052017_145300.hdf5'))
     
     fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     for mask_video in fnames:
@@ -423,13 +516,15 @@ if __name__ == '__main__':
         trajectories_data, splitted_points = \
         fix_wrong_merges(mask_video,
                          skeletons_file, 
-                         min_area_limit=50,
-                         worm_index_type='worm_index_joined')
-        
+                         min_area_limit=50
+                         )
         dd = trajectories_data.loc[trajectories_data['skeleton_id']!=trajectories_data.index, 'skeleton_id']
         if len(dd) > 0:
             print(base_name, dd.shape)
         break
-        
+    #%%
     min_area_limit=50
-    worm_index_type='worm_index_joined'
+    worm_index_type='worm_index_auto'
+    min_area_limit=25
+    min_area_ratio=0.5
+    buf_size=11
