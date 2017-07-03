@@ -291,27 +291,28 @@ if __name__ == '__main__':
     
     max_gap = 25
     min_area_intersect = 0.5
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
+    buf_size = 11
+    border_range = 10
+        
+    mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     
-    #fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
+    fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+    #fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
     fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     
-    for mask_video in fnames:
-        buf_size = 11
-        border_range = 10
+    for ivid, mask_video in enumerate(fnames):
         
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
         
-        print(os.path.basename(mask_video))
+        print('{} of {} {}'.format(ivid+1, len(fnames), os.path.basename(mask_video)))
         #%%
         print('Fixing wrong merge events.')
         trajectories_data, splitted_points = \
@@ -388,8 +389,8 @@ if __name__ == '__main__':
         A = np.array(A)
         B = np.array(B)
         best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
-        for ii, x in zip(edges_order, best_fit):
-            print(ii, x)
+        #for ii, x in zip(edges_order, best_fit):
+        #    print(ii, x)
         nodes_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
         #%%
         #intialize n_worms
@@ -436,8 +437,8 @@ if __name__ == '__main__':
         #%%
         trajectories_data['cluster_size'] = trajectories_data['worm_index_auto'].map(n_worms)
         
-        if np.any(trajectories_data['cluster_size']<0):
-            print(n_worms)
+        #if np.any(trajectories_data['cluster_size']<0):
+        #    print(n_worms)
         
         def _label(x):
             if x == 0:
