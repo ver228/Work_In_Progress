@@ -182,6 +182,9 @@ if __name__ == '__main__':
     results = []
     gg = [x for x in vid_group]
     for ii, dd in enumerate(gg):
-        print('{} of {}'.format(ii, tot))
-        results.append(process_data(dd))
-        
+        try:
+            print('{} of {}'.format(ii, tot))
+            results.append(process_data(dd))
+        except:
+            pass
+    
