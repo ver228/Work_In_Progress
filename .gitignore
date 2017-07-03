@@ -33,3 +33,5 @@ train_cnn/egg_laying/results
 *.pdf
 
 *.pdf
+
+*.csv
