@@ -78,10 +78,14 @@ class ImageRigBuff:
 def get_traj_limits(trajectories_data, 
                     worm_index_type, 
                     win_area):
+    #%%
     traj_limits = OrderedDict()
     
     assert worm_index_type in trajectories_data
-    trajectories_data = trajectories_data.dropna()
+    fields_needed = ['coord_x', 'coord_y', 'roi_size', 'frame_number', 'threshold']
+    
+    fields_needed_d = [worm_index_type, 'area'] + fields_needed
+    trajectories_data = trajectories_data[fields_needed_d].dropna()
     grouped_trajectories = trajectories_data.groupby(worm_index_type)
     
     tot_worms = len(grouped_trajectories)
@@ -92,8 +96,8 @@ def get_traj_limits(trajectories_data,
     ('x0',np.float), ('xf',np.float), ('y0',np.float), ('yf',np.float), \
     ('a0',np.float), ('af',np.float),  ('th0',np.float), ('thf',np.float), \
     ('roi_size',np.int)])
+    #%%
     
-    fields_needed = ['coord_x', 'coord_y', 'roi_size', 'frame_number', 'threshold']
     for index_n, (worm_index, trajectories_worm) in enumerate(grouped_trajectories):
         good = trajectories_worm['area'] != 0
         dd = trajectories_worm.loc[good, 'frame_number']
@@ -120,6 +124,7 @@ def get_traj_limits(trajectories_data,
         traj_limits[index_n] = (worm_index, t0, tf, x0,xf, y0,yf, a0, af, th0, th1, roi_size)
         #if worm_index == 50: break;
     traj_limits = pd.DataFrame(traj_limits, index=traj_limits['worm_index'])
+    #%%
     return traj_limits 
 
 #%%
@@ -385,7 +390,7 @@ def filter_table_by_area(trajectories_data,
     return trajectories_data_f
 
 
-def rejoin_traj(skeletons_file,
+def __bad_rejoin_traj(skeletons_file,
                 min_track_size = None,
                 base_name=''):
     '''
@@ -440,11 +445,7 @@ def fix_wrong_merges(mask_video, skeletons_file,
         trajectories_data = fid['/trajectories_data']
         
         trajectories_data_f = trajectories_data.copy()
-        #trajectories_shifted['worm_index_auto'] = trajectories_shifted['worm_index_joined']
-        #if '/blob_features' in fid: 
-        #    blob_features = fid['/blob_features']
-        #    for col in ['coord_x', 'coord_y', 'area']:
-        #        trajectories_shifted[col] = blob_features[col]
+        trajectories_data_f['worm_index_auto'] = trajectories_data_f['worm_index_joined']
         
     #%%
     print_flush(base_name + ' Spliting wrong merge events.')
@@ -494,14 +495,14 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
+    mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
-    #fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    fnames = glob.glob(os.path.join(mask_dir, 'A10_B0_1.5x_25fps_Ch1_21042017_163235.hdf5'))
+    fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+    #fnames = glob.glob(os.path.join(mask_dir, 'A10_B0_1.5x_25fps_Ch1_21042017_163235.hdf5'))
     
     
     #fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_males_1_Ch1_11052017_145300.hdf5'))

@@ -9,8 +9,12 @@ Created on Thu Jun 22 09:20:00 2017
 import numpy as np
 from tierpsy.analysis.feat_create.obtainFeatures import getGoodTrajIndexes
 from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTableSimple
+import matplotlib.path as mplPath
+
 from find_food import get_food_contour
 from tierpsy.helper.params import read_microns_per_pixel
+
+
 
 def get_worm_partitions(n_segments=49):
     worm_partitions = { 'head': (0, 8),
@@ -70,7 +74,6 @@ def get_cnt_feats(skeletons,
                                        )
     
     midbody_cc = skel_avg['midbody']
-    midbody_r = np.linalg.norm(midbody_cc-food_centroid, axis=1)
     
     def _get_food_ind(cc):
         rr = np.linalg.norm(cc - food_cnt, axis=1)
@@ -80,13 +83,20 @@ def get_cnt_feats(skeletons,
     
     cnt_ind, dist_from_cnt = map(np.array, zip(*map(_get_food_ind, midbody_cc)))
     
+    #find if the trajectory points are inside the closed polygon (outside will be negative)
+    bbPath = mplPath.Path(food_cnt)
+    outside = ~bbPath.contains_points(midbody_cc)
+    dist_from_cnt[outside] = -dist_from_cnt[outside]
+    
+    ''' OLD
     #use the polar coordinates from the food centroid
     #to find if the worm is inside or outside the food
     #if worm radial position is larger tha the closest contour radial position
     #then the worm is outside
+    midbody_r = np.linalg.norm(midbody_cc-food_centroid, axis=1)  
     outside = midbody_r>food_r[cnt_ind]
     dist_from_cnt[outside] = -dist_from_cnt[outside]
-    
+    '''
     
     get_unit_vec = lambda x : x/np.linalg.norm(x, axis=1)[:, np.newaxis]
     
@@ -157,9 +167,10 @@ if __name__ == '__main__':
                   food_cnt, 
                   food_r, 
                   food_centroid,
-                  is_debug = False)
-        
+                  is_debug = True)
+            
             #%% 
             skeletons = worm.skeleton
             is_debug = True
+        break
         

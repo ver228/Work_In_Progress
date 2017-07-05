@@ -292,26 +292,50 @@ if __name__ == '__main__':
     import os
     import fnmatch
     
+    n_bins = 180
+    frac_lowess=0.1
+    
     exts = ['']
 
     exts = ['*'+ext+'.hdf5' for ext in exts]
     
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
+    mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
     fnames = [x for x in fnames if any(fnmatch.fnmatch(x, ext) for ext in exts)]
     
     for mask_video in fnames:
-        circx, circy = get_food_contour(mask_video, is_debug=True)
+        circx, circy = get_food_contour(mask_video, 
+                                        n_bins = n_bins,
+                                        frac_lowess=frac_lowess,
+                                        is_debug=True)
         
-        break
+        #%%
+        base_name = get_base_name(mask_video)
+        with tables.File(mask_video, 'r') as fid:
+            full_data = fid.get_node('/full_data')[:]
+            
+        full_min = np.max(full_data, axis=0)
+        full_max = np.min(full_data, axis=0)
+        
+        
+        #%%
+        import matplotlib.pylab as plt
+        for nn in range(full_data.shape[0]):
+            plt.figure()
+            plt.imshow(full_data[nn], cmap='gray')
+            plt.plot(circy, circx)
+            break
+        #%%
+        
+        
         
         
         

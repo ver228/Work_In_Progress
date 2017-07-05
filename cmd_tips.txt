@@ -1,3 +1,6 @@
 
 #change extension multiple files
 find /the/path -depth -name "*.abc" -exec sh -c 'mv "$1" "${1%.abc}.edefg"' _ {} \;
+
+
+find /Volumes/behavgenom_archive\$/Serena/foodpatchRig/RawVideos -depth -name "*.hdf5" -exec sh -c 'mv "$1" "${1%.hdf5}.raw_hdf5"' _ {} \;

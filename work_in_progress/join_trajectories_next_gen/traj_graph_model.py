@@ -17,9 +17,7 @@ import numpy as np
 from collections import OrderedDict
 import cv2
 import networkx as nx
-import warnings
-from tierpsy.helper.misc import WLAB, save_modified_table
-
+from tierpsy.helper.misc import WLAB, save_modified_table, get_base_name, print_flush
 from fix_wrong_merges import ImageRigBuff, get_border_cnt, \
 get_traj_limits, fix_wrong_merges
 
@@ -208,7 +206,7 @@ def create_conn_graph(mask_video,
                                                   border_range=border_range)
     
 
-    
+    #%%
     #Getting possible connecting point.
     connect_before, connect_after = \
     get_possible_connections(traj_limits, max_gap = max_conn_gap)
@@ -241,6 +239,7 @@ def get_likely_worms(trajectories_data,
     I am using the number of good skeletons as a proxy for a trajectory to be a worm.
     It might be better to use a neural network in the future.
     '''
+    #maybe i should use a neural network here...
     
     traj_g = trajectories_data.groupby(worm_index_type)
     dat = traj_g.agg({'is_good_skel': np.nansum, 'frame_number': 'count'})
@@ -327,6 +326,10 @@ def get_nodes_weights(all_nodes, DG_f, edges_weights, likely_single_worms):
         edges_in = [(i,node) for i in DG_f.predecessors(node)]
         edges_out = [(node, i) for i in DG_f.successors(node)]
         
+        #remove edges that for some reason were not calculated (likely worng edges)
+        edges_in = [x for x in edges_in if x in edges_weights]
+        edges_out = [x for x in edges_in if x in edges_weights]
+        
         tot_in = sum(edges_weights[e] for e in edges_in)
         is_neg_in = any(edges_weights[e]<0 for e in edges_in)
         tot_out = sum(edges_weights[e] for e in edges_out)
@@ -409,17 +412,21 @@ def fit_edges_weights(DG_f, likely_single_worms):
                 A.append(a)
                 B.append(b)
     
-    A = np.array(A)
-    B = np.array(B)
-    best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
-    #%%
-    #for ii, x in zip(edges_order, best_fit):
-    #    print(ii, x)
-    #%%
-    #the weights must be integers so I am approximating here
-    edges_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
-    for x in known_edges:
-        edges_weights[x] = known_edges[x]
+    if len(A) == 0: 
+        #continue if no valid edges for fit were found
+        edges_weights = known_edges
+    else:
+        assert len(A) == len(B)
+        A = np.array(A)
+        B = np.array(B)
+        best_fit, residuals, rank, s  = np.linalg.lstsq(A,B)
+        #for ii, x in zip(edges_order, best_fit):
+        #    print(ii, x)
+        #the weights must be integers so I am approximating here
+        edges_weights = {x:int(round(best_fit[ii])) for x,ii in edges_order.items() }
+    
+        for x in known_edges:
+            edges_weights[x] = known_edges[x]
     #%%
     return edges_weights
 
@@ -522,12 +529,16 @@ def get_node_weights(trajectories_data,
     likely_single_worms = get_likely_worms(trajectories_data, 
                                            min_frac_skel = min_frac_skel,
                                            worm_index_type='worm_index_auto')
+    print(likely_single_worms, DG_merged.nodes())
+    
     assert len(likely_single_worms-set(DG_merged.nodes())) == 0
     #%%
     DG_f = remove_unconnected_nodes(DG_merged, likely_single_worms)
     DG_f = add_border_egdes(DG_f, initial_cnt, final_cnt)
     #%%
     edges_weights = fit_edges_weights(DG_f, likely_single_worms)
+    
+    
     
     node_weights = get_nodes_weights(DG.nodes(), 
                                      DG_f, 
@@ -560,24 +571,26 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
+    mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
     
     
     fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
     #fnames = glob.glob(os.path.join(mask_dir, 'oig-8_ChR2_ATR_herms_3_Ch1_11052017_170502.hdf5'))
     fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     
-    for mask_video in fnames:
+    for ivid, mask_video in enumerate(fnames):
         
         skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
         if not os.path.exists(skeletons_file):
             continue
         
-        base_name = os.path.basename(mask_video)
+        base_name = get_base_name(mask_video)
+        print('{} of {} {}'.format(ivid+1, len(fnames), base_name))
+        
         #%%
         
         trajectories_data, splitted_points = \
@@ -586,7 +599,7 @@ if __name__ == '__main__':
                          min_area_limit
                          )
         #%%
-        print('Creating trajectories graph network.')
+        print_flush('{} Creating trajectories graph network.'.format(base_name))
         node_weights, DG, trajectories_data = \
         get_node_weights(trajectories_data,
                         mask_video,
@@ -612,6 +625,15 @@ if __name__ == '__main__':
         
         #let's save this data into the skeletons file
         save_modified_table(skeletons_file, trajectories_data, 'trajectories_data')
+        
+        #save the graph tree information
+        with tables.File(skeletons_file, 'r+') as fid:
+            if '/trajectories_graph' in fid:
+                fid.remove_node('/trajectories_graph', recursive=True)
+            fid.create_group('/', 'trajectories_graph')
+            fid.create_array('/trajectories_graph', 'nodes', DG.nodes())
+            fid.create_array('/trajectories_graph', 'edges', np.array(DG.edges()))
+        
 #%%
 max_conn_gap = 25
 min_area_intersect = 0.5
