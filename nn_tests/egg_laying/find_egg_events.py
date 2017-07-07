@@ -155,7 +155,6 @@ if __name__ == '__main__':
     #%%
     #model_trained_path = 'model_egg_laying3_epocs20_20170308_194818.h5'
     #model_trained_path = 'model_egg_laying_diff_20170309_193209.h5'
-    
     model_paths = '/Volumes/behavgenom_archive$/Avelino/neural_networks/eggs_tests/logs/main_20170328_180144/'
     
     
