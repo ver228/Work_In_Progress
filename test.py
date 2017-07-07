@@ -9,6 +9,7 @@ import pymysql
 import os
 import shutil
 
+
 conn = pymysql.connect(host='localhost', database='single_worm_db')
 cur = conn.cursor()
 
@@ -26,7 +27,7 @@ conn.close()
 fnames = [os.path.join(x[0], x[1] + '_features.hdf5') for x in result]
 
 
-dname = '/Users/ajaver/Desktop/feats/N2'
+dname = '/Users/ajaver/Desktop/feats/N2D'
 
 if not os.path.exists(dname):
     os.makedirs(dname)
