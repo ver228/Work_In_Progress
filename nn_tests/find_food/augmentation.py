@@ -95,15 +95,20 @@ def random_transform(h,
                      w, 
                      rotation_range, 
                      shift_range,
+                     zoom_range,
                      horizontal_flip,
                      vertical_flip,
                      elastic_alpha_range,
-                     elastic_sigma):
+                     elastic_sigma
+                     ):
     
     rot_mat = random_rotation(rotation_range, h, w)
     shift_mat = random_shift(shift_range, h, w)
+    zoom_mat = random_zoom(zoom_range, h, w)
+    
     
     transform_mat = np.dot(shift_mat, rot_mat)
+    transform_mat = np.dot(transform_mat, zoom_mat)
     
     elastic_inds = elastic_transform(h, w, elastic_alpha_range, elastic_sigma)
     
@@ -128,79 +133,90 @@ def transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
         img_aug = img_aug[::-1, :] 
     if is_v_flip:
         img_aug = img_aug[:, ::-1] 
+    
     img_aug = map_coordinates(img_aug, elastic_inds, order=1).reshape((img.shape))
     return img_aug
 
 
-def augment_data(X, 
-                 Y,
-                 **transform_ags):
-    
-    transform_matrix, is_h_flip, is_v_flip, elastic_inds = \
-    random_transform(*X.shape[:2],**transform_ags)
-    
-    X_aug = np.zeros_like(X)
-    for nn in range(X.shape[-1]):
-        X_aug[:, :, nn] = transform_img(X[: ,:, nn], 
-                          transform_matrix, 
-                          is_h_flip, 
-                          is_v_flip, 
-                          elastic_inds)
-    
-    Y_aug = np.zeros_like(Y)
-    for nn in range(Y.shape[-1]):
-        Y_aug[: ,:, nn] = transform_img(Y[: ,:, nn], 
-                          transform_matrix, 
-                          is_h_flip, 
-                          is_v_flip, 
-                          elastic_inds)
-        
-    return X_aug, Y_aug
 #%%
 
 #%%
 def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
     #%%
     def _get_tile_in(img, x,y):
-            return img[np.newaxis, x:x+input_size, y:y+input_size]
+            return img[np.newaxis, x:x+input_size, y:y+input_size, :]
         
     def _get_tile_out(img, x,y):
         #not very efficient, but i cannot be bother to fix it
         D  = _get_tile_in(img,x,y)
-        return  D[:, pad_size:-pad_size, pad_size:-pad_size]
+        return  D[:, pad_size:-pad_size, pad_size:-pad_size, :]
        
-    pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
+    def _cast_tf(D):
+        D = D.astype(K.floatx())
+        D = D[:, :, np.newaxis]
+        return D
     
+    def _augment_data(D, 
+                      pad_size_s, 
+                      transform_matrix, 
+                      is_h_flip, 
+                      is_v_flip, 
+                      elastic_inds
+                      ):
+        if D is None:
+            return None
+        
+        D = np.lib.pad(D, pad_size_s, 'reflect')
+        D_aug = np.zeros_like(D)
+        for nn in range(D.shape[-1]):
+            D_aug[:, :, nn] = transform_img(D[: ,:, nn], 
+                          transform_matrix, 
+                          is_h_flip, 
+                          is_v_flip, 
+                          elastic_inds)
+        D_aug = np.array(D_aug)
+        return D_aug
+    
+    
+    #read inputs
+    Y, W = None, None
     if len(images) == 2:
         X, Y = images
+    elif len(images) == 3:
+        X, Y, W = images
     else:
-        X, Y = images, None
-        
+        X = images
+    
     
     #normalize image
-    X = X.astype(K.floatx())/255
+    X = _cast_tf(X)
+    X /= 255
     X -= np.median(X)
-    X = X[:, :, np.newaxis]
-    X_aug = np.lib.pad(X, pad_size_s , 'reflect')
     
-    Y = Y.astype(K.floatx())
     if Y is not None:
-        Y = Y[:, :, np.newaxis]
-        Y_aug = np.lib.pad(Y, pad_size_s, 'reflect')
-        X_aug, Y_aug = augment_data(X_aug,Y_aug, **transform_ags)
+        Y = _cast_tf(Y)
+        Y = np.concatenate([Y==1., Y==0.], axis=2).astype(K.floatx()) #two channel cast
         
-        #transform into a valid output for the network
-        Y_aug = np.concatenate([Y_aug>0, Y_aug==0], axis=2).astype(K.floatx())
-        assert np.all(Y_aug[:,:,1] != Y_aug[:,:,0])
-        Y_aug_t = [_get_tile_out(Y_aug, x, y) for x,y in tile_corners]
-    else:
-        Y_aug_t = None
+    if W is not None:
+        W = _cast_tf(W)
     
-    #subdivided in tiles
-    X_aug_t = [_get_tile_in(X_aug, x, y) for x,y in tile_corners]
     
-    #%%
-    return X_aug_t, Y_aug_t
+    if len(transform_ags) > 0:
+        expected_size = [x+pad_size*2 for x in X.shape[:2]] #the expected output size after padding
+        transforms = random_transform(*expected_size, **transform_ags)
+        pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
+        X,Y,W = [_augment_data(x, pad_size_s, *transforms) for x in [X,Y,W]]
+        
+        X = [_get_tile_in(X, x, y) for x,y in tile_corners]
+        
+        if Y is not None:
+            Y = [_get_tile_out(Y, x, y) for x,y in tile_corners]
+        
+        if W is not None:
+            W = [_get_tile_out(W, x, y) for x,y in tile_corners]
+        
+        
+    return [x for x in (X,Y,W) if not x is None]
 
 class ImageMaskGenerator(Iterator):
     
@@ -251,20 +267,26 @@ class ImageMaskGenerator(Iterator):
             
             
         
-        batch_x, batch_y  = zip(*list(map(_process_data, images)))
+        D  = zip(*list(map(_process_data, images))) #process data
+        D = [np.concatenate(sum(x, [])) for x in D] #pack data
         
-        batch_x = sum(batch_x, [])
-        batch_y = sum(batch_y, [])
-        return np.concatenate(batch_x), np.concatenate(batch_y)
+        if len(D) <= 2:
+            return D
+        else:
+            #dirty trick to add a tensor with the weights. \
+            #I do not find how to give this cleaningly to the weight function
+            return D[0], np.concatenate((D[1], D[2]), axis=3)
 
 
 class DirectoryImgGenerator(object):
-    def __init__(self, main_dir, fill_mask=True):
+    def __init__(self, main_dir, fill_mask=True, weight_params={}):
         fnames = os.listdir(main_dir)
         fnames = sorted(set(x[2:] for x in fnames))
         
         self.main_dir = main_dir
         self.fnames = fnames
+        self.weight_params = weight_params
+        self.fill_mask = fill_mask
 
     def __len__(self): 
         return len(self.fnames)
@@ -281,14 +303,33 @@ class DirectoryImgGenerator(object):
             y_name = os.path.join(self.main_dir, 'Y_' + fname) 
             
             X = imread(x_name)
-            Y = imread(y_name)
+            Yo = imread(y_name)
             
-            if fill_mask:
-                Y = binary_fill_holes(Y)
+            
+            if self.fill_mask:
+                Y = binary_fill_holes(Yo)
             else:
-                Y = dilation(Y, disk(1))
+                Y = dilation(Yo, disk(1))
+            
+            if not self.weight_params:
+                return X,Y
+            else:
+                sigma = self.weight_params['sigma']
+                weigth = self.weight_params['weigth']
                 
-            return X,Y
+                #increase the weights in the border
+                W_border = gaussian_filter(Yo.astype(K.floatx()), sigma=2.5)
+                W_border *= (sigma**2)*weigth #normalize weights
+                
+                #normalize the weights for the classes
+                W_label = np.zeros_like(W_border) 
+                lab_w = np.mean(Y)
+                dd = Y>0
+                W_label[dd] = 1/lab_w 
+                W_label[~dd] = 1/(1-lab_w)
+                
+                W = W_label + W_border
+                return X,Y, W
 
 #%%
 def get_sizes(im_size, d4a_size= 24):
@@ -316,63 +357,104 @@ def get_sizes(im_size, d4a_size= 24):
     tile_corners = [(0,0), 
                     (0, ty),
                     (tx, 0),
-                    (tx,ty),
-                    (pad_size,pad_size)
+                    (tx,ty)
                     ] #corners on how the image is going to be subdivided
 
     return input_size, output_size, pad_size, tile_corners
 
 if __name__ == '__main__':
     import matplotlib.pylab as plt
-    import cv2
-    import time
+
         
     im_size = (512, 512)
-    fill_mask = False
+    fill_mask = True
+    is_weigth = True
+    
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
-    transform_ags = dict(rotation_range=90, 
-         shift_range = 0.02,
-         horizontal_flip=True,
-         vertical_flip=True,
-         elastic_alpha_range=200,
-         elastic_sigma=10)
+    transform_ags = dict(
+            rotation_range=90, 
+             shift_range = 0.02,
+             zoom_range = (0.9, 1.1),
+             horizontal_flip=True,
+             vertical_flip=True,
+             elastic_alpha_range=400,
+             elastic_sigma=20
+             )
+        
+    weight_params = dict(
+            sigma=2.5,
+            weigth=10
+            )
+    
     input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
-    gen = ImageMaskGenerator(DirectoryImgGenerator(main_dir, fill_mask), 
+    gen_d = DirectoryImgGenerator(main_dir, fill_mask, weight_params)
+    gen = ImageMaskGenerator(gen_d, 
                              transform_ags, 
                              pad_size,
                              input_size,
                              tile_corners,
                              batch_size=1)
+    
+    
     assert gen.output_size == output_size
+    
+    
+    
+    
+    #%%
+    batch_x, DD = next(gen)
+    batch_y = DD[:,:,:,:-1]
+    batch_w = DD[:,:,:,-1][:,:,:,None]
+    for ii, (X,Y,W) in enumerate(zip(batch_x, batch_y, batch_w)):
+        xx = np.squeeze(X)
+        bot = np.min(xx)
+        top = np.max(xx)
         
-    batch_x, batch_y = next(gen)
-    for ii, (X,Y) in enumerate(zip(batch_x, batch_y)):
-        #%%
+        plt.figure(figsize=(12,4))
+        plt.subplot(1,3,1)
+        plt.imshow(xx, cmap='gray')
+        plt.subplot(1,3,2)
         
-        
-        plt.figure()
-        plt.subplot(1,2,1)
-        plt.imshow(np.squeeze(X), cmap='gray')
-        plt.subplot(1,2,2)
-        I_d = np.squeeze(X).copy()
-        bot = np.min(I_d)
-        top = np.max(I_d)
-        
+        I_y = xx.copy()
         patch = (Y[:,:,0]*(top-bot))+bot
-        I_d[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch
+        I_y[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
+        plt.imshow(I_y, cmap='gray')
         
-        plt.imshow(I_d, cmap='gray')
-        #%%
-#        Y_d = Y[:,:,0].astype(np.uint8)
-#        _, cnts, _ = cv2.findContours(Y_d, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-#        for cnt in cnts:
-#            x, y  = np.squeeze(cnt).T
-#            x += gen.pad_size
-#            y += gen.pad_size
-#            plt.plot(x,y)
-#            nn = gen.pad_size, gen.pad_size + gen.output_size
-#            xs = [nn[0], nn[0], nn[1], nn[1], nn[0]]
-#            ys = [nn[0], nn[1], nn[1], nn[0], nn[0]]
-#            plt.plot(xs,ys)
+        plt.subplot(1,3,3)
+        
+        I_w = xx.copy()
+        patch = (W[:,:,0]*(top-bot))+bot
+        I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
+        plt.imshow(I_w)
+#%%
+    
+    #%%
+    import tensorflow as tf
+    
+    sess = tf.InteractiveSession()
+    
+    output_w = _to_tensor(DD, DD.dtype)
+    target = _to_tensor(Y[::-1], DD.dtype)
+    
+    
+    
+    tf.global_variables_initializer().run()
+    mm = dd.eval()
+#%%
+#    K = keras.backend
+#    output = K._to_tensor()
+#    
+#    
+#    # scale preds so that the class probas of each sample sum to 1
+#    output /= K.reduce_sum(output,
+#                            axis=len(output.get_shape()) - 1,
+#                            keep_dims=True)
+#    # manual computation of crossentropy
+#    epsilon = _to_tensor(_EPSILON, output.dtype.base_dtype)
+#    output = tf.clip_by_value(output, epsilon, 1. - epsilon)
+#    return - tf.reduce_sum(target * tf.log(output),
+#                           axis=len(output.get_shape()) - 1)
 
 
+
+        

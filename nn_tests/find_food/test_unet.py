@@ -19,11 +19,8 @@ from augmentation import process_data, get_sizes
 
 main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
-#model = load_model('unet_norm_bn-03999-0.0122.h5')
-model = load_model('unet_norm-05599-0.0135.h5')
-#model = load_model('unet_norm-05599-0.0135.h5')
-#model = load_model('unet-1599-0.1353.h5')
-#model = load_model('unet-0199-0.4684.h5')
+model = load_model('unet_norm_bn-08249-0.0071.h5')
+#model = load_model('unet_norm-09599-0.0098.h5')
 #%%
 #%%
 def flip_d(img_o, nn):
@@ -38,11 +35,11 @@ def flip_d(img_o, nn):
     
     return img
     
-fnames = glob.glob(os.path.join(main_dir, 'X_N5*'))
+fnames = glob.glob(os.path.join(main_dir, 'X_*oig-8*'))
 
 
 Y_p = []
-for ivid, fname in enumerate(random.sample(fnames,5)):
+for ivid, fname in enumerate(random.sample(fnames,10)):
     print(ivid)
     #%%
     Xi = imread(fname)
@@ -69,6 +66,9 @@ for ivid, fname in enumerate(random.sample(fnames,5)):
     plt.subplot(1,2,1)
     plt.imshow(Xi, cmap='gray')
     plt.subplot(1,2,2)    
-    plt.imshow(Y_pred, interpolation='none')    
+    plt.imshow(Y_pred, interpolation='none')
+    #%%
+    
+    
     
     
