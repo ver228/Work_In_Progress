@@ -93,19 +93,19 @@ def elastic_transform(h, w, alpha_range, sigma):
     
 def random_transform(h, 
                      w, 
-                     rotation_range=90, 
-                     shift_range = 0.1,
-                     horizontal_flip=True,
-                     vertical_flip=True,
-                     alpha_range=200,
-                     sigma=10):
+                     rotation_range, 
+                     shift_range,
+                     horizontal_flip,
+                     vertical_flip,
+                     elastic_alpha_range,
+                     elastic_sigma):
     
     rot_mat = random_rotation(rotation_range, h, w)
     shift_mat = random_shift(shift_range, h, w)
     
     transform_mat = np.dot(shift_mat, rot_mat)
     
-    elastic_inds = elastic_transform(h, w, alpha_range, sigma)
+    elastic_inds = elastic_transform(h, w, elastic_alpha_range, elastic_sigma)
     
     is_h_flip =  horizontal_flip and np.random.random() < 0.5
     is_v_flip =  vertical_flip and np.random.random() < 0.5
@@ -155,16 +155,11 @@ def augment_data(X,
                           is_v_flip, 
                           elastic_inds)
         
-        #yy = dilation(yy, disk(1))
-        #Y_aug[: ,:, nn] = skeletonize(yy>0).astype(np.uint8)
-    
-    
-    
     return X_aug, Y_aug
 #%%
 
 #%%
-def process_data(images, input_size, pad_size, tile_corners, transform_ags):
+def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
     #%%
     def _get_tile_in(img, x,y):
             return img[np.newaxis, x:x+input_size, y:y+input_size]
@@ -175,26 +170,35 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags):
         return  D[:, pad_size:-pad_size, pad_size:-pad_size]
        
     pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
-    X, Y = images
+    
+    if len(images) == 2:
+        X, Y = images
+    else:
+        X, Y = images, None
+        
+    
     #normalize image
-    X = X.astype(K.floatx())
+    X = X.astype(K.floatx())/255
     X -= np.median(X)
-    
-    
     X = X[:, :, np.newaxis]
-    Y = Y[:, :, np.newaxis]
+    X_aug = np.lib.pad(X, pad_size_s , 'reflect')
     
-    X = np.lib.pad(X, pad_size_s , 'reflect')
-    Y = np.lib.pad(Y, pad_size_s, 'reflect')
-    X_aug, Y_aug = augment_data(X,Y, **transform_ags)
-    
-    #transform into a valid output for the network
-    Y_aug = np.concatenate([Y_aug.astype(dtype=K.floatx()), ~Y_aug], axis=2)
-    assert np.all(Y_aug[:,:,1] != Y_aug[:,:,0])
+    Y = Y.astype(K.floatx())
+    if Y is not None:
+        Y = Y[:, :, np.newaxis]
+        Y_aug = np.lib.pad(Y, pad_size_s, 'reflect')
+        X_aug, Y_aug = augment_data(X_aug,Y_aug, **transform_ags)
+        
+        #transform into a valid output for the network
+        Y_aug = np.concatenate([Y_aug>0, Y_aug==0], axis=2).astype(K.floatx())
+        assert np.all(Y_aug[:,:,1] != Y_aug[:,:,0])
+        Y_aug_t = [_get_tile_out(Y_aug, x, y) for x,y in tile_corners]
+    else:
+        Y_aug_t = None
     
     #subdivided in tiles
     X_aug_t = [_get_tile_in(X_aug, x, y) for x,y in tile_corners]
-    Y_aug_t = [_get_tile_out(Y_aug, x, y) for x,y in tile_corners]
+    
     #%%
     return X_aug_t, Y_aug_t
 
@@ -251,13 +255,11 @@ class ImageMaskGenerator(Iterator):
         
         batch_x = sum(batch_x, [])
         batch_y = sum(batch_y, [])
-        
-        
         return np.concatenate(batch_x), np.concatenate(batch_y)
 
 
 class DirectoryImgGenerator(object):
-    def __init__(self, main_dir):
+    def __init__(self, main_dir, fill_mask=True):
         fnames = os.listdir(main_dir)
         fnames = sorted(set(x[2:] for x in fnames))
         
@@ -281,7 +283,11 @@ class DirectoryImgGenerator(object):
             X = imread(x_name)
             Y = imread(y_name)
             
-            Y = binary_fill_holes(Y)
+            if fill_mask:
+                Y = binary_fill_holes(Y)
+            else:
+                Y = dilation(Y, disk(1))
+                
             return X,Y
 
 #%%
@@ -310,7 +316,8 @@ def get_sizes(im_size, d4a_size= 24):
     tile_corners = [(0,0), 
                     (0, ty),
                     (tx, 0),
-                    (tx,ty)
+                    (tx,ty),
+                    (pad_size,pad_size)
                     ] #corners on how the image is going to be subdivided
 
     return input_size, output_size, pad_size, tile_corners
@@ -321,42 +328,38 @@ if __name__ == '__main__':
     import time
         
     im_size = (512, 512)
+    fill_mask = False
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
     transform_ags = dict(rotation_range=90, 
-         shift_range = 0.1,
+         shift_range = 0.02,
          horizontal_flip=True,
          vertical_flip=True,
-         alpha_range=200,
-         sigma=10)
+         elastic_alpha_range=200,
+         elastic_sigma=10)
     input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
-    gen = ImageMaskGenerator(DirectoryImgGenerator(main_dir), 
+    gen = ImageMaskGenerator(DirectoryImgGenerator(main_dir, fill_mask), 
                              transform_ags, 
                              pad_size,
                              input_size,
                              tile_corners,
                              batch_size=1)
     assert gen.output_size == output_size
-    
-#    tic = time.time()
-#    for ii, (batch_x, batch_y) in enumerate(gen):
-#        toc = time.time()
-#        print(ii, toc - tic)
-#        tic = toc
-        
-        
-        
         
     batch_x, batch_y = next(gen)
     for ii, (X,Y) in enumerate(zip(batch_x, batch_y)):
         #%%
+        
+        
         plt.figure()
         plt.subplot(1,2,1)
         plt.imshow(np.squeeze(X), cmap='gray')
         plt.subplot(1,2,2)
         I_d = np.squeeze(X).copy()
-        patch = I_d[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size]
+        bot = np.min(I_d)
+        top = np.max(I_d)
         
-        I_d[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch*Y[:,:,0]
+        patch = (Y[:,:,0]*(top-bot))+bot
+        I_d[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch
         
         plt.imshow(I_d, cmap='gray')
         #%%

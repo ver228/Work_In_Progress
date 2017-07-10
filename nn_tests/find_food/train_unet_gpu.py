@@ -15,34 +15,42 @@ ModelCheckpoint = keras.callbacks.ModelCheckpoint
 K = keras.backend
 Adam = keras.optimizers.Adam
 
+
 #from keras.callbacks import TensorBoard, ModelCheckpoint
 #from keras import backend as K
 #from keras.optimizers import Adam
 
-
 from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
-from unet_build import get_unet_model
+from unet_build import get_unet_model_bn
+
+
+def sparse_categorical_crossentropy(y_true, y_pred):
+    return K.sparse_categorical_crossentropy(y_pred, y_true)
+
 
 if __name__ == '__main__':
     main_dir = '/work/ajaver/food/train_set'
     SAVE_DIR = '/work/ajaver/food/results'
     
-    main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
-    SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
+    #main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
+    #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
     
-    model_name = 'unet'
+    #model_name = 'unet_norm'
     
-    epochs = 5000
+    model = get_unet_model_bn()
+    model_name = 'unet_norm_bn'
+    
+    epochs = 10000
     batch_size = 8
-    saving_period = 200
+    saving_period = 250
     
     im_size = (512, 512)
     transform_ags = dict(rotation_range=90, 
-         shift_range = 0.1,
+         shift_range = 0.02,
          horizontal_flip=True,
          vertical_flip=True,
-         alpha_range=200,
-         sigma=10)
+         elastic_alpha_range=200,
+         elastic_sigma=10)
     
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
@@ -52,7 +60,6 @@ if __name__ == '__main__':
                           monitor='categorical_crossentropy',
                           verbose=1,  
                           mode='auto', 
-                          save_best_only=True,
                           period=saving_period)
     
     input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
@@ -67,7 +74,6 @@ if __name__ == '__main__':
                              epoch_size = bs*20,
                              )
    
-    model = get_unet_model()
     model.compile(optimizer=Adam(lr=1e-5), 
                   loss='categorical_crossentropy', 
                   metrics=['categorical_crossentropy'])
