@@ -19,8 +19,8 @@ from augmentation import process_data, get_sizes
 
 main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
-model = load_model('unet_norm_bn-08249-0.0071.h5')
-#model = load_model('unet_norm-09599-0.0098.h5')
+#model = load_model('unet_norm_bn-08249-0.0071.h5')
+model = load_model('unet_norm-09599-0.0098.h5')
 #%%
 #%%
 def flip_d(img_o, nn):
@@ -35,7 +35,7 @@ def flip_d(img_o, nn):
     
     return img
     
-fnames = glob.glob(os.path.join(main_dir, 'X_*oig-8*'))
+fnames = glob.glob(os.path.join(main_dir, 'X_*'))
 
 
 Y_p = []
@@ -49,7 +49,7 @@ for ivid, fname in enumerate(random.sample(fnames,10)):
         
         im_size = X.shape 
         input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
-        x_crop,_ = process_data(X,input_size, pad_size, tile_corners) 
+        x_crop = process_data(X, input_size, pad_size, tile_corners) 
         x_crop = np.concatenate(x_crop)
         y_pred = model.predict(x_crop)
         Y_pred_s = np.zeros(X.shape)
@@ -57,7 +57,6 @@ for ivid, fname in enumerate(random.sample(fnames,10)):
         for (i,j), yy in zip(tile_corners, y_pred):
             Y_pred_s[i:i+output_size, j:j+output_size] += yy[:,:,0]
             N_s[i:i+output_size, j:j+output_size] += 1
-        
         Y_pred += flip_d(Y_pred_s/N_s, n_t)
     
     Y_p.append(Y_pred)

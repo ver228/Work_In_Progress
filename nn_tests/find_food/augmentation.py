@@ -165,8 +165,6 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
                       ):
         if D is None:
             return None
-        
-        D = np.lib.pad(D, pad_size_s, 'reflect')
         D_aug = np.zeros_like(D)
         for nn in range(D.shape[-1]):
             D_aug[:, :, nn] = transform_img(D[: ,:, nn], 
@@ -199,24 +197,29 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
         
     if W is not None:
         W = _cast_tf(W)
-    
+        
+    pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
+    X,Y,W = [None if D is None else np.lib.pad(D, pad_size_s, 'reflect') for D in [X,Y,W]]
     
     if len(transform_ags) > 0:
-        expected_size = [x+pad_size*2 for x in X.shape[:2]] #the expected output size after padding
+        expected_size = X.shape[:2] #the expected output size after padding
         transforms = random_transform(*expected_size, **transform_ags)
-        pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
         X,Y,W = [_augment_data(x, pad_size_s, *transforms) for x in [X,Y,W]]
-        
-        X = [_get_tile_in(X, x, y) for x,y in tile_corners]
-        
-        if Y is not None:
-            Y = [_get_tile_out(Y, x, y) for x,y in tile_corners]
-        
-        if W is not None:
-            W = [_get_tile_out(W, x, y) for x,y in tile_corners]
+    
         
         
-    return [x for x in (X,Y,W) if not x is None]
+    X = [_get_tile_in(X, x, y) for x,y in tile_corners]
+    
+    if Y is not None:
+        Y = [_get_tile_out(Y, x, y) for x,y in tile_corners]
+    
+    if W is not None:
+        W = [_get_tile_out(W, x, y) for x,y in tile_corners]
+    
+    output = [x for x in (X,Y,W) if not x is None]
+    if len(output) == 1:
+        output = output[0]
+    return output
 
 class ImageMaskGenerator(Iterator):
     
@@ -426,35 +429,3 @@ if __name__ == '__main__':
         patch = (W[:,:,0]*(top-bot))+bot
         I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
         plt.imshow(I_w)
-#%%
-    
-    #%%
-    import tensorflow as tf
-    
-    sess = tf.InteractiveSession()
-    
-    output_w = _to_tensor(DD, DD.dtype)
-    target = _to_tensor(Y[::-1], DD.dtype)
-    
-    
-    
-    tf.global_variables_initializer().run()
-    mm = dd.eval()
-#%%
-#    K = keras.backend
-#    output = K._to_tensor()
-#    
-#    
-#    # scale preds so that the class probas of each sample sum to 1
-#    output /= K.reduce_sum(output,
-#                            axis=len(output.get_shape()) - 1,
-#                            keep_dims=True)
-#    # manual computation of crossentropy
-#    epsilon = _to_tensor(_EPSILON, output.dtype.base_dtype)
-#    output = tf.clip_by_value(output, epsilon, 1. - epsilon)
-#    return - tf.reduce_sum(target * tf.log(output),
-#                           axis=len(output.get_shape()) - 1)
-
-
-
-        
