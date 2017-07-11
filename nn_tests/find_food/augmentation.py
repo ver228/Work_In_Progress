@@ -6,11 +6,13 @@ Created on Wed Jul  5 09:39:27 2017
 @author: ajaver
 """
 import numpy as np
+import random
 from scipy.ndimage.interpolation import map_coordinates, affine_transform
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import binary_fill_holes
 from skimage.morphology import skeletonize, dilation, disk
 from skimage.io import imread
+from skimage.transform import resize
 import os
 import multiprocessing as mp
 from functools import partial
@@ -44,8 +46,9 @@ def random_zoom(zoom_range, h, w):
         zx, zy = 1, 1
     else:
         zx, zy = np.random.uniform(zoom_range[0], zoom_range[1], 2)
-    zoom_matrix = np.array([[zx, 0, 0],
-                            [0, zy, 0],
+    
+    zoom_matrix = np.array([[1/zx, 0, 0],
+                            [0, 1/zy, 0],
                             [0, 0, 1]])
 
     transform_matrix = transform_matrix_offset_center(zoom_matrix, h, w)
@@ -54,7 +57,7 @@ def random_zoom(zoom_range, h, w):
 
 def apply_transform_img(x,
                     transform_matrix,
-                    fill_mode='nearest',
+                    fill_mode='reflect',
                     cval=0.):
     final_affine_matrix = transform_matrix[:2, :2]
     final_offset = transform_matrix[:2, 2]
@@ -137,12 +140,8 @@ def transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
     img_aug = map_coordinates(img_aug, elastic_inds, order=1).reshape((img.shape))
     return img_aug
 
-
-#%%
-
 #%%
 def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
-    #%%
     def _get_tile_in(img, x,y):
             return img[np.newaxis, x:x+input_size, y:y+input_size, :]
         
@@ -197,7 +196,10 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
         
     if W is not None:
         W = _cast_tf(W)
-        
+    
+    
+    
+    
     pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
     X,Y,W = [None if D is None else np.lib.pad(D, pad_size_s, 'reflect') for D in [X,Y,W]]
     
@@ -246,7 +248,9 @@ class ImageMaskGenerator(Iterator):
         self.input_size = input_size
         self.output_size = input_size - pad_size*2
         self.tile_corners = tile_corners
+        self.batch_size = batch_size
         
+        #i really do not use this functionality i could reimplement it in the future
         super(ImageMaskGenerator, self).__init__(self.tot_samples, batch_size, shuffle, seed)
 
     def next(self):
@@ -261,17 +265,18 @@ class ImageMaskGenerator(Iterator):
                           tile_corners=self.tile_corners, 
                           transform_ags=self.transform_ags
                           )
+        
+        #with self.lock:
+        #    index_array, current_index, current_batch_size = next(self.index_generator)
+        #I will read a only one image and do transforms until i get the n_batches
+        #current_img = self.generator[index_array[0]]
+        #batch_size = index_array.size
+        current_img = self.generator.get_random()
+        n_sets = int(np.ceil(self.batch_size/len(self.tile_corners)))
         _process_data = partial(process_data, **f_args)
-        
-        with self.lock:
-            index_array, current_index, current_batch_size = next(self.index_generator)
-            #load all the data first (it is easier to avoid colitions)
-            images = [self.generator[j] for j in index_array]
-            
-            
-        
-        D  = zip(*list(map(_process_data, images))) #process data
+        D  = zip(*list(map(_process_data, [current_img]*n_sets))) #process data
         D = [np.concatenate(sum(x, [])) for x in D] #pack data
+        D = [None if x is None else x[:self.batch_size] for x in D]
         
         if len(D) <= 2:
             return D
@@ -282,7 +287,7 @@ class ImageMaskGenerator(Iterator):
 
 
 class DirectoryImgGenerator(object):
-    def __init__(self, main_dir, fill_mask=True, weight_params={}):
+    def __init__(self, main_dir, im_size=None, fill_mask=True, weight_params={}):
         fnames = os.listdir(main_dir)
         fnames = sorted(set(x[2:] for x in fnames))
         
@@ -290,6 +295,16 @@ class DirectoryImgGenerator(object):
         self.fnames = fnames
         self.weight_params = weight_params
         self.fill_mask = fill_mask
+        self.im_size = im_size
+        
+        #group files by date
+        group_dates = {}
+        for x  in self.fnames:
+            date_str = x.split('_')[-2]
+            if not date_str in group_dates:
+                group_dates[date_str] = []
+            group_dates[date_str].append(x)
+        self.group_dates = group_dates
 
     def __len__(self): 
         return len(self.fnames)
@@ -301,6 +316,11 @@ class DirectoryImgGenerator(object):
         for fname in self.fnames:
             yield self._get(fname)
     
+    def get_random(self):
+        date_str = random.choice(list(self.group_dates.keys()))
+        fname = random.choice(self.group_dates[date_str])
+        return self._get(fname)
+    
     def _get(self, fname):
             x_name = os.path.join(self.main_dir, 'X_' + fname) 
             y_name = os.path.join(self.main_dir, 'Y_' + fname) 
@@ -308,6 +328,10 @@ class DirectoryImgGenerator(object):
             X = imread(x_name)
             Yo = imread(y_name)
             
+            if self.im_size is not None:
+                X = resize(X, self.im_size, mode='reflect')
+                Yo = resize(Yo, self.im_size, mode='reflect')
+                
             
             if self.fill_mask:
                 Y = binary_fill_holes(Yo)
@@ -315,7 +339,7 @@ class DirectoryImgGenerator(object):
                 Y = dilation(Yo, disk(1))
             
             if not self.weight_params:
-                return X,Y
+                W = None
             else:
                 sigma = self.weight_params['sigma']
                 weigth = self.weight_params['weigth']
@@ -332,10 +356,17 @@ class DirectoryImgGenerator(object):
                 W_label[~dd] = 1/(1-lab_w)
                 
                 W = W_label + W_border
-                return X,Y, W
+            
+            
+            
+            output = [x for x in (X,Y,W) if not x is None]
+            if len(output) == 1:
+                output = output[0]
+            
+            return output
 
 #%%
-def get_sizes(im_size, d4a_size= 24):
+def get_sizes(im_size, d4a_size= 24, n_tiles=4):
     #assuming 4 layers of convolutions
     def _in_size(d4a_size, N = 4): 
         mm = d4a_size
@@ -353,15 +384,27 @@ def get_sizes(im_size, d4a_size= 24):
     #this is the size of the central reduced layer. I choose this value manually
     input_size = _in_size(d4a_size, N = 4) #required 444 of input
     output_size = _out_size(d4a_size, N = 4) #set 260 of outpu
-
     pad_size = int((input_size-output_size)/2)
-    ty = im_size[1]-output_size
-    tx = im_size[0]-output_size
-    tile_corners = [(0,0), 
-                    (0, ty),
-                    (tx, 0),
-                    (tx,ty)
-                    ] #corners on how the image is going to be subdivided
+
+    if n_tiles == 1:
+        tile_corners = [(0,0)]
+    else:
+        ty = im_size[1]-output_size
+        tx = im_size[0]-output_size
+        
+        tile_corners = [(0,0), 
+                        (0, ty),
+                        (tx, 0),
+                        (tx,ty)
+                        ] #corners on how the image is going to be subdivided
+        
+        if n_tiles == 5:
+            tile_corners.append((pad_size,pad_size))
+            
+        
+        elif n_tiles != 4:
+            raise ValueError('Unimplemented number of tiles')
+            
 
     return input_size, output_size, pad_size, tile_corners
 
@@ -369,15 +412,20 @@ if __name__ == '__main__':
     import matplotlib.pylab as plt
 
         
-    im_size = (512, 512)
+    im_size = (260,260)
+    n_tiles=1
+    
+    #im_size = (512, 512)
+    #n_tiles=5
+    
     fill_mask = True
     is_weigth = True
     
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
     transform_ags = dict(
             rotation_range=90, 
-             shift_range = 0.02,
-             zoom_range = (0.9, 1.1),
+             shift_range = 0.1,
+             zoom_range = (0.9, 1.5),
              horizontal_flip=True,
              vertical_flip=True,
              elastic_alpha_range=400,
@@ -389,19 +437,23 @@ if __name__ == '__main__':
             weigth=10
             )
     
-    input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
-    gen_d = DirectoryImgGenerator(main_dir, fill_mask, weight_params)
+    
+    
+    input_size, output_size, pad_size, tile_corners = get_sizes(im_size, n_tiles=n_tiles)
+    gen_d = DirectoryImgGenerator(main_dir, 
+                                  im_size = im_size, 
+                                  fill_mask = fill_mask, 
+                                  weight_params = weight_params
+                                  )
     gen = ImageMaskGenerator(gen_d, 
                              transform_ags, 
                              pad_size,
                              input_size,
                              tile_corners,
-                             batch_size=1)
+                             batch_size=8)
     
     
     assert gen.output_size == output_size
-    
-    
     
     
     #%%
@@ -429,3 +481,8 @@ if __name__ == '__main__':
         patch = (W[:,:,0]*(top-bot))+bot
         I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
         plt.imshow(I_w)
+#%%
+
+
+
+

@@ -26,7 +26,9 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
 #import tensorflow as tf
 #keras.backend.set_learning_phase(tf.convert_to_tensor(0))
-model_bn = load_model('unet_norm_w-14249-0.1633.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+#model_bn = load_model('unet_norm_w-14249-0.1633.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+#model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_bn = load_model('unet_norm_w_bn_bias-02249-0.7477.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #%%
 #%%
@@ -42,12 +44,13 @@ def flip_d(img_o, nn):
     
     return img
 
-def background_prediction(Xi, model_t):
+def background_prediction(Xi, model_t, n_tiles=4, im_size=None):
     Y_pred = np.zeros(Xi.shape)
     for n_t in range(4):
         X = flip_d(Xi, n_t)
         
-        im_size = X.shape 
+        if im_size is None:
+            im_size = X.shape 
         input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
         x_crop = process_data(X, input_size, pad_size, tile_corners) 
         x_crop = np.concatenate(x_crop)
@@ -60,22 +63,32 @@ def background_prediction(Xi, model_t):
         Y_pred += flip_d(Y_pred_s/N_s, n_t)
     return Y_pred
     
-fnames = glob.glob(os.path.join(main_dir, 'X_*'))
-
-
-for ivid, fname in enumerate(random.sample(fnames,10)):
-    print(ivid)
-    Xi = imread(fname)
-    Y_pred_bn = background_prediction(Xi, model_bn)
-    Y_pred_not_bn = background_prediction(Xi, model_not_bn)
-    #%%
-    plt.figure()
-    plt.subplot(1,3,1)
-    plt.imshow(Xi, cmap='gray')
-    plt.subplot(1,3,2)    
-    plt.imshow(Y_pred_bn, interpolation='none')
-    plt.subplot(1,3,3)    
-    plt.imshow(Y_pred_not_bn, interpolation='none')
+if __name__ == '__main__':
+    n_tiles=4
+    im_size=None
+    
+    fnames = glob.glob(os.path.join(main_dir, 'X_*'))
+    for ivid, fname in enumerate(random.sample(fnames,10)):
+        print(ivid)
+        Xi = imread(fname)
+        Y_pred_bn = background_prediction(Xi, 
+                                          model_bn, 
+                                          n_tiles=n_tiles,
+                                          im_size=im_size
+                                          )
+        Y_pred_not_bn = background_prediction(Xi, 
+                                              model_not_bn,
+                                              n_tiles=n_tiles,
+                                              im_size=im_size
+                                              )
+        #%%
+        plt.figure()
+        plt.subplot(1,3,1)
+        plt.imshow(Xi, cmap='gray')
+        plt.subplot(1,3,2)    
+        plt.imshow(Y_pred_bn, interpolation='none')
+        plt.subplot(1,3,3)    
+        plt.imshow(Y_pred_not_bn, interpolation='none')
     
     #%%
     

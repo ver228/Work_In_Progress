@@ -1,0 +1,45 @@
+# Single Worm Database
+First paper, re-analysis/re-organization of Yemini et. al. 2013
+- almost ready:
+	* webpage
+	* upload to zenodo
+
+# CeNDR + million mutations
+GWAS study of the CeNDR and some of the million mutation strains
+- collect CeNDR + probably another ~100 of the million mutation. 
+	* Pryanka has two sets ready. It seems that it takes around 3-4 weeks per set. 
+	I assume it could be speed up, but probably there is no need. There is still need of a third set + the expected forth set.
+- how to analyze this data? CeNDR GWAS tool, we still need to talk with bioinformaticians. 
+- define new features (see below)
+
+# features paper
+- A replacement to the original Yemini et al 2013 features
+	* original features make a pretty decent job but they are messy...
+	* subdivide into postural information and time-dynamics information.
+- Plate-wise features.
+	* food relate (food leaving, edging, orientation)
+	* worm to worm interaction (cluster size, interaction time, interaction probability)
+- This is probably tracker specific:
+	- egg laying detection on plates (what is the biological relevant feature)?
+	- ventral dorsal automatic identification
+	- improve segmentation with u-net?
+
+# Extras
+Can we get more of the single worm data?
+	-> egg laying. I can probably optimize the egg detection, and it would be a base (transfer learning) for the multiworm tracker.
+	-> there is already very long videos of single worms. Are worms ergodic?
+	-> Comparison old and new data. Is it useful, but it would be relevant? I have the original data we pick up we Pryanka and Adam.
+(summer students projects)
+Optogenetics - it could become a tool. Very manual analysis, i am not even sure it could be generalized. Each experiment type might require its own analysis.
+laying eggs times - scientifically interseting but risky, but it might be a good test for new features.
+
+
+# Helper
+- Serena and Linus stuff.
+	* Cluster size in dense populations.
+	* Pharinx orientation into the tracker general pipeline.
+- Adam's swimming videos.
+	* Swimming is challenging by itself, it might require new algorithms,
+- Finish to convert the stage correction into python.
+- Can i create an anaconda installer for my package?
+

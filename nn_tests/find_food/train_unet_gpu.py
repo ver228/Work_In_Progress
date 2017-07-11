@@ -57,25 +57,25 @@ def w_pix_categorical_crossentropy(w_output, target, from_logits=False):
 
 
 if __name__ == '__main__':
-    #main_dir = '/work/ajaver/food/train_set'
-    #SAVE_DIR = '/work/ajaver/food/results'
+    main_dir = '/work/ajaver/food/train_set'
+    SAVE_DIR = '/work/ajaver/food/results'
     
-    main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
-    SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
+    #main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
+    #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
     
     model = get_unet_model_bn()
-    model_name = 'unet_norm_w_bn_bias'
+    model_name = 'unet_norm_w_bn_bias_resized'
     
     epochs = 20000
     batch_size = 8
     saving_period = 250
     
-    im_size = (512, 512)
-    
+    im_size = (260,260)
+    n_tiles=1
     transform_ags = dict(
             rotation_range=90, 
-             shift_range = 0.02,
-             zoom_range = (0.9, 1.1),
+             shift_range = 0.1,
+             zoom_range = (0.9, 1.5),
              horizontal_flip=True,
              vertical_flip=True,
              elastic_alpha_range=400,
@@ -84,8 +84,26 @@ if __name__ == '__main__':
         
     weight_params = dict(
             sigma=2.5,
-            weigth=20
+            weigth=10
             )
+    
+    
+#    im_size = (512, 512)
+#    n_tiles=4
+#    transform_ags = dict(
+#            rotation_range=90, 
+#             shift_range = 0.02,
+#             zoom_range = (0.9, 1.1),
+#             horizontal_flip=True,
+#             vertical_flip=True,
+#             elastic_alpha_range=400,
+#             elastic_sigma=20
+#             )
+#        
+#    weight_params = dict(
+#            sigma=2.5,
+#            weigth=20
+#            )
     
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
@@ -97,10 +115,17 @@ if __name__ == '__main__':
                           mode='auto', 
                           period=saving_period)
     
-    input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
+    input_size, output_size, pad_size, tile_corners = get_sizes(im_size,
+                                                                n_tiles=n_tiles
+                                                                )
     
     bs = int(round(batch_size/len(tile_corners)))
-    img_generator = ImageMaskGenerator(DirectoryImgGenerator(main_dir, weight_params=weight_params), 
+    gen_d = DirectoryImgGenerator(main_dir, 
+                                    im_size = im_size,
+                                    fill_mask=True,
+                                    weight_params=weight_params
+                                    )
+    img_generator = ImageMaskGenerator(gen_d, 
                              transform_ags, 
                              pad_size,
                              input_size,
