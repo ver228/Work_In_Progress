@@ -25,9 +25,6 @@ Model = keras.models.Model
 #from keras.layers import Input, Conv2D, MaxPooling2D, Dropout, \
 #concatenate, Conv2DTranspose, Cropping2D, Activation
 
-
-
-
 def get_unet_model(input_shape = (444, 444, 1), n_outputs=2):
     #    #NOTES:
     #    #Conv2D defaults are:
@@ -119,9 +116,14 @@ def _get_crop_size(small_m, big_m):
     extra_d = [int(b)-up_conv_s*int(s) for s,b in zip(small_m.shape[1:3], big_m.shape[1:3])]
     crop_size = [( int(floor(x/2)), int(ceil(x/2)) ) for x in extra_d]
     return crop_size
-    
+
+BN_BIAS = True    
 def conv2d_norm(top, n_filters, kernel_shape, layer_name):
-    dd = Conv2D(n_filters, kernel_shape, use_bias=False, name='conv_' + layer_name)(top)    
+    dd = Conv2D(n_filters, 
+                kernel_shape, 
+                use_bias=BN_BIAS, 
+                name='conv_' + layer_name)(top)    
+    
     dd = BatchNormalization(name='bn_' + layer_name)(dd)
     bottom = Activation('relu', name='relu_' + layer_name)(dd)
     return bottom
@@ -132,7 +134,8 @@ def deconv2d_norm(top, n_filters, kernel_shape, layer_name):
                           strides=(2, 2),
                           name='upconv_' + layer_name, 
                           padding='valid',
-                          use_bias=False)(top)
+                          use_bias=BN_BIAS)(top)
+    
     dd = BatchNormalization(name='bn_' + layer_name)(dd)
     bottom = Activation('relu', name='relu_' + layer_name)(dd)
     return bottom

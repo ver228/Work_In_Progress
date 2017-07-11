@@ -39,21 +39,21 @@ def _to_tensor(x, dtype):
     
 
 def w_pix_categorical_crossentropy(w_output, target, from_logits=False):
-        """Categorical crossentropy between an output tensor 
-        and a target tensor, using precalculated weights for each pixel.
-        The weights should be in the last dimmension of the target array."""
-        
-        output = w_output[:,:,:,:-1]
-        w_vec = w_output[:,:,:,-1][:,:,:,None]
-        # scale preds so that the class probas of each sample sum to 1
-        output /= tf.reduce_sum(output,
-                    axis=len(output.get_shape()) - 1,
-                    keep_dims=True)
-        epsilon = _to_tensor(_EPSILON, output.dtype.base_dtype)
-        output = tf.clip_by_value(output, epsilon, 1. - epsilon)
-        
-        return - tf.reduce_sum(w_vec * target * tf.log(output),
-                               axis=len(output.get_shape()) - 1)
+    """Categorical crossentropy between an output tensor 
+    and a target tensor, using precalculated weights for each pixel.
+    The weights should be in the last dimmension of the target array."""
+    
+    output = w_output[:,:,:,:-1]
+    w_vec = w_output[:,:,:,-1][:,:,:,None]
+    # scale preds so that the class probas of each sample sum to 1
+    output /= tf.reduce_sum(output,
+                axis=len(output.get_shape()) - 1,
+                keep_dims=True)
+    epsilon = _to_tensor(_EPSILON, output.dtype.base_dtype)
+    output = tf.clip_by_value(output, epsilon, 1. - epsilon)
+    
+    return - tf.reduce_sum(w_vec * target * tf.log(output),
+                           axis=len(output.get_shape()) - 1)
 
 
 if __name__ == '__main__':
@@ -63,12 +63,10 @@ if __name__ == '__main__':
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
     SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
     
-    #model_name = 'unet_norm'
-    
     model = get_unet_model_bn()
-    model_name = 'unet_norm_w'
+    model_name = 'unet_norm_w_bn_bias'
     
-    epochs = 1
+    epochs = 20000
     batch_size = 8
     saving_period = 250
     
