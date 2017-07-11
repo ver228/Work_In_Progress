@@ -26,8 +26,8 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
 #import tensorflow as tf
 #keras.backend.set_learning_phase(tf.convert_to_tensor(0))
-model_bn = load_model('unet_norm_w-11999-0.2499.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
-model_not_bn = load_model('unet_norm_w_not_bn-05749-0.7758.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_bn = load_model('unet_norm_w-14249-0.1633.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #%%
 #%%
 def flip_d(img_o, nn):
@@ -63,7 +63,7 @@ def background_prediction(Xi, model_t):
 fnames = glob.glob(os.path.join(main_dir, 'X_*'))
 
 
-for ivid, fname in enumerate(random.sample(fnames,1)):
+for ivid, fname in enumerate(random.sample(fnames,10)):
     print(ivid)
     Xi = imread(fname)
     Y_pred_bn = background_prediction(Xi, model_bn)
