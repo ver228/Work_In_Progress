@@ -14,6 +14,8 @@ unet_norm_bn_20170709_123247
 - add a central crop (pad_size:-pad_size). This has the side effect that I can only put one image in the GPU per train epoch (5 crops).
 ** The loss function converges much faster than in unet_norm_20170708_214716 but the results are worse. In several images the center of the food was not found and the borders are patchy. It is hard to know if it is was due to the center layer, the fact that is only seeing one image per training epoch or simpy the batch normalization somehow.
 
+
+### 
 unet_norm_w_20170710_163439
 - Custom loss function using per pixel weights as in Ronneberger et. al 2015 . I did a trick to pass this vector to keras as the last dimension in Y on the data iterator. I put an extra weight on the food border.
 - I use batch normalization without bias and a tile of 4. 
@@ -26,3 +28,8 @@ unet_norm_w_not_bn_20170710_171458
 unet_norm_w_bn_bias_20170711_091038
 - Similar to unet_norm_w_20170710_163439 but I am including the bias term.
 * It converges much after and has a lower loss, and does look like unet_norm_w_not_bn_20170710_171458 .
+
+
+***
+- use only one resized image (260) instead that the crop.
+- two stage selection, first pick a date and then a random sample for that date.

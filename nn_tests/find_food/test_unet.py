@@ -47,7 +47,7 @@ def flip_d(img_o, nn):
 
 def background_prediction(Xi, model_t, n_tiles=4, im_size=None):
     Y_pred = np.zeros(Xi.shape)
-    for n_t in range(4):
+    for n_t in range(1):
         X = flip_d(Xi, n_t)
         
         if im_size is None:

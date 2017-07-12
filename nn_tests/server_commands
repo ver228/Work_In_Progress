@@ -13,4 +13,6 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm
 /work/ajaver/food/results/logs/unet_norm_w_bn_bias_20170711_091038/unet_norm_w_bn_bias-02249-0.7477.h5
 /work/ajaver/food/results/logs/unet_norm_w_not_bn_20170710_171458/unet_norm_w_not_bn-06499-0.6399.h5
 
+
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/w_logs/unet_norm_w_not_bn_20170710_171458/unet_norm_w_not_bn-15999-0.2540.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
+∂
