@@ -28,8 +28,8 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 #keras.backend.set_learning_phase(tf.convert_to_tensor(0))
 #model_bn = load_model('unet_norm_w-14249-0.1633.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
-model_bn = load_model('unet_norm_w_bn_bias-02249-0.7477.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
-model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_bn = load_model('unet_norm_w-19999-0.1208.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_not_bn = load_model('unet_norm_w_not_bn-12499-0.3857.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #%%
 #%%
 def flip_d(img_o, nn):
@@ -46,7 +46,7 @@ def flip_d(img_o, nn):
 
 def background_prediction(Xi, model_t, n_tiles=4, im_size=None):
     Y_pred = np.zeros(Xi.shape)
-    for n_t in range(4):
+    for n_t in range(1):
         X = flip_d(Xi, n_t)
         
         if im_size is None:
