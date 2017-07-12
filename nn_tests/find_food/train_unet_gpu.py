@@ -22,40 +22,6 @@ Adam = keras.optimizers.Adam
 from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 from unet_build import get_unet_model_bn
 
-import tensorflow as tf
-_EPSILON = 10e-8    
-def _to_tensor(x, dtype):
-    """Convert the input `x` to a tensor of type `dtype`.
-    # Arguments
-        x: An object to be converted (numpy array, list, tensors).
-        dtype: The destination type.
-    # Returns
-        A tensor.
-    """
-    x = tf.convert_to_tensor(x)
-    if x.dtype != dtype:
-        x = tf.cast(x, dtype)
-    return x
-    
-
-def w_pix_categorical_crossentropy(w_output, target, from_logits=False):
-    """Categorical crossentropy between an output tensor 
-    and a target tensor, using precalculated weights for each pixel.
-    The weights should be in the last dimmension of the target array."""
-    
-    output = w_output[:,:,:,:-1]
-    w_vec = w_output[:,:,:,-1][:,:,:,None]
-    # scale preds so that the class probas of each sample sum to 1
-    output /= tf.reduce_sum(output,
-                axis=len(output.get_shape()) - 1,
-                keep_dims=True)
-    epsilon = _to_tensor(_EPSILON, output.dtype.base_dtype)
-    output = tf.clip_by_value(output, epsilon, 1. - epsilon)
-    
-    return - tf.reduce_sum(w_vec * target * tf.log(output),
-                           axis=len(output.get_shape()) - 1)
-
-
 if __name__ == '__main__':
     main_dir = '/work/ajaver/food/train_set'
     SAVE_DIR = '/work/ajaver/food/results'
@@ -64,14 +30,14 @@ if __name__ == '__main__':
     #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
     
     model = get_unet_model_bn()
-    model_name = 'unet_norm_w_bn_bias_resized'
+    model_name = 'unet_norm_w_bn_no_bias'
     
     epochs = 20000
-    batch_size = 8
+    batch_size = 6
     saving_period = 250
     
-    im_size = (260,260)
-    n_tiles=1
+    im_size = (512, 512)
+    n_tiles = batch_size
     transform_ags = dict(
             rotation_range=90, 
              shift_range = 0.1,
@@ -79,31 +45,14 @@ if __name__ == '__main__':
              horizontal_flip=True,
              vertical_flip=True,
              elastic_alpha_range=400,
-             elastic_sigma=20
+             elastic_sigma=20,
+             int_alpha=(0.5,2.25)
              )
         
     weight_params = dict(
             sigma=2.5,
-            weigth=10
+            weigth=20
             )
-    
-    
-#    im_size = (512, 512)
-#    n_tiles=4
-#    transform_ags = dict(
-#            rotation_range=90, 
-#             shift_range = 0.02,
-#             zoom_range = (0.9, 1.1),
-#             horizontal_flip=True,
-#             vertical_flip=True,
-#             elastic_alpha_range=400,
-#             elastic_sigma=20
-#             )
-#        
-#    weight_params = dict(
-#            sigma=2.5,
-#            weigth=20
-#            )
     
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
@@ -119,10 +68,8 @@ if __name__ == '__main__':
                                                                 n_tiles=n_tiles
                                                                 )
     
-    bs = int(round(batch_size/len(tile_corners)))
     gen_d = DirectoryImgGenerator(main_dir, 
                                     im_size = im_size,
-                                    fill_mask=True,
                                     weight_params=weight_params
                                     )
     img_generator = ImageMaskGenerator(gen_d, 
@@ -130,12 +77,13 @@ if __name__ == '__main__':
                              pad_size,
                              input_size,
                              tile_corners,
-                             batch_size=bs,
-                             epoch_size = bs*20,
+                             batch_size=batch_size,
+                             epoch_size = batch_size*20,
                              )
    
     model.compile(optimizer=Adam(lr=1e-5), 
-                  loss=w_pix_categorical_crossentropy)
+                  loss='categorical_crossentropy',
+                  metrics=['categorical_accuracy'])
     
     model.fit_generator(img_generator,
                         steps_per_epoch = round(img_generator.tot_samples/batch_size), 

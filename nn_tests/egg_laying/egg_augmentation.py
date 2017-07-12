@@ -17,7 +17,6 @@ if __name__ == '__main__':
         coordinates_data = fid['/coordinates_data']
     coordinates_data_g = coordinates_data.groupby('seq_index')
     
-    
     nn = 10
     with tables.File(save_name, "r") as fid:
         seq_x = fid.get_node('/X')[nn]

@@ -15,7 +15,7 @@ from tensorflow.contrib import keras
 load_model = keras.models.load_model
 
 from augmentation import process_data, get_sizes
-from train_unet_gpu import w_pix_categorical_crossentropy
+from unet_build import w_pix_categorical_crossentropy
 
 
 
@@ -28,9 +28,10 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 #keras.backend.set_learning_phase(tf.convert_to_tensor(0))
 #model_bn = load_model('unet_norm_w-14249-0.1633.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
-model_bn = load_model('unet_norm_w_bn_bias-02249-0.7477.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
-model_not_bn = load_model('unet_norm_w_not_bn-06499-0.6399.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_bn = load_model('unet_norm_w-19999-0.1208.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+model_not_bn = load_model('unet_norm_w_not_bn-15999-0.2540.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 #%%
+
 #%%
 def flip_d(img_o, nn):
     if nn == 0:

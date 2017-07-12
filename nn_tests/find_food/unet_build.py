@@ -25,6 +25,49 @@ Model = keras.models.Model
 #from keras.layers import Input, Conv2D, MaxPooling2D, Dropout, \
 #concatenate, Conv2DTranspose, Cropping2D, Activation
 
+#%% METRICS
+import tensorflow as tf
+_EPSILON = 10e-8    
+def _to_tensor(x, dtype):
+    """Convert the input `x` to a tensor of type `dtype`.
+    # Arguments
+        x: An object to be converted (numpy array, list, tensors).
+        dtype: The destination type.
+    # Returns
+        A tensor.
+    """
+    x = tf.convert_to_tensor(x)
+    if x.dtype != dtype:
+        x = tf.cast(x, dtype)
+    return x
+    
+def w_pix_categorical_crossentropy(w_y_true, y_pred, from_logits=False):
+    """Categorical crossentropy between an output tensor 
+    and a target tensor, using precalculated weights for each pixel.
+    The weights should be in the last dimmension of the target array."""
+    
+    y_true = w_y_true[:,:,:,:-1]
+    w_vec = w_y_true[:,:,:,-1][:,:,:,None]
+    # scale preds so that the class probas of each sample sum to 1
+    y_pred /= tf.reduce_sum(y_pred,
+                axis=len(y_pred.get_shape()) - 1,
+                keep_dims=True)
+    epsilon = _to_tensor(_EPSILON, y_pred.dtype.base_dtype)
+    y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
+    
+    return - tf.reduce_sum(w_vec * y_true * tf.log(y_pred),
+                           axis=len(y_pred.get_shape()) - 1)
+    
+    
+def w_categorical_accuracy(w_y_true, y_pred, from_logits=False):
+    y_true = w_y_true[:,:,:,:-1]
+    return keras.metrics.categorical_accuracy(y_true, y_pred)
+    
+    
+    
+    
+#%%
+
 def get_unet_model(input_shape = (444, 444, 1), n_outputs=2):
     #    #NOTES:
     #    #Conv2D defaults are:
@@ -117,7 +160,7 @@ def _get_crop_size(small_m, big_m):
     crop_size = [( int(floor(x/2)), int(ceil(x/2)) ) for x in extra_d]
     return crop_size
 
-BN_BIAS = True    
+BN_BIAS = False    
 def conv2d_norm(top, n_filters, kernel_shape, layer_name):
     dd = Conv2D(n_filters, 
                 kernel_shape, 

@@ -10,9 +10,11 @@ import random
 from scipy.ndimage.interpolation import map_coordinates, affine_transform
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage import binary_fill_holes
-from skimage.morphology import skeletonize, dilation, disk
+from skimage.morphology import dilation, disk, skeletonize, binary_erosion
 from skimage.io import imread
 from skimage.transform import resize
+from skimage.draw import polygon
+
 import os
 import multiprocessing as mp
 from functools import partial
@@ -23,6 +25,9 @@ Iterator = keras.preprocessing.image.Iterator
 #from keras.preprocessing.image import Iterator
 #from keras import backend as K
 
+
+
+#%%
 def random_rotation(rg, h, w):
     theta = np.pi / 180 * np.random.uniform(-rg, rg)
     rotation_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],
@@ -141,7 +146,13 @@ def transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
     return img_aug
 
 #%%
-def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
+def process_data(images, 
+                 input_size, 
+                 pad_size, 
+                 tile_corners, 
+                 int_alpha = None,
+                 transform_ags={}):
+    
     def _get_tile_in(img, x,y):
             return img[np.newaxis, x:x+input_size, y:y+input_size, :]
         
@@ -152,7 +163,8 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
        
     def _cast_tf(D):
         D = D.astype(K.floatx())
-        D = D[:, :, np.newaxis]
+        if D.ndim == 2:
+            D = D[..., None]
         return D
     
     def _augment_data(D, 
@@ -175,12 +187,12 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
         return D_aug
     
     
+    
+    
     #read inputs
-    Y, W = None, None
+    Y = None
     if len(images) == 2:
         X, Y = images
-    elif len(images) == 3:
-        X, Y, W = images
     else:
         X = images
     
@@ -192,33 +204,31 @@ def process_data(images, input_size, pad_size, tile_corners, transform_ags={}):
     
     if Y is not None:
         Y = _cast_tf(Y)
-        Y = np.concatenate([Y==1., Y==0.], axis=2).astype(K.floatx()) #two channel cast
-        
-    if W is not None:
-        W = _cast_tf(W)
-    
-    
-    
-    
+     
     pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
-    X,Y,W = [None if D is None else np.lib.pad(D, pad_size_s, 'reflect') for D in [X,Y,W]]
+    X,Y = [None if D is None else np.lib.pad(D, pad_size_s, 'reflect') for D in [X,Y]]
+    
+    
+    if 'int_alpha' in transform_ags:
+        transform_ags = transform_ags.copy()
+        int_alpha = transform_ags['int_alpha']
+        del transform_ags['int_alpha']
     
     if len(transform_ags) > 0:
         expected_size = X.shape[:2] #the expected output size after padding
         transforms = random_transform(*expected_size, **transform_ags)
-        X,Y,W = [_augment_data(x, pad_size_s, *transforms) for x in [X,Y,W]]
-    
+        X,Y = [_augment_data(x, pad_size_s, *transforms) for x in [X,Y]]
         
-        
+        if int_alpha is not None:
+            alpha = np.random.uniform(int_alpha[0], int_alpha[1])
+            X *= alpha
+            
     X = [_get_tile_in(X, x, y) for x,y in tile_corners]
     
     if Y is not None:
         Y = [_get_tile_out(Y, x, y) for x,y in tile_corners]
     
-    if W is not None:
-        W = [_get_tile_out(W, x, y) for x,y in tile_corners]
-    
-    output = [x for x in (X,Y,W) if not x is None]
+    output = [x for x in (X,Y) if not x is None]
     if len(output) == 1:
         output = output[0]
     return output
@@ -287,14 +297,13 @@ class ImageMaskGenerator(Iterator):
 
 
 class DirectoryImgGenerator(object):
-    def __init__(self, main_dir, im_size=None, fill_mask=True, weight_params={}):
+    def __init__(self, main_dir, im_size=None, weight_params={}):
         fnames = os.listdir(main_dir)
         fnames = sorted(set(x[2:] for x in fnames))
         
         self.main_dir = main_dir
         self.fnames = fnames
         self.weight_params = weight_params
-        self.fill_mask = fill_mask
         self.im_size = im_size
         
         #group files by date
@@ -328,42 +337,56 @@ class DirectoryImgGenerator(object):
             X = imread(x_name)
             Yo = imread(y_name)
             
+            
+            #i am assuming circle like shapes here
+            r, c = np.where(Yo)
+            r0 = np.mean(r)
+            c0 = np.mean(c)
+            inds = np.argsort(np.arctan2(r-r0, c-c0))
+            r = r[inds] 
+            c = c[inds]
+            
+            rr, cc = polygon(r, c)
+            Yo[rr, cc] = 1
+            
+            
             if self.im_size is not None:
-                X = resize(X, self.im_size, mode='reflect')
-                Yo = resize(Yo, self.im_size, mode='reflect')
+                #resize refit image to be between 0-1
+                X = resize(X, self.im_size, mode='reflect')*255
+                Yo = resize(Yo, self.im_size, mode='reflect')>0
                 
+            Y = keras.utils.to_categorical(Yo, 2)
+            Y = np.reshape(Y, (Yo.shape[0], Yo.shape[1], 2))
             
-            if self.fill_mask:
-                Y = binary_fill_holes(Yo)
-            else:
-                Y = dilation(Yo, disk(1))
             
-            if not self.weight_params:
-                W = None
-            else:
+            if self.weight_params:
                 sigma = self.weight_params['sigma']
                 weigth = self.weight_params['weigth']
                 
+                Yc = Yo - binary_erosion(Yo)
+                
                 #increase the weights in the border
-                W_border = gaussian_filter(Yo.astype(K.floatx()), sigma=2.5)
+                W_border = gaussian_filter(Yc.astype(K.floatx()), sigma=2.5)
                 W_border *= (sigma**2)*weigth #normalize weights
                 
                 #normalize the weights for the classes
                 W_label = np.zeros_like(W_border) 
-                lab_w = np.mean(Y)
-                dd = Y>0
+                lab_w = np.mean(Yo)
+                
+                dd = Yo>0
                 W_label[dd] = 1/lab_w 
                 W_label[~dd] = 1/(1-lab_w)
                 
                 W = W_label + W_border
-            
-            
-            
-            output = [x for x in (X,Y,W) if not x is None]
-            if len(output) == 1:
-                output = output[0]
-            
-            return output
+                
+                Y = Y*W[..., None]
+                
+                # I can add the weights directly to the predictions because 
+                #keras uses y_true * log(y_pred) so y_true can be any number larger than 0
+                #and
+                # categorical_accuracy uses the maximum argument as the real prediction
+                
+            return X,Y
 
 #%%
 def get_sizes(im_size, d4a_size= 24, n_tiles=4):
@@ -392,36 +415,44 @@ def get_sizes(im_size, d4a_size= 24, n_tiles=4):
         ty = im_size[1]-output_size
         tx = im_size[0]-output_size
         
-        tile_corners = [(0,0), 
-                        (0, ty),
-                        (tx, 0),
-                        (tx,ty)
-                        ] #corners on how the image is going to be subdivided
         
+        if n_tiles < 4:
+            tile_corners = []
+        else:
+            tile_corners = [(0,0), 
+                            (0, ty),
+                            (tx, 0),
+                            (tx,ty)
+                            ] #corners on how the image is going to be subdivided
+        
+        
+        
+            
         if n_tiles == 5:
             tile_corners.append((pad_size,pad_size))
-            
         
-        elif n_tiles != 4:
-            raise ValueError('Unimplemented number of tiles')
-            
-
+        if len(tile_corners) != n_tiles:
+            nn = n_tiles-len(tile_corners)
+            extra_tiles = np.random.randint(0, int(input_size-output_size), (nn, 2))
+            tile_corners += [tuple(x) for x in extra_tiles]
+#%%
     return input_size, output_size, pad_size, tile_corners
 
 if __name__ == '__main__':
     import matplotlib.pylab as plt
 
         
-    im_size = (260,260)
-    n_tiles=1
+    #im_size = (260,260)
+    #n_tiles=1
     
-    #im_size = (512, 512)
-    #n_tiles=5
+    im_size = (512, 512)
+    n_tiles=8
     
-    fill_mask = True
     is_weigth = True
     
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
+    
+    
     transform_ags = dict(
             rotation_range=90, 
              shift_range = 0.1,
@@ -429,7 +460,8 @@ if __name__ == '__main__':
              horizontal_flip=True,
              vertical_flip=True,
              elastic_alpha_range=400,
-             elastic_sigma=20
+             elastic_sigma=20,
+             int_alpha=(0.5,2.25)
              )
         
     weight_params = dict(
@@ -440,11 +472,14 @@ if __name__ == '__main__':
     
     
     input_size, output_size, pad_size, tile_corners = get_sizes(im_size, n_tiles=n_tiles)
+    
+    
+    
     gen_d = DirectoryImgGenerator(main_dir, 
-                                  im_size = im_size, 
-                                  fill_mask = fill_mask, 
+                                  im_size = im_size,
                                   weight_params = weight_params
                                   )
+    
     gen = ImageMaskGenerator(gen_d, 
                              transform_ags, 
                              pad_size,
@@ -454,35 +489,45 @@ if __name__ == '__main__':
     
     
     assert gen.output_size == output_size
-    
-    
     #%%
-    batch_x, DD = next(gen)
-    batch_y = DD[:,:,:,:-1]
-    batch_w = DD[:,:,:,-1][:,:,:,None]
-    for ii, (X,Y,W) in enumerate(zip(batch_x, batch_y, batch_w)):
-        xx = np.squeeze(X)
-        bot = np.min(xx)
-        top = np.max(xx)
-        
-        plt.figure(figsize=(12,4))
-        plt.subplot(1,3,1)
-        plt.imshow(xx, cmap='gray')
-        plt.subplot(1,3,2)
-        
-        I_y = xx.copy()
-        patch = (Y[:,:,0]*(top-bot))+bot
-        I_y[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
-        plt.imshow(I_y, cmap='gray')
-        
-        plt.subplot(1,3,3)
-        
-        I_w = xx.copy()
-        patch = (W[:,:,0]*(top-bot))+bot
-        I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
-        plt.imshow(I_w)
-#%%
-
-
-
-
+    #%%
+#    for ii in range(20):
+#        X,Y = gen_d.get_random()
+#        
+#        plt.figure()
+#        plt.subplot(1,3,1)
+#        plt.imshow(np.squeeze(X), cmap='gray')
+#        plt.subplot(1,3,2)
+#        plt.imshow(np.squeeze(Y[...,0]))
+#        plt.subplot(1,3,2)
+#        plt.imshow(np.squeeze(Y[...,1]))
+    #%%
+    for nn, (batch_x, batch_y) in enumerate(gen):
+        if nn > 10:
+            break
+    
+        for ii, (X,Y) in enumerate(zip(batch_x, batch_y)):
+            xx = np.squeeze(X)
+            bot = np.min(xx)
+            top = np.max(xx)
+            
+            xi = (((xx-np.min(xx))*255)).astype(np.uint)
+            xi = np.clip(xi, 0, 255)
+            
+            plt.figure(figsize=(12,4))
+            plt.subplot(1,3,1)
+            plt.imshow(xi, cmap='gray')
+            
+            plt.subplot(1,3,2)
+            I_y = xx.copy()
+            patch = (Y[:,:,0]*(top-bot))+bot
+            I_y[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
+            plt.imshow(I_y)
+            
+            plt.subplot(1,3,3)
+            
+            I_w = xx.copy()
+            patch = (Y[:,:,1]*(top-bot))+bot
+            I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
+            plt.imshow(I_w)
+            break
