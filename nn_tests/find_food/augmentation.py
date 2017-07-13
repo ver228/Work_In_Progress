@@ -274,7 +274,6 @@ class ImageMaskGenerator(Iterator):
                           tile_corners=self.tile_corners, 
                           transform_ags=self.transform_ags
                           )
-        
         #with self.lock:
         #    index_array, current_index, current_batch_size = next(self.index_generator)
         #I will read a only one image and do transforms until i get the n_batches
@@ -288,12 +287,14 @@ class ImageMaskGenerator(Iterator):
         D = [None if x is None else x[:self.batch_size] for x in D]
         return D
         
+    
+    
 
 class DirectoryImgGenerator(object):
     def __init__(self, main_dir, im_size=None, weight_params={}):
         fnames = os.listdir(main_dir)
-        fnames = sorted(set(x[2:] for x in fnames))
-        
+        fnames = [x for x in fnames if x.endswith('.png')]
+        fnames = sorted(set(x[2:] for x in fnames if x.startswith('X_')))
         self.main_dir = main_dir
         self.fnames = fnames
         self.weight_params = weight_params
@@ -304,8 +305,17 @@ class DirectoryImgGenerator(object):
         for x  in self.fnames:
             date_str = x.split('_')[-2]
             if not date_str in group_dates:
-                group_dates[date_str] = []
-            group_dates[date_str].append(x)
+                group_dates[date_str] = {}
+            
+            bn = '_'.join(x.split('_')[1:-2])
+            if not bn in group_dates[date_str]:
+                group_dates[date_str][bn] = []
+            
+            group_dates[date_str][bn].append(x)
+        #I am only including dates that have at least 10 different basenames (plates)
+        group_dates = {x:dat for x, dat in group_dates.items() if len(dat)>10}
+        
+        #%%
         self.group_dates = group_dates
 
     def __len__(self): 
@@ -320,66 +330,58 @@ class DirectoryImgGenerator(object):
     
     def get_random(self):
         date_str = random.choice(list(self.group_dates.keys()))
-        fname = random.choice(self.group_dates[date_str])
+        bn = random.choice(list(self.group_dates[date_str].keys()))
+        fname = random.choice(self.group_dates[date_str][bn])
+        
         return self._get(fname)
     
     def _get(self, fname):
-            x_name = os.path.join(self.main_dir, 'X_' + fname) 
-            y_name = os.path.join(self.main_dir, 'Y_' + fname) 
+        print(fname)
+        
+        x_name = os.path.join(self.main_dir, 'X_' + fname) 
+        y_name = os.path.join(self.main_dir, 'Y_' + fname) 
+        #%%
+        X = imread(x_name)
+        Yo = imread(y_name)
+        
+        
+        if self.im_size is not None:
+            #resize refit image to be between 0-1
+            X = resize(X, self.im_size, mode='reflect')*255
+            Yo = resize(Yo, self.im_size, mode='reflect')>0
             
-            X = imread(x_name)
-            Yo = imread(y_name)
+        Y = keras.utils.to_categorical(Yo, 2)
+        Y = np.reshape(Y, (Yo.shape[0], Yo.shape[1], 2))
+        
+        
+        if self.weight_params:
+            sigma = self.weight_params['sigma']
+            weigth = self.weight_params['weigth']
             
+            Yc = Yo - binary_erosion(Yo)
             
-            #i am assuming circle like shapes here
-            r, c = np.where(Yo)
-            r0 = np.mean(r)
-            c0 = np.mean(c)
-            inds = np.argsort(np.arctan2(r-r0, c-c0))
-            r = r[inds] 
-            c = c[inds]
+            #increase the weights in the border
+            W_border = gaussian_filter(Yc.astype(K.floatx()), sigma=2.5)
+            W_border *= (sigma**2)*weigth #normalize weights
             
-            rr, cc = polygon(r, c)
-            Yo[rr, cc] = 1
+            #normalize the weights for the classes
+            W_label = np.zeros_like(W_border) 
+            lab_w = np.mean(Yo)
             
+            dd = Yo>0
+            W_label[dd] = 1/lab_w 
+            W_label[~dd] = 1/(1-lab_w)
             
-            if self.im_size is not None:
-                #resize refit image to be between 0-1
-                X = resize(X, self.im_size, mode='reflect')*255
-                Yo = resize(Yo, self.im_size, mode='reflect')>0
-                
-            Y = keras.utils.to_categorical(Yo, 2)
-            Y = np.reshape(Y, (Yo.shape[0], Yo.shape[1], 2))
+            W = W_label + W_border
             
+            Y = Y*W[..., None]
             
-            if self.weight_params:
-                sigma = self.weight_params['sigma']
-                weigth = self.weight_params['weigth']
-                
-                Yc = Yo - binary_erosion(Yo)
-                
-                #increase the weights in the border
-                W_border = gaussian_filter(Yc.astype(K.floatx()), sigma=2.5)
-                W_border *= (sigma**2)*weigth #normalize weights
-                
-                #normalize the weights for the classes
-                W_label = np.zeros_like(W_border) 
-                lab_w = np.mean(Yo)
-                
-                dd = Yo>0
-                W_label[dd] = 1/lab_w 
-                W_label[~dd] = 1/(1-lab_w)
-                
-                W = W_label + W_border
-                
-                Y = Y*W[..., None]
-                
-                # I can add the weights directly to the predictions because 
-                #keras uses y_true * log(y_pred) so y_true can be any number larger than 0
-                #and
-                # categorical_accuracy uses the maximum argument as the real prediction
-                
-            return X,Y
+            # I can add the weights directly to the predictions because 
+            #keras uses y_true * log(y_pred) so y_true can be any number larger than 0
+            #and
+            # categorical_accuracy uses the maximum argument as the real prediction
+            
+        return X,Y
 
 #%%
 def get_sizes(im_size, d4a_size= 24, n_tiles=4):
@@ -483,7 +485,6 @@ if __name__ == '__main__':
     
     assert gen.output_size == output_size
     #%%
-    #%%
 #    for ii in range(20):
 #        X,Y = gen_d.get_random()
 #        
@@ -492,8 +493,10 @@ if __name__ == '__main__':
 #        plt.imshow(np.squeeze(X), cmap='gray')
 #        plt.subplot(1,3,2)
 #        plt.imshow(np.squeeze(Y[...,0]))
-#        plt.subplot(1,3,2)
+#        plt.subplot(1,3,3)
 #        plt.imshow(np.squeeze(Y[...,1]))
+
+
     #%%
     for nn, (batch_x, batch_y) in enumerate(gen):
         if nn > 10:
@@ -505,6 +508,11 @@ if __name__ == '__main__':
             bot = np.min(xx)
             top = np.max(xx)
             
+            ybot = np.min(Y)
+            ytop = np.max(Y)
+            yy_n = (Y-ybot)/(ytop-ybot)
+            
+            
             xi = (((xx-np.min(xx))*255)).astype(np.uint)
             xi = np.clip(xi, 0, 255)
             
@@ -514,14 +522,16 @@ if __name__ == '__main__':
             
             plt.subplot(1,3,2)
             I_y = xx.copy()
-            patch = (Y[:,:,0]*(top-bot))+bot
+            patch = (yy_n[:,:,0]*(top-bot))+bot
             I_y[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
             plt.imshow(I_y)
             
             plt.subplot(1,3,3)
             
             I_w = xx.copy()
-            patch = (Y[:,:,1]*(top-bot))+bot
+            patch = (yy_n[:,:,1]*(top-bot))+bot
             I_w[gen.pad_size:-gen.pad_size, gen.pad_size:-gen.pad_size] = patch        
             plt.imshow(I_w)
+            
+            #%%
             break

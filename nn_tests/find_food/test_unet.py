@@ -32,8 +32,8 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 #model_not_bn = load_model('unet_norm_w_not_bn-15999-0.2540.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 
 models = [
-        load_model('unet_norm_w_bn_no_bias-01249-0.4044.h5')#,
-        #load_model('unet_norm_w-00499-1.5756.h5')
+        load_model('unet_norm_w_bn_no_bias-01249-0.4044.h5'),
+        load_model('unet_norm_w_bn_no_bias-01999-0.3351.h5')
         ]
 
 #%%
@@ -89,19 +89,15 @@ if __name__ == '__main__':
                                       )
             Y_pred.append(yy)
         
-        #%%
-        n_rows= len(Y_pred) + 1 
         
+        n_rows= len(Y_pred) + 1 
         plt.figure()
         plt.subplot(1,n_rows,1)
         plt.imshow(Xi, cmap='gray')
-        
         for irow, yy in enumerate(Y_pred):
             plt.subplot(1, n_rows, irow+2)    
             plt.imshow(yy, interpolation='none')
         
-    
         
-    
     
     

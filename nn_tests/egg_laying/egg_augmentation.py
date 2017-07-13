@@ -16,9 +16,11 @@ import matplotlib.pylab as plt
 from skimage.transform import resize
 from skimage.morphology import binary_erosion
 
+
 from tensorflow.contrib import keras
 K = keras.backend
 Iterator = keras.preprocessing.image.Iterator
+to_categorical =  keras.utils.to_categorical
 
 import sys
 sys.path.append('../find_food')
@@ -114,7 +116,12 @@ class DirectoryImgGenerator(object):
             seq_x = fid.get_node('/X')[nn]
             seq_x = np.rollaxis(seq_x, 0, 3)
             seq_x = seq_x.astype(np.float32)
-            seq_y = fid.get_node('/Y')[nn]*y_weight
+            
+            
+            seq_y = fid.get_node('/Y')[nn]
+            seq_y = to_categorical(seq_y,2)
+            
+            seq_y[:,1] = seq_y[:,1]*y_weight
             
         
         seq_x_crop = crop_seq(seq_x, coords)
@@ -221,7 +228,7 @@ if __name__ == '__main__':
     
     batch_x, batch_y = next(gen)
     
-    #%%
+    #%% plot batch
     for nn in range(batch_x.shape[0]):
         seq_x = batch_x[nn]
         seq_y = batch_y[nn]

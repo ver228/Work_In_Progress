@@ -7,7 +7,9 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm
  scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_20170708_214716/unet_norm-09599-0.0098.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
 
- rsync -vr --exclude '*.h5' /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests ajaver@login.cx1.hpc.imperial.ac.uk:/home/ajaver
+rsync -vr --exclude '*.h5' /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests ajaver@login.cx1.hpc.imperial.ac.uk:/home/ajaver
+
+rsync -vr "/Users/ajaver/OneDrive - Imperial College London/food/train_set" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/train_set
 
 
  tensorboard --logdir=$WORK/food/results/logs/ --port=6006
@@ -18,5 +20,4 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm
 /work/ajaver/food/results/logs/unet_norm_w_not_bn_20170710_171458/unet_norm_w_not_bn-06499-0.6399.h5
 
 
-scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/w_logs/unet_norm_w_not_bn_20170710_171458/unet_norm_w_not_bn-15999-0.2540.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
-∂
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_bn_no_bias_20170712_193629/unet_norm_w_bn_no_bias-01999-0.3351.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
