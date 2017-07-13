@@ -46,11 +46,14 @@ def random_shift(shift_range, h, w):
     return translation_matrix
 
 
-def random_zoom(zoom_range, h, w):
+def random_zoom(zoom_range, h, w, same_zoom=False):
     if zoom_range[0] == 1 and zoom_range[1] == 1:
         zx, zy = 1, 1
     else:
         zx, zy = np.random.uniform(zoom_range[0], zoom_range[1], 2)
+        
+    if same_zoom:
+        zx = zy
     
     zoom_matrix = np.array([[1/zx, 0, 0],
                             [0, 1/zy, 0],
@@ -107,12 +110,13 @@ def random_transform(h,
                      horizontal_flip,
                      vertical_flip,
                      elastic_alpha_range,
-                     elastic_sigma
+                     elastic_sigma,
+                     same_zoom = False
                      ):
     
     rot_mat = random_rotation(rotation_range, h, w)
     shift_mat = random_shift(shift_range, h, w)
-    zoom_mat = random_zoom(zoom_range, h, w)
+    zoom_mat = random_zoom(zoom_range, h, w, same_zoom)
     
     
     transform_mat = np.dot(shift_mat, rot_mat)
@@ -126,7 +130,7 @@ def random_transform(h,
 
     return transform_mat, is_h_flip, is_v_flip, elastic_inds
 
-def transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
+def _transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
     final_affine_matrix = transform_matrix[:2, :2]
     final_offset = transform_matrix[:2, 2]
     img_aug = affine_transform(
@@ -144,6 +148,24 @@ def transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
     
     img_aug = map_coordinates(img_aug, elastic_inds, order=1).reshape((img.shape))
     return img_aug
+
+def transform_img(D,
+                  transform_matrix, 
+                  is_h_flip, 
+                  is_v_flip, 
+                  elastic_inds
+                  ):
+    if D is None:
+        return None
+    D_aug = np.zeros_like(D)
+    for nn in range(D.shape[-1]):
+        D_aug[:, :, nn] = _transform_img(D[: ,:, nn], 
+                      transform_matrix, 
+                      is_h_flip, 
+                      is_v_flip, 
+                      elastic_inds)
+    D_aug = np.array(D_aug)
+    return D_aug
 
 #%%
 def process_data(images, 
@@ -167,28 +189,6 @@ def process_data(images,
             D = D[..., None]
         return D
     
-    def _augment_data(D, 
-                      pad_size_s, 
-                      transform_matrix, 
-                      is_h_flip, 
-                      is_v_flip, 
-                      elastic_inds
-                      ):
-        if D is None:
-            return None
-        D_aug = np.zeros_like(D)
-        for nn in range(D.shape[-1]):
-            D_aug[:, :, nn] = transform_img(D[: ,:, nn], 
-                          transform_matrix, 
-                          is_h_flip, 
-                          is_v_flip, 
-                          elastic_inds)
-        D_aug = np.array(D_aug)
-        return D_aug
-    
-    
-    
-    
     #read inputs
     Y = None
     if len(images) == 2:
@@ -208,7 +208,6 @@ def process_data(images,
     pad_size_s =  ((pad_size,pad_size), (pad_size,pad_size), (0,0))
     X,Y = [None if D is None else np.lib.pad(D, pad_size_s, 'reflect') for D in [X,Y]]
     
-    
     if 'int_alpha' in transform_ags:
         transform_ags = transform_ags.copy()
         int_alpha = transform_ags['int_alpha']
@@ -217,7 +216,7 @@ def process_data(images,
     if len(transform_ags) > 0:
         expected_size = X.shape[:2] #the expected output size after padding
         transforms = random_transform(*expected_size, **transform_ags)
-        X,Y = [_augment_data(x, pad_size_s, *transforms) for x in [X,Y]]
+        X,Y = [transform_img(x, *transforms) for x in [X,Y]]
         
         if int_alpha is not None:
             alpha = np.random.uniform(int_alpha[0], int_alpha[1])
@@ -287,14 +286,8 @@ class ImageMaskGenerator(Iterator):
         D  = zip(*list(map(_process_data, [current_img]*n_sets))) #process data
         D = [np.concatenate(sum(x, [])) for x in D] #pack data
         D = [None if x is None else x[:self.batch_size] for x in D]
+        return D
         
-        if len(D) <= 2:
-            return D
-        else:
-            #dirty trick to add a tensor with the weights. \
-            #I do not find how to give this cleaningly to the weight function
-            return D[0], np.concatenate((D[1], D[2]), axis=3)
-
 
 class DirectoryImgGenerator(object):
     def __init__(self, main_dir, im_size=None, weight_params={}):
@@ -507,6 +500,7 @@ if __name__ == '__main__':
             break
     
         for ii, (X,Y) in enumerate(zip(batch_x, batch_y)):
+            #%%
             xx = np.squeeze(X)
             bot = np.min(xx)
             top = np.max(xx)

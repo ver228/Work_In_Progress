@@ -77,7 +77,7 @@ if __name__ == '__main__':
                              pad_size,
                              input_size,
                              tile_corners,
-                             batch_size=batch_size,
+                             batch_size = batch_size,
                              epoch_size = batch_size*20,
                              )
    
