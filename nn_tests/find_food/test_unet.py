@@ -16,6 +16,7 @@ load_model = keras.models.load_model
 
 from augmentation import process_data, get_sizes
 from unet_build import w_pix_categorical_crossentropy
+from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 
 main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
@@ -32,8 +33,13 @@ main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 #model_not_bn = load_model('unet_norm_w_not_bn-15999-0.2540.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
 
 models = [
-        load_model('unet_norm_w_bn_no_bias-01249-0.4044.h5'),
-        load_model('unet_norm_w_bn_no_bias-01999-0.3351.h5')
+        #load_model('unet_norm_w-19999-0.1208.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+        #load_model('unet_norm_w_bn_bias-06249-0.1954.h5', custom_objects={'w_pix_categorical_crossentropy': w_pix_categorical_crossentropy})
+        #load_model('unet_norm_w_bn_no_bias-00499-0.9009.h5'),
+        #load_model('unet_norm_w_bn_no_bias-00749-0.7128.h5'),
+        #load_model('unet_norm_w_bn_no_bias-01499-0.4725.h5')
+        #load_model('unet_norm_w_no_bn-00249-1.6417.h5')
+        load_model('unet_no_bn_no_w-00249-0.5354.h5')
         ]
 
 #%%
@@ -51,9 +57,16 @@ def flip_d(img_o, nn):
     
     return img
 
-def background_prediction(Xi, model_t, n_tiles=4, im_size=None):
+
+def background_prediction(Xi, 
+                          model_t, 
+                          n_flips = 1,
+                          n_tiles=4, 
+                          im_size=(512, 512)
+                          ):
     Y_pred = np.zeros(Xi.shape)
-    for n_t in range(4):
+    for n_t in range(n_flips):
+        
         X = flip_d(Xi, n_t)
         
         if im_size is None:
@@ -62,23 +75,43 @@ def background_prediction(Xi, model_t, n_tiles=4, im_size=None):
         x_crop = process_data(X, input_size, pad_size, tile_corners) 
         x_crop = np.concatenate(x_crop)
         y_pred = model_t.predict_on_batch(x_crop)
+        
+        
         Y_pred_s = np.zeros(X.shape)
         N_s = np.zeros(X.shape)
-        for (i,j), yy in zip(tile_corners, y_pred):
+        for (i,j), yy,xx in zip(tile_corners, y_pred, x_crop):
             Y_pred_s[i:i+output_size, j:j+output_size] += yy[:,:,1]
+            
+            plt.figure()
+            plt.subplot(1,2,1)
+            plt.imshow(np.squeeze(xx))
+            plt.subplot(1,2,2)
+            plt.imshow(yy[:,:,1])
+            
+            
+        #%%
             N_s[i:i+output_size, j:j+output_size] += 1
         Y_pred += flip_d(Y_pred_s/N_s, n_t)
     return Y_pred
+
+     
+
+gen_d = DirectoryImgGenerator(main_dir, 
+                                    im_size = (512, 512),
+                                    weight_params={}
+                                    )
     
 if __name__ == '__main__':
     n_tiles=4
     im_size=None
     
-    fnames = glob.glob(os.path.join(main_dir, 'X_*'))
-    for ivid, fname in enumerate(random.sample(fnames,10)):
-        print(ivid)
-        Xi = imread(fname)
+    #fnames = glob.glob(os.path.join(main_dir, 'X_*'))
+    #for ivid, fname in enumerate(random.sample(fnames,5)):
+    for ivid in range(5):
+        #Xi = imread(fname)
         
+        print(ivid)
+        Xi,Y = gen_d.get_random()
         
         Y_pred = []
         for mod in models:
@@ -89,15 +122,26 @@ if __name__ == '__main__':
                                       )
             Y_pred.append(yy)
         
-        
-        n_rows= len(Y_pred) + 1 
+        #%%
+        n_rows= len(Y_pred) + 2
         plt.figure()
         plt.subplot(1,n_rows,1)
         plt.imshow(Xi, cmap='gray')
+        plt.subplot(1,n_rows,2)
+        plt.imshow(Y[:,:,1], cmap='gray')
         for irow, yy in enumerate(Y_pred):
-            plt.subplot(1, n_rows, irow+2)    
+            plt.subplot(1, n_rows, irow+3)    
             plt.imshow(yy, interpolation='none')
         
-        
-    
-    
+        break
+#%%
+X = flip_d(Xi, 0)
+im_size = X.shape 
+input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
+#%%
+x_crop = process_data(X, input_size, pad_size, tile_corners) 
+x_crop = np.concatenate(x_crop)
+y_pred = mod.predict_on_batch(x_crop)
+#%%
+
+

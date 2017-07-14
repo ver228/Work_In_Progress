@@ -6,7 +6,6 @@ Created on Tue Jul 11 18:58:42 2017
 @author: ajaver
 """
 
-import os
 import tables
 import numpy as np
 import pandas as pd
@@ -22,8 +21,9 @@ K = keras.backend
 Iterator = keras.preprocessing.image.Iterator
 to_categorical =  keras.utils.to_categorical
 
-import sys
-sys.path.append('../find_food')
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'find_food'))
+
 from augmentation import random_transform, transform_img
 
 def crop_seq(seq_x, coords, rand_d_roi=0, rand_shift_x=0, rand_shift_y=0):
@@ -43,6 +43,8 @@ def crop_seq(seq_x, coords, rand_d_roi=0, rand_shift_x=0, rand_shift_y=0):
     assert np.all(r_size==r_size[0])
     r_size = r_size[0] + rand_d_roi
     
+    r_size = min(r_size, min(seq_x.shape[0:2]))
+    
     
     j_ini = np.ceil(coords['coord_x'] - r_size/2).values.astype(np.int)
     i_ini = np.ceil(coords['coord_y'] - r_size/2).values.astype(np.int)
@@ -53,13 +55,15 @@ def crop_seq(seq_x, coords, rand_d_roi=0, rand_shift_x=0, rand_shift_y=0):
     
     j_fin = j_ini + r_size
     i_fin = i_ini + r_size
+    
+    
     i_ini, i_fin = _correct_range(i_ini, i_fin, seq_x.shape[0])
     j_ini, j_fin = _correct_range(j_ini, j_fin, seq_x.shape[1])
     
     seq_x_r = np.zeros((r_size, r_size, seq_x.shape[-1]))
     for ns, (i_0,i_f, j_0, j_f) in enumerate(zip(i_ini, i_fin,j_ini, j_fin)):
         seq_x_r[..., ns] = seq_x[i_0:i_f, j_0:j_f, ns]
-        
+    #%%        
     return seq_x_r
 
 def plot_seq(seq):   
@@ -93,8 +97,13 @@ class DirectoryImgGenerator(object):
         with pd.HDFStore(self.file_name, "r") as fid:
             coordinates_data = fid['/coordinates_data']
             
+        with tables.File(self.file_name, "r") as fid:
+            self.n_seq = fid.get_node('/X').shape[1]
+        
+            
         self.coordinates_data_g = coordinates_data.groupby('seq_index')
-        self.tot = len(self.coordinates_data_g)
+        self.valid_rows = list(self.coordinates_data_g.groups.keys())
+        self.tot = len(self.valid_rows)
         
     def __len__(self): 
         return self.tot
@@ -103,14 +112,15 @@ class DirectoryImgGenerator(object):
         return self._get(i)
 
     def __iter__(self):
-        for fname in self.fnames:
-            yield self._get(fname)
+        for nn in self.valid_rows:
+            yield self._get(nn)
     
     def get_random(self):
-        ii = random.randint(0, self.tot)
+        ii = random.choice(self.valid_rows)
         return self._get(ii)
     
     def _get(self, nn):
+        
         coords = self.coordinates_data_g.get_group(nn)
         with tables.File(self.file_name, "r") as fid:
             seq_x = fid.get_node('/X')[nn]
@@ -121,15 +131,14 @@ class DirectoryImgGenerator(object):
             seq_y = fid.get_node('/Y')[nn]
             seq_y = to_categorical(seq_y,2)
             
-            seq_y[:,1] = seq_y[:,1]*y_weight
+            seq_y[:,1] = seq_y[:,1]*self.y_weight
             
-        
         seq_x_crop = crop_seq(seq_x, coords)
         seq_x_crop = normalize_seq(seq_x_crop)
         #frac_y = np.mean(fid.get_node('/Y'))
     
-        seq_x_crop = resize(seq_x_crop, im_size, mode='reflect')
-    
+        seq_x_crop = resize(seq_x_crop, self.im_size, mode='reflect')
+        #%%
         return seq_x_crop, seq_y
 
 def process_data(seq_x, seq_y, window_size = 4, transform_ags = {}):
@@ -180,14 +189,13 @@ class ImageMaskGenerator(Iterator):
             The next batch.
         """
         
-        seq_x, seq_y = self.generator.get_random()
-        
-        n_seq_t = seq_x.shape[-1] - window_size
-        
+        n_seq_t = self.generator.n_seq - self.window_size
         seq_x_t = []
         seq_y_t = []
+        
         for ii in range(int(ceil(self.batch_size/n_seq_t))):
-            xx, yy = process_data(seq_x, seq_y, window_size, transform_ags)
+            seq_x, seq_y = self.generator.get_random()
+            xx, yy = process_data(seq_x, seq_y, self.window_size, self.transform_ags)
             seq_x_t += xx
             seq_y_t += yy
         
@@ -202,6 +210,7 @@ class ImageMaskGenerator(Iterator):
 
 #%%
 if __name__ == '__main__':
+    import os
     save_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
     save_name = os.path.join(save_dir, 'train_data_eggs.hdf5')
     y_weight = 10
@@ -211,13 +220,13 @@ if __name__ == '__main__':
              shift_range = 0.1,
              zoom_range = (0.75, 1.5),
              same_zoom = True,
-             horizontal_flip=True,
-             vertical_flip=True,
-             elastic_alpha_range=500,
-             elastic_sigma=25
+             horizontal_flip = True,
+             vertical_flip = True,
+             elastic_alpha_range = 400,
+             elastic_sigma=20
              )
-    window_size = 4
     
+    window_size = 4
     
     gen_d = DirectoryImgGenerator(save_name, y_weight, im_size)
     
@@ -225,6 +234,12 @@ if __name__ == '__main__':
                              transform_ags=transform_ags,
                              window_size=window_size,
                              batch_size=20)
+    
+#    import time
+#    tic = time.time()
+#    for nn, (batch_x, batch_y) in enumerate(gen_d):
+#        print(nn, time.time() - tic)
+#        tic = time.time()
     
     batch_x, batch_y = next(gen)
     

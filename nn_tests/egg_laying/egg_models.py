@@ -23,6 +23,7 @@ GlobalMaxPooling2D = keras.layers.GlobalMaxPooling2D
 
 Dropout = keras.layers.Dropout
 Dense = keras.layers.Dense
+Reshape = keras.layers.Reshape 
 Lambda = keras.layers.Lambda
 Activation = keras.layers.Activation
 BatchNormalization = keras.layers.BatchNormalization
@@ -164,17 +165,16 @@ def model_separable(win_size, roi_size, nb_classes):
     x = Dense(1024, name=name+'dense1', activation='elu')(x)
     x = Dropout(0.4)(x)
     
-    x = Dense((win_size, nb_classes))(x)
+    x = Dense(win_size*nb_classes)(x)
+    x = Reshape((win_size, nb_classes))(x)
+    
     output = Activation('softmax')(x)
         
     model = Model(input_data, output)
     return model
 
 
-
-#%%
 if __name__ == '__main__':
-    
     win_size = 4
     nb_classes = 2
     roi_size = 128
