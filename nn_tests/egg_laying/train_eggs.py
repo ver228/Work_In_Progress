@@ -32,20 +32,14 @@ if __name__ == '__main__':
     batch_size = 32
     saving_period = 250
     
-    #model_name='egg_separable_conv2d'
-    #model = model_separable(window_size, roi_size, nb_classes=2)
-    model_name='egg_mobilenet'
-    model = MobileNetE(roi_size, 
-                       roi_size, 
-                       window_size, 
-                       y_offset = y_offset,
-                       nb_classes=2
-                       )
-    
+    model_name='egg_separable_conv2d'
+    model = model_separable(window_size, roi_size, nb_classes=2, y_offset=y_offset)
+    #model_name='egg_mobilenet'
+    #model = model = MobileNetE(roi_size, roi_size, window_size, y_offset = y_offset,nb_classes=2)
     
     log_dir = os.path.join(save_dir, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
-    checkpoint_file = os.path.join(log_dir, 'models', '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
+    checkpoint_file = os.path.join(log_dir, '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
     tb = TensorBoard(log_dir=log_dir)
     mcp = ModelCheckpoint(checkpoint_file, 
                           monitor='loss',
