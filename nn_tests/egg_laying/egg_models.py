@@ -35,6 +35,8 @@ Model = keras.models.Model
 rand_seed = 1337
 np.random.seed(rand_seed)  # for reproducibility
 #%%
+
+#%%
 def _model_single_image(img_input, name):
     name += '_'
     
@@ -107,8 +109,8 @@ def model_window(win_size, roi_size, nb_classes):
         
     model = Model(input_data, output)
     return model
-#%%
-def model_separable(win_size, roi_size, nb_classes):
+
+def model_separable(win_size, roi_size, nb_classes, y_offset=0):
     name = 'separable_conv2d'
     
     input_shape = (roi_size, roi_size, win_size)
@@ -165,14 +167,79 @@ def model_separable(win_size, roi_size, nb_classes):
     x = Dense(1024, name=name+'dense1', activation='elu')(x)
     x = Dropout(0.4)(x)
     
-    x = Dense(win_size*nb_classes)(x)
-    x = Reshape((win_size, nb_classes))(x)
+    x = Dense((win_size-y_offset)*nb_classes)(x)
+    x = Reshape(((win_size-y_offset), nb_classes))(x)
     
     output = Activation('softmax')(x)
         
     model = Model(input_data, output)
     return model
 
+
+def model_separable_large(win_size, roi_size, nb_classes, y_offset=0):
+    name = 'separable_conv2d'
+    
+    input_shape = (roi_size, roi_size, win_size)
+    input_data = Input(shape=input_shape, name='input_all')
+    
+    x = Conv2D(32, (3, 3), padding='same', name=name+'conv0')(input_data)
+    x = Activation('relu', name=name+'conv0_act')(x)
+    x = MaxPooling2D((2, 2), name=name+'conv0_pool')(x)
+    
+    x = SeparableConv2D(64, (3, 3), use_bias=False, name=name+'conv1a')(x)
+    x = BatchNormalization(name=name+'conv1a_bn')(x)
+    x = Activation('relu', name=name+'conv1a_act')(x)
+    
+    x = SeparableConv2D(64, (3, 3), padding='same', name=name+'conv1b')(x)
+    x = BatchNormalization(name=name+'conv1b_bn')(x)
+    x = Activation('relu', name=name+'conv1b_act')(x)
+    
+    x = MaxPooling2D((2, 2), name=name+'conv1_pool')(x)
+    
+    x = SeparableConv2D(128, (3, 3), padding='same', name=name+'conv2a')(x)
+    x = BatchNormalization(name=name+'conv2a_bn')(x)
+    x = Activation('relu', name=name+'conv2a_act')(x)
+    
+    x = SeparableConv2D(128, (3, 3), padding='same', name=name+'conv2b')(x)
+    x = BatchNormalization(name=name+'conv2b_bn')(x)
+    x = Activation('relu', name=name+'conv2b_act')(x)
+    
+    
+    x = MaxPooling2D((2, 2), name=name+'conv2_pool')(x)
+    
+    x = SeparableConv2D(256, (3, 3), padding='same', name=name+'conv3a')(x)
+    x = BatchNormalization(name=name+'conv3a_bn')(x)
+    x = Activation('relu', name=name+'conv3a_act')(x)
+    
+    x = SeparableConv2D(256, (3, 3), padding='same', name=name+'conv3b')(x)
+    x = BatchNormalization(name=name+'conv3b_bn')(x)
+    x = Activation('relu', name=name+'conv3b_act')(x)
+    
+    x = MaxPooling2D((2, 2), name=name+'conv3_pool')(x)
+    
+    x = SeparableConv2D(512, (3, 3), padding='same', name=name+'conv4a')(x)
+    x = BatchNormalization(name=name+'conv4a_bn')(x)
+    x = Activation('relu', name=name+'conv4a_act')(x)
+    
+    x = SeparableConv2D(512, (3, 3), padding='same', name=name+'conv4b')(x)
+    x = BatchNormalization(name=name+'conv4b_bn')(x)
+    x = Activation('relu', name=name+'conv4b_act')(x)
+    
+    x = GlobalMaxPooling2D(name=name+'avg_pool')(x)
+    
+    x = Dense(1024, name=name+'dense0', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense(1024, name=name+'dense1', activation='elu')(x)
+    x = Dropout(0.4)(x)
+    
+    x = Dense((win_size-y_offset)*nb_classes)(x)
+    x = Reshape(((win_size-y_offset), nb_classes))(x)
+    
+    output = Activation('softmax')(x)
+        
+    model = Model(input_data, output)
+    return model
 
 if __name__ == '__main__':
     win_size = 4

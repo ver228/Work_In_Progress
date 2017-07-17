@@ -173,7 +173,8 @@ def process_data(images,
                  pad_size, 
                  tile_corners, 
                  int_alpha = None,
-                 transform_ags={}):
+                 transform_ags={},
+                 ):
     
     def _get_tile_in(img, x,y):
             return img[np.newaxis, x:x+input_size, y:y+input_size, :]
@@ -291,15 +292,23 @@ class ImageMaskGenerator(Iterator):
     
 
 class DirectoryImgGenerator(object):
-    def __init__(self, main_dir, im_size=None, weight_params={}):
+    def __init__(self, 
+                 main_dir, 
+                 im_size=None, 
+                 weight_params={},
+                 only_contours=False
+                 ):
+        
+        self.main_dir = main_dir
+        self.weight_params = weight_params
+        self.im_size = im_size
+        self.only_contours=only_contours
+        
         fnames = os.listdir(main_dir)
         fnames = [x for x in fnames if x.endswith('.png')]
         fnames = sorted(set(x[2:] for x in fnames if x.startswith('X_')))
-        self.main_dir = main_dir
-        self.fnames = fnames
-        self.weight_params = weight_params
-        self.im_size = im_size
         
+        self.fnames = fnames
         #group files by date
         group_dates = {}
         for x  in self.fnames:
@@ -313,7 +322,7 @@ class DirectoryImgGenerator(object):
             
             group_dates[date_str][bn].append(x)
         #I am only including dates that have at least 10 different basenames (plates)
-        group_dates = {x:dat for x, dat in group_dates.items() if len(dat)>10}
+        #group_dates = {x:dat for x, dat in group_dates.items() if len(dat)>10}
         
         #%%
         self.group_dates = group_dates
@@ -344,42 +353,50 @@ class DirectoryImgGenerator(object):
         X = imread(x_name)
         Yo = imread(y_name)
         
-        
         if self.im_size is not None:
             #resize refit image to be between 0-1
             X = resize(X, self.im_size, mode='reflect')*255
             Yo = resize(Yo, self.im_size, mode='reflect')>0
-            
+        
+        if self.only_contours:
+            Yc = Yo - binary_erosion(Yo)
+            Yo = dilation(Yc, disk(1))
+        
         Y = keras.utils.to_categorical(Yo, 2)
         Y = np.reshape(Y, (Yo.shape[0], Yo.shape[1], 2))
         
         
-        if self.weight_params:
+        def _normalize_weigths_by_class(_Y):
+            #normalize the weights for the classes
+            W_label = np.zeros(_Y.shape, K.floatx()) 
+            lab_w = np.mean(_Y)
+            
+            dd = _Y>0
+            W_label[dd] = 1/lab_w 
+            W_label[~dd] = 1/(1-lab_w)
+            return W_label
+        
+        def _increase_border_weight(_Y):
             sigma = self.weight_params['sigma']
             weigth = self.weight_params['weigth']
-            
-            Yc = Yo - binary_erosion(Yo)
-            
+            Yc = _Y - binary_erosion(_Y)
             #increase the weights in the border
             W_border = gaussian_filter(Yc.astype(K.floatx()), sigma=2.5)
             W_border *= (sigma**2)*weigth #normalize weights
+            return W_border
+        
+        
+        W = _normalize_weigths_by_class(Yo)
+        if self.weight_params:
+            W_border = _increase_border_weight(Yo)
+            W += W_border
             
-            #normalize the weights for the classes
-            W_label = np.zeros_like(W_border) 
-            lab_w = np.mean(Yo)
+        # I can add the weights directly to the predictions because 
+        #keras uses y_true * log(y_pred) so y_true can be any number larger than 0
+        #and
+        # categorical_accuracy uses the maximum argument as the real prediction
+        Y = Y*W[..., None]
             
-            dd = Yo>0
-            W_label[dd] = 1/lab_w 
-            W_label[~dd] = 1/(1-lab_w)
-            
-            W = W_label + W_border
-            
-            Y = Y*W[..., None]
-            
-            # I can add the weights directly to the predictions because 
-            #keras uses y_true * log(y_pred) so y_true can be any number larger than 0
-            #and
-            # categorical_accuracy uses the maximum argument as the real prediction
             
         return X,Y
 
@@ -443,8 +460,7 @@ if __name__ == '__main__':
     im_size = (512, 512)
     n_tiles=8
     
-    is_weigth = True
-    
+    only_contours = True
     main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
     
     
@@ -471,6 +487,7 @@ if __name__ == '__main__':
     
     
     gen_d = DirectoryImgGenerator(main_dir, 
+                                  only_contours=only_contours,
                                   im_size = im_size,
                                   weight_params = weight_params
                                   )
@@ -485,16 +502,16 @@ if __name__ == '__main__':
     
     assert gen.output_size == output_size
     #%%
-#    for ii in range(20):
-#        X,Y = gen_d.get_random()
-#        
-#        plt.figure()
-#        plt.subplot(1,3,1)
-#        plt.imshow(np.squeeze(X), cmap='gray')
-#        plt.subplot(1,3,2)
-#        plt.imshow(np.squeeze(Y[...,0]))
-#        plt.subplot(1,3,3)
-#        plt.imshow(np.squeeze(Y[...,1]))
+    for ii in range(1):
+        X,Y = gen_d.get_random()
+        
+        plt.figure()
+        plt.subplot(1,3,1)
+        plt.imshow(np.squeeze(X), cmap='gray')
+        plt.subplot(1,3,2)
+        plt.imshow(np.squeeze(Y[...,0]))
+        plt.subplot(1,3,3)
+        plt.imshow(np.squeeze(Y[...,1]))
 
 
     #%%

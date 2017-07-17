@@ -38,8 +38,10 @@ models = [
         #load_model('unet_norm_w_bn_no_bias-00499-0.9009.h5'),
         #load_model('unet_norm_w_bn_no_bias-00749-0.7128.h5'),
         #load_model('unet_norm_w_bn_no_bias-01499-0.4725.h5')
-        #load_model('unet_norm_w_no_bn-00249-1.6417.h5')
-        load_model('unet_no_bn_no_w-00249-0.5354.h5')
+        #load_model('unet_norm_w_bn_no_bias-03249-0.2715.h5'),
+        #load_model('unet_no_bn_no_w-02999-0.0917.h5'),
+        load_model('unet_norm_w_no_bn-02999-0.3637.h5'),
+        load_model('unet_norm_w_no_bn_cnt-01999-1.3020.h5')
         ]
 
 #%%
@@ -62,8 +64,8 @@ def background_prediction(Xi,
                           model_t, 
                           n_flips = 1,
                           n_tiles=4, 
-                          im_size=(512, 512)
-                          ):
+                          im_size=(512, 512),
+                          _is_debug=False):
     Y_pred = np.zeros(Xi.shape)
     for n_t in range(n_flips):
         
@@ -82,11 +84,12 @@ def background_prediction(Xi,
         for (i,j), yy,xx in zip(tile_corners, y_pred, x_crop):
             Y_pred_s[i:i+output_size, j:j+output_size] += yy[:,:,1]
             
-            plt.figure()
-            plt.subplot(1,2,1)
-            plt.imshow(np.squeeze(xx))
-            plt.subplot(1,2,2)
-            plt.imshow(yy[:,:,1])
+            if _is_debug:
+                plt.figure()
+                plt.subplot(1,2,1)
+                plt.imshow(np.squeeze(xx))
+                plt.subplot(1,2,2)
+                plt.imshow(yy[:,:,1])
             
             
         #%%
@@ -96,52 +99,55 @@ def background_prediction(Xi,
 
      
 
-gen_d = DirectoryImgGenerator(main_dir, 
-                                    im_size = (512, 512),
-                                    weight_params={}
-                                    )
+
     
 if __name__ == '__main__':
     n_tiles=4
     im_size=None
+    n_flips =1
     
-    #fnames = glob.glob(os.path.join(main_dir, 'X_*'))
-    #for ivid, fname in enumerate(random.sample(fnames,5)):
-    for ivid in range(5):
+    gen_d = DirectoryImgGenerator(main_dir, 
+                                    im_size = (512, 512),
+                                    weight_params={}
+                                    )
+    for ivid in range(10):
+    
+    #fnames = glob.glob(os.path.join(main_dir, 'X_0_*'))
+    #for ivid, fname in enumerate(random.sample(fnames,10)):
         #Xi = imread(fname)
+        Xi,Y = gen_d.get_random()
         
         print(ivid)
-        Xi,Y = gen_d.get_random()
         
         Y_pred = []
         for mod in models:
             yy = background_prediction(Xi, 
                                       mod, 
+                                      n_flips=n_flips,
                                       n_tiles=n_tiles,
                                       im_size=im_size
                                       )
             Y_pred.append(yy)
         
         #%%
-        n_rows= len(Y_pred) + 2
+        n_rows= len(Y_pred) + 1
         plt.figure()
         plt.subplot(1,n_rows,1)
         plt.imshow(Xi, cmap='gray')
-        plt.subplot(1,n_rows,2)
-        plt.imshow(Y[:,:,1], cmap='gray')
+        #plt.subplot(1,n_rows,2)
+        #plt.imshow(Y[:,:,1], cmap='gray')
         for irow, yy in enumerate(Y_pred):
-            plt.subplot(1, n_rows, irow+3)    
+            plt.subplot(1, n_rows, irow+2)    
             plt.imshow(yy, interpolation='none')
-        
-        break
+        #break
 #%%
-X = flip_d(Xi, 0)
-im_size = X.shape 
-input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
-#%%
-x_crop = process_data(X, input_size, pad_size, tile_corners) 
-x_crop = np.concatenate(x_crop)
-y_pred = mod.predict_on_batch(x_crop)
+#X = flip_d(Xi, 0)
+#im_size = X.shape 
+#input_size, output_size, pad_size, tile_corners = get_sizes(im_size)
+##%%
+#x_crop = process_data(X, input_size, pad_size, tile_corners) 
+#x_crop = np.concatenate(x_crop)
+#y_pred = mod.predict_on_batch(x_crop)
 #%%
 
 

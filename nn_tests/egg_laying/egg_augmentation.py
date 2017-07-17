@@ -141,7 +141,7 @@ class DirectoryImgGenerator(object):
         #%%
         return seq_x_crop, seq_y
 
-def process_data(seq_x, seq_y, window_size = 4, transform_ags = {}):
+def process_data(seq_x, seq_y, window_size = 4, y_offset=0, transform_ags = {}):
     if len(transform_ags) > 0:
         h,w = seq_x.shape[:-1]
         transform = random_transform(h,w, **transform_ags)
@@ -152,7 +152,9 @@ def process_data(seq_x, seq_y, window_size = 4, transform_ags = {}):
     inds = range(n_seq - window_size)
     
     seq_x_d = [seq_x[:,:,i:i+window_size] for i in inds]
-    seq_y_d = [seq_y[i:i+window_size] for i in inds]
+    
+    
+    seq_y_d = [seq_y[i+y_offset:i+window_size] for i in inds]
     
     return seq_x_d, seq_y_d
     
@@ -163,6 +165,7 @@ class ImageMaskGenerator(Iterator):
                  generator,
                  transform_ags,
                  window_size = 4,
+                 y_offset = 0,
                  batch_size=32, 
                  epoch_size=None,
                  shuffle=True, 
@@ -179,6 +182,7 @@ class ImageMaskGenerator(Iterator):
         self.transform_ags = transform_ags
         self.batch_size = batch_size
         self.window_size = window_size
+        self.y_offset = y_offset
         
         #i really do not use this functionality i could reimplement it in the future
         super(ImageMaskGenerator, self).__init__(self.tot_samples, batch_size, shuffle, seed)
@@ -195,7 +199,7 @@ class ImageMaskGenerator(Iterator):
         
         for ii in range(int(ceil(self.batch_size/n_seq_t))):
             seq_x, seq_y = self.generator.get_random()
-            xx, yy = process_data(seq_x, seq_y, self.window_size, self.transform_ags)
+            xx, yy = process_data(seq_x, seq_y, self.window_size, self.y_offset, self.transform_ags)
             seq_x_t += xx
             seq_y_t += yy
         
@@ -226,14 +230,17 @@ if __name__ == '__main__':
              elastic_sigma=20
              )
     
-    window_size = 4
+    window_size = 5
+    y_offset = 2
+    batch_size = 5
     
     gen_d = DirectoryImgGenerator(save_name, y_weight, im_size)
     
     gen = ImageMaskGenerator(gen_d,
                              transform_ags=transform_ags,
                              window_size=window_size,
-                             batch_size=20)
+                             y_offset = y_offset,
+                             batch_size = batch_size)
     
 #    import time
 #    tic = time.time()
@@ -247,13 +254,15 @@ if __name__ == '__main__':
     for nn in range(batch_x.shape[0]):
         seq_x = batch_x[nn]
         seq_y = batch_y[nn]
-        ncols = seq_y.shape[0]
+        ncols = seq_x.shape[-1]
         
         plt.figure()
         for ii in range(ncols):
             plt.subplot(1, ncols, ii+1)
             plt.imshow(seq_x[...,ii])
-            plt.title(seq_y[ii])
+            
+            if ii >= y_offset:
+                plt.title(seq_y[ii-y_offset])
         
     
     

@@ -2,10 +2,11 @@ module load anaconda3
 module load cuda
 source activate tierpsy
 tensorboard --logdir=$WORK/food/results/logs/ --port=7007
+tensorboard --logdir=$WORK/egg_laying/logs/ --port=7007
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_bn_20170709_123247/unet_norm_bn-08249-0.0071.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
- scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_20170708_214716/unet_norm-09599-0.0098.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_20170708_214716/unet_norm-09599-0.0098.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
 scp "/Users/ajaver/OneDrive - Imperial College London/egg_laying/train_data_eggs.hdf5" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/egg_laying
 
@@ -13,13 +14,9 @@ rsync -vr --exclude '*.h5' /Users/ajaver/Documents/GitHub/work-in-progress/nn_te
 
 rsync -vr "/Users/ajaver/OneDrive - Imperial College London/food/train_set" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/train_set
 
-
-
-
- ssh -L 16006:127.0.0.1:6006 ajaver@login.cx1.hpc.imperial.ac.uk
+ssh -L 16006:127.0.0.1:7007 ajaver@login.cx1.hpc.imperial.ac.uk
 
 /work/ajaver/food/results/logs/unet_norm_w_bn_bias_20170711_091038/unet_norm_w_bn_bias-02249-0.7477.h5
-/work/ajaver/food/results/logs/unet_norm_w_not_bn_20170710_171458/unet_norm_w_not_bn-06499-0.6399.h5
 
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-01999-1.3020.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
-scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_no_bn_no_w_20170714_132705/unet_no_bn_no_w-00249-0.5354.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food

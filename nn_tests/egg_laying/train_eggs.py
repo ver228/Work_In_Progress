@@ -11,6 +11,7 @@ import numpy as np
 
 from egg_augmentation import DirectoryImgGenerator, ImageMaskGenerator
 from egg_models import model_separable
+from modified_mobilenet import MobileNetE
 
 from tensorflow.contrib import keras
 TensorBoard = keras.callbacks.TensorBoard
@@ -19,21 +20,32 @@ Adam = keras.optimizers.Adam
 
 if __name__ == '__main__':
     save_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
+    #save_dir = '/work/ajaver/egg_laying/'
+    
     y_weight = 20
     roi_size = 128
-    window_size = 4
+    window_size = 5
+    y_offset = 2
     im_size = (roi_size, roi_size)
     
     epochs = 20000
-    batch_size = 128
+    batch_size = 32
     saving_period = 250
     
-    model_name='egg_separable_conv2d'
-    model = model_separable(window_size, roi_size, nb_classes=2)
+    #model_name='egg_separable_conv2d'
+    #model = model_separable(window_size, roi_size, nb_classes=2)
+    model_name='egg_mobilenet'
+    model = MobileNetE(roi_size, 
+                       roi_size, 
+                       window_size, 
+                       y_offset = y_offset,
+                       nb_classes=2
+                       )
+    
     
     log_dir = os.path.join(save_dir, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
-    checkpoint_file = os.path.join(log_dir, '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
+    checkpoint_file = os.path.join(log_dir, 'models', '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
     tb = TensorBoard(log_dir=log_dir)
     mcp = ModelCheckpoint(checkpoint_file, 
                           monitor='loss',
@@ -58,7 +70,9 @@ if __name__ == '__main__':
     img_generator = ImageMaskGenerator(gen_d,
                              transform_ags=transform_ags,
                              window_size=window_size,
-                             batch_size=batch_size)
+                             batch_size=batch_size,
+                             y_offset=y_offset
+                             )
     
     model.compile(optimizer=Adam(lr=1e-4), 
                   loss='categorical_crossentropy',

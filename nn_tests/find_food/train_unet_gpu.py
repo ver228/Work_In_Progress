@@ -20,7 +20,7 @@ Adam = keras.optimizers.Adam
 #from keras.optimizers import Adam
 
 from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
-from unet_build import get_unet_model_bn
+from unet_build import get_unet_model
 
 if __name__ == '__main__':
     main_dir = '/work/ajaver/food/train_set'
@@ -29,14 +29,17 @@ if __name__ == '__main__':
     #main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
     #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
     
-    model = get_unet_model_bn()
-    model_name = 'unet_norm_w_bn_no_bias'
+    model = get_unet_model()
+    model_name = 'unet_norm_w_no_bn_cnt'
     
     epochs = 20000
     batch_size = 6
     saving_period = 250
     
+    
     im_size = (512, 512)
+    only_contours = True
+    
     n_tiles = batch_size
     transform_ags = dict(
             rotation_range=90, 
@@ -70,7 +73,8 @@ if __name__ == '__main__':
     
     gen_d = DirectoryImgGenerator(main_dir, 
                                     im_size = im_size,
-                                    weight_params=weight_params
+                                    weight_params=weight_params,
+                                    only_contours = only_contours
                                     )
     img_generator = ImageMaskGenerator(gen_d, 
                              transform_ags, 
