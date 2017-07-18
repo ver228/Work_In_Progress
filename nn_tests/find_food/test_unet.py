@@ -40,8 +40,8 @@ models = [
         #load_model('unet_norm_w_bn_no_bias-01499-0.4725.h5')
         #load_model('unet_norm_w_bn_no_bias-03249-0.2715.h5'),
         #load_model('unet_no_bn_no_w-02999-0.0917.h5'),
-        load_model('unet_norm_w_no_bn-02999-0.3637.h5'),
-        load_model('unet_norm_w_no_bn_cnt-01999-1.3020.h5')
+        load_model('unet_norm_w_no_bn-04249-0.3976.h5'),
+        load_model('unet_norm_w_no_bn_cnt-03499-1.1672.h5')
         ]
 
 #%%
