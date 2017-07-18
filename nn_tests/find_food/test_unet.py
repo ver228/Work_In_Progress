@@ -14,9 +14,8 @@ import random
 from tensorflow.contrib import keras
 load_model = keras.models.load_model
 
-from augmentation import process_data, get_sizes
+from augmentation import process_data, get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 from unet_build import w_pix_categorical_crossentropy
-from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 
 main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set/'
 
@@ -91,8 +90,6 @@ def background_prediction(Xi,
                 plt.subplot(1,2,2)
                 plt.imshow(yy[:,:,1])
             
-            
-        #%%
             N_s[i:i+output_size, j:j+output_size] += 1
         Y_pred += flip_d(Y_pred_s/N_s, n_t)
     return Y_pred

@@ -20,3 +20,7 @@ ssh -L 16006:127.0.0.1:7007 ajaver@login.cx1.hpc.imperial.ac.uk
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-01999-1.3020.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
+
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_20170714_132343/unet_norm_w_no_bn-04249-0.3976.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
+
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-03499-1.1672.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food

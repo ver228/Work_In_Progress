@@ -235,7 +235,7 @@ def get_dark_mask(full_data):
     
     return dark_mask
 
-def get_food_contour(mask_video, 
+def get_food_contour_morph(mask_video, 
                      min_area = None, 
                      n_bins = 180,
                      frac_lowess=0.1,

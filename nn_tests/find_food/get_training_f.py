@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 from tierpsy.helper.misc import get_base_name, RESERVED_EXT
 
+
 def _resize_img(img, dsize, expected_size):
     img = cv2.resize(img, dsize)
     
@@ -105,7 +106,6 @@ if __name__ == '__main__':
             ff = '_{}_{}.png'.format(nn, base_name)
             f2save_x = os.path.join(food_train_dir, 'X'+ff)
             f2save_y = os.path.join(food_train_dir, 'Y'+ff)
-            
             
             cv2.imwrite(f2save_x, img)
             cv2.imwrite(f2save_y, mask)

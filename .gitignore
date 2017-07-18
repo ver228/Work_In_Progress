@@ -20,7 +20,7 @@ Single_Worm_Analysis/build_database/~$problematic_strains.xlsx
 
 work_in_progress/WCON/test.json
 train_cnn/egg_laying/results
-
+nn_tests/find_food/bgnd_results*/
 
 *.pyc
 
