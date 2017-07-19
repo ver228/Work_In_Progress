@@ -250,3 +250,32 @@ if __name__ == '__main__':
                         'coordinates_data',
                         obj=seq_traj_data.to_records(index=False)
                         )
+    
+    #%%
+    
+    #Add indexes to subdivide in training and validation tests
+    with tables.File(save_name, "r") as fid:
+        events_tot = fid.get_node('/X').shape[0]
+    
+    val_frac = 0.05
+    rand_seed = 1337
+    
+    np.random.seed(rand_seed)  # for reproducibility
+    
+    inds = np.random.permutation(events_tot)
+    val_size = np.round(events_tot*val_frac).astype(np.int)
+    
+    
+    all_ind = dict(
+                val = inds[:val_size],
+                train = inds[val_size:]
+               )
+    
+    with tables.File(save_name, "r+") as fid:
+        if '/partitions' in fid:
+            fid.remove_node('/partitions', recursive=True)
+        
+            
+        grp = fid.create_group('/', 'partitions')
+        for field, indexes in all_ind.items():
+            fid.create_array(grp, field, obj=indexes)

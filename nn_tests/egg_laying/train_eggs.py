@@ -32,10 +32,10 @@ if __name__ == '__main__':
     batch_size = 32
     saving_period = 250
     
-    model_name='egg_separable_conv2d'
-    model = model_separable(window_size, roi_size, nb_classes=2, y_offset=y_offset)
-    #model_name='egg_mobilenet'
-    #model = model = MobileNetE(roi_size, roi_size, window_size, y_offset = y_offset,nb_classes=2)
+    #model_name='egg_separable_conv2d'
+    #model = model_separable(window_size, roi_size, nb_classes=2, y_offset=y_offset)
+    model_name='egg_mobilenet'
+    model = model = MobileNetE(roi_size, roi_size, window_size, y_offset = y_offset,nb_classes=2)
     
     log_dir = os.path.join(save_dir, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
@@ -56,13 +56,21 @@ if __name__ == '__main__':
              horizontal_flip=True,
              vertical_flip=True,
              elastic_alpha_range=400,
-             elastic_sigma=20
+             elastic_sigma=20,
+             int_alpha = (0.5,2.25)
              )
     
-    gen_d = DirectoryImgGenerator(save_name, y_weight, im_size)
-    
-    img_generator = ImageMaskGenerator(gen_d,
+    gen_d_train = DirectoryImgGenerator(save_name, y_weight, im_size)
+    train_generator = ImageMaskGenerator(gen_d_train,
                              transform_ags=transform_ags,
+                             window_size=window_size,
+                             batch_size=batch_size,
+                             y_offset=y_offset
+                             )
+    
+    gen_d_val = DirectoryImgGenerator(save_name, y_weight, im_size, set_type='val')
+    val_generator = ImageMaskGenerator(gen_d_val,
+                             transform_ags={},
                              window_size=window_size,
                              batch_size=batch_size,
                              y_offset=y_offset
@@ -72,9 +80,12 @@ if __name__ == '__main__':
                   loss='categorical_crossentropy',
                   metrics=['categorical_accuracy'])
     
-    model.fit_generator(img_generator,
-                        steps_per_epoch = round(img_generator.tot_samples/batch_size), 
+    model.fit_generator(train_generator,
+                        steps_per_epoch = train_generator.tot_samples, 
                         epochs = epochs,
+                        validation_data = val_generator,
+                        validation_steps = val_generator.tot_samples,
                         verbose = 1,
-                        callbacks=[tb, mcp]) #some how they were breaking the mpc ? this crashes...
+                        callbacks=[tb, mcp]
+                        ) #some how they were breaking the mpc ? this crashes...
     

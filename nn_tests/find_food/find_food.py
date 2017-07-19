@@ -333,10 +333,6 @@ if __name__ == '__main__':
             plt.imshow(full_data[nn], cmap='gray')
             plt.plot(circy, circx)
             break
-        #%%
-        
-        
-        
         
         
     #%%

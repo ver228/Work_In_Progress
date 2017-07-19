@@ -89,7 +89,7 @@ def normalize_seq(seq):
     return seq
 
 class DirectoryImgGenerator(object):
-    def __init__(self, file_name, y_weight, im_size):
+    def __init__(self, file_name, y_weight, im_size, set_type='train'):
         self.file_name = file_name
         self.y_weight = y_weight
         self.im_size = im_size
@@ -99,7 +99,10 @@ class DirectoryImgGenerator(object):
             
         with tables.File(self.file_name, "r") as fid:
             self.n_seq = fid.get_node('/X').shape[1]
-        
+            self.valid_indexes = fid.get_node('/partitions/'+set_type)[:]
+            
+        valid = coordinates_data['seq_index'].isin(self.valid_indexes)
+        coordinates_data = coordinates_data[valid]
             
         self.coordinates_data_g = coordinates_data.groupby('seq_index')
         self.valid_rows = list(self.coordinates_data_g.groups.keys())
@@ -143,9 +146,19 @@ class DirectoryImgGenerator(object):
 
 def process_data(seq_x, seq_y, window_size = 4, y_offset=0, transform_ags = {}):
     if len(transform_ags) > 0:
+        if 'int_alpha' in transform_ags:
+            transform_ags = transform_ags.copy()
+            int_alpha = transform_ags['int_alpha']
+            del transform_ags['int_alpha']
+            
         h,w = seq_x.shape[:-1]
         transform = random_transform(h,w, **transform_ags)
         seq_x = transform_img(seq_x, *transform)
+    
+        if int_alpha is not None:
+            alpha = np.random.uniform(int_alpha[0], int_alpha[1])
+            seq_x *= alpha
+        
     
     #divide in smaller sequence in random order
     n_seq = seq_x.shape[-1]
@@ -167,17 +180,15 @@ class ImageMaskGenerator(Iterator):
                  window_size = 4,
                  y_offset = 0,
                  batch_size=32, 
-                 epoch_size=None,
                  shuffle=True, 
                  seed=None
                  ):
        
         self.generator = generator
         
-        if epoch_size is None:
-            self.tot_samples = len(self.generator)
-        else:
-            self.tot_samples = epoch_size
+        #total number of samples
+        tot = len(self.generator)*(self.generator.n_seq - window_size)//batch_size
+        self.tot_samples = tot
         
         self.transform_ags = transform_ags
         self.batch_size = batch_size
@@ -199,10 +210,14 @@ class ImageMaskGenerator(Iterator):
         
         for ii in range(int(ceil(self.batch_size/n_seq_t))):
             seq_x, seq_y = self.generator.get_random()
-            xx, yy = process_data(seq_x, seq_y, self.window_size, self.y_offset, self.transform_ags)
+            xx, yy = process_data(seq_x, 
+                                  seq_y, 
+                                  window_size=self.window_size, 
+                                  y_offset=self.y_offset, 
+                                  transform_ags=self.transform_ags
+                                  )
             seq_x_t += xx
             seq_y_t += yy
-        
         
         #sample and only select batch_size samples
         D = list(zip(seq_x_t, seq_y_t))
@@ -220,21 +235,22 @@ if __name__ == '__main__':
     y_weight = 10
     im_size = (128, 128)
     transform_ags = dict(
-            rotation_range=90, 
+             rotation_range=90, 
              shift_range = 0.1,
              zoom_range = (0.75, 1.5),
              same_zoom = True,
              horizontal_flip = True,
              vertical_flip = True,
              elastic_alpha_range = 400,
-             elastic_sigma=20
+             elastic_sigma=15,
+             int_alpha = (0.5,2.25)
              )
     
     window_size = 5
     y_offset = 2
     batch_size = 5
     
-    gen_d = DirectoryImgGenerator(save_name, y_weight, im_size)
+    gen_d = DirectoryImgGenerator(save_name, y_weight, im_size, set_type='val')
     
     gen = ImageMaskGenerator(gen_d,
                              transform_ags=transform_ags,
