@@ -154,9 +154,7 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
     #%%
     return worm_probs
 
-def process_data(input_d):
-    #%%
-    base_name, eggs = input_d
+def process_data(base_name, eggs, save_results_dir, model):
     
         
     masked_file, skel_file = get_files(cur, base_name)
@@ -165,20 +163,17 @@ def process_data(input_d):
         trajectories_data = fid['/trajectories_data']
     #trajectories_data = trajectories_data[trajectories_data['frame_number']< 1000]
     #%%
-    worm_probs_resized = get_egg_probabilities(masked_file, 
+    Y_pred = get_egg_probabilities(masked_file, 
                                                trajectories_data, 
-                                               model_resized, 
+                                               model=model, 
                                                roi_size = -1,
                                                progress_prefix = base_name + ' model resized -> ' )
-    #%%
-    results = pd.DataFrame(worm_probs_resized, columns=['no_egg_prob', 'egg_prob'])
-    results['true_events'] = np.zeros(results.shape[0])
-    results.loc[eggs['frame_number'].values, 'true_events'] = 1
-    #%%
-    save_name = os.path.join(save_results_dir, base_name + '_eggs.csv')
-    results.to_csv(save_name)
+    Y_true = np.zeros(Y_pred.shape[0])
+    Y_true[eggs['frame_number'].values] = 1
     
-    return (base_name, results)
+    sname = os.path.join(save_results_dir, base_name + '_eggs.npy')
+    np.savez(sname, Y_pred, Y_true)
+    
 
 if __name__ == '__main__':
     #%%
@@ -208,17 +203,16 @@ if __name__ == '__main__':
     vid_group = egg_events.groupby('base_name')
     tot = len(vid_group)
     
-    
     #%%
     #model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
     model_path = 'egg_mobilenet-00649-0.3214.h5'
-    model_resized = load_saved_model(model_path)
+    model_e = load_saved_model(model_path)
     
     results = []
-    gg = [x for x in vid_group]
-    for ii, dd in enumerate(gg):
+    for ii, (base_name, eggs) in enumerate(vid_group):
         try:
             print('{} of {}'.format(ii, tot))
-            results.append(process_data(dd))
+            process_data(base_name, eggs, save_results_dir, model_e)
+
         except:
             pass
