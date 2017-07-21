@@ -179,7 +179,7 @@ def save_indexes_for_training(save_name, BN, X_ind, Y):
 
 if __name__ == '__main__':
     csv_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/results'
-    save_name = 'train_data_eggs.hdf5'
+    save_name = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/train_data_eggs.hdf5'
     
     if not os.path.exists(save_name):
         BN, X, Y = get_indexes_for_training(csv_dir)
@@ -260,16 +260,26 @@ if __name__ == '__main__':
     val_frac = 0.05
     rand_seed = 1337
     
+    
     np.random.seed(rand_seed)  # for reproducibility
     
     inds = np.random.permutation(events_tot)
     val_size = np.round(events_tot*val_frac).astype(np.int)
     
-    
     all_ind = dict(
                 val = inds[:val_size],
                 train = inds[val_size:]
                )
+    
+    inds = np.random.permutation(events_tot)
+    
+    tiny_set = inds[:300] #select a smaller subset of the images for training
+    val_size = np.round(tiny_set.size*0.2).astype(np.int)
+    tiny_ind = dict(
+                val = tiny_set[:val_size],
+                train = tiny_set[val_size:]
+               )
+    
     
     with tables.File(save_name, "r+") as fid:
         if '/partitions' in fid:
@@ -278,4 +288,12 @@ if __name__ == '__main__':
             
         grp = fid.create_group('/', 'partitions')
         for field, indexes in all_ind.items():
+            fid.create_array(grp, field, obj=indexes)
+            
+        
+        if '/tiny' in fid:
+            fid.remove_node('/tiny', recursive=True)
+            
+        grp = fid.create_group('/', 'tiny')
+        for field, indexes in tiny_ind.items():
             fid.create_array(grp, field, obj=indexes)

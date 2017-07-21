@@ -11,15 +11,18 @@ from PyQt5.QtCore import Qt
 
 from image_labeler_ui import Ui_image_labeler
 
-from tierpsy.gui.TrackerViewerAux import TrackerViewerAux_GUI
-from tierpsy.gui.HDF5VideoPlayer import lineEditDragDrop, setChildrenFocusPolicy
+from tierpsy.gui.TrackerViewerAux import TrackerViewerAuxGUI
+from tierpsy.gui.HDF5VideoPlayer import LineEditDragDrop, setChildrenFocusPolicy
+
+
+FILE_NAME = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samplesI.hdf5'
 
 class d_Ui_image_labeler(Ui_image_labeler):
 	def __init__(self):
 		super().__init__()
 
 	def setupUi(self, image_labeler):
-		#widgets that are not present in Ui_image_labeler, but are required by TrackerViewerAux_GUI.
+		#widgets that are not present in Ui_image_labeler, but are required by TrackerViewerAuxGUI.
 		#we just create dummy objects here
 		super().setupUi(image_labeler)
 		self.playButton = QtWidgets.QPushButton()
@@ -30,9 +33,9 @@ class d_Ui_image_labeler(Ui_image_labeler):
 		self.spinBox_step = QtWidgets.QDoubleSpinBox()
 		self.spinBox_frame = QtWidgets.QDoubleSpinBox()
 
-class image_labeler_GUI(TrackerViewerAux_GUI):
+class image_labeler_GUI(TrackerViewerAuxGUI):
 
-	def __init__(self, mask_file=''):
+	def __init__(self, mask_file=FILE_NAME):
 		super().__init__(d_Ui_image_labeler())
 		
 		self.btn_colors = {1:'darkRed', 2:'green', 3:'yellow', 4:'blue', 5:'magenta', 6:'darkCyan'}
@@ -51,14 +54,16 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 		self.ui.spinBox_samp_ord.setValue(0)
 
 
-		mask_file = '/Users/ajaver/OneDrive - Imperial College London/training_data/worm_ROI_samplesI.hdf5'
-		if mask_file:
+		
+		if os.path.exists(mask_file):
 			self.updateVideoFile(mask_file)
 			#self.mainImage.zoomFitInView()
 
 	def updateVideoFile(self, vfilename):
-		if self.fid != -1:
+		try:
 			self.fid.close()
+		except:
+			pass
 
 		with pd.HDFStore(vfilename) as fid:
 			self.sample_data = fid['/sample_data']
@@ -72,7 +77,7 @@ class image_labeler_GUI(TrackerViewerAux_GUI):
 			self.sample_data['label_id'] = 0
 
 		#i want to use the father of TrackerViewerAux_GUI (i do not need the skeleton file updates)
-		super(TrackerViewerAux_GUI, self).updateVideoFile(vfilename)
+		super().updateVideoFile(vfilename)
 		self.ui.spinBox_samp_ord.setMaximum(self.tot_frames - 1)
 
 		#move the the next unanalyzed frame 

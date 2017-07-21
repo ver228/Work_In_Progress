@@ -27,6 +27,13 @@ constraints = keras.constraints
 
 K = keras.backend
 
+load_model = keras.models.load_model
+
+def load_saved_model(model_path):
+    keras.utils.get_custom_objects().update({'relu6':relu6})
+    custom_objects={'DepthwiseConv2D' : DepthwiseConv2D}
+    model = load_model(model_path, custom_objects = custom_objects)
+    return model
 
 def relu6(x):
     return K.relu(x, max_value=6)
@@ -37,37 +44,7 @@ def preprocess_input(x):
     x *= 2.
     return x
 
-def depthwise_conv2d(x, depthwise_kernel, strides=(1, 1), padding='valid',
-                     data_format=None, dilation_rate=(1, 1)):
-    """2D convolution with separable filters.
-    # Arguments
-        x: input tensor
-        depthwise_kernel: convolution kernel for the depthwise convolution.
-        strides: strides tuple (length 2).
-        padding: string, `"same"` or `"valid"`.
-        data_format: string, `"channels_last"` or `"channels_first"`.
-        dilation_rate: tuple of integers,
-            dilation rates for the separable convolution.
-    # Returns
-        Output tensor.
-    # Raises
-        ValueError: if `data_format` is neither `channels_last` or `channels_first`.
-    """
-    if data_format is None:
-        data_format = image_data_format()
-    if data_format not in {'channels_first', 'channels_last'}:
-        raise ValueError('Unknown data_format ' + str(data_format))
 
-    x = _preprocess_conv2d_input(x, data_format)
-    padding = _preprocess_padding(padding)
-    strides = (1,) + strides + (1,)
-
-    x = tf.nn.depthwise_conv2d(x, 
-                               depthwise_kernel,
-                               strides=(1,) + strides + (1,),
-                               padding='VALID',
-                               rate=dilation_rate)
-    return x
 
 class InputSpec(object):
     """Specifies the ndim, dtype and shape of every input to a layer.
@@ -320,14 +297,17 @@ class DepthwiseConv2D(Conv2D):
         return config
 
 
-def MobileNetE(rows=128, 
+def MobileNetE(
+              rows=128, 
               cols=128,
               win_size=4,
-              y_offset=0,
+              y_offset_left = 0,
+              y_offset_right = 0,
               nb_classes=2,
               alpha=1.0,
               depth_multiplier=1,
-              dropout=1e-3
+              dropout=1e-3,
+              name='mobilenet'
               ):
     """Instantiates the MobileNet architecture.
     Note that only TensorFlow is supported for now,
@@ -391,9 +371,11 @@ def MobileNetE(rows=128,
     """
     
     
+    y_size = win_size-y_offset_left-y_offset_right
+    assert y_size > 0
     
     input_shape = (rows, cols, win_size)
-    output_shape = ((win_size-y_offset), nb_classes)
+    output_shape = (y_size, nb_classes)
     
     img_input = Input(shape=input_shape)
     
@@ -433,7 +415,7 @@ def MobileNetE(rows=128,
     x = Reshape(output_shape, name='reshape_2')(x)
     
     # Create model.
-    model = Model(img_input, x, name='mobilenet')
+    model = Model(img_input, x, name=name)
 
     
     return model
@@ -557,9 +539,10 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
     return Activation(relu6, name='conv_pw_%d_relu' % block_id)(x)
 
 if __name__ == '__main__':
-    mod = EggLayingMobileNet(rows=128, 
+    mod = MobileNetE(rows=128, 
               cols=128,
-              win_size=4,
-              y_offset=0,
+              win_size=5,
+              y_offset_left=2,
+              y_offset_right=2,
               nb_classes=2
               )

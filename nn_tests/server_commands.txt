@@ -10,7 +10,7 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm
 
 scp "/Users/ajaver/OneDrive - Imperial College London/egg_laying/train_data_eggs.hdf5" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/egg_laying
 
-rsync -vr --exclude '*.h5' /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests ajaver@login.cx1.hpc.imperial.ac.uk:/home/ajaver
+rsync -vr --exclude '*.h5' --exclude '*.npy' /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests ajaver@login.cx1.hpc.imperial.ac.uk:/home/ajaver
 
 rsync -vr "/Users/ajaver/OneDrive - Imperial College London/food/train_set" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/train_set
 
@@ -20,7 +20,9 @@ ssh -L 16006:127.0.0.1:7007 ajaver@login.cx1.hpc.imperial.ac.uk
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-01999-1.3020.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
-
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_20170714_132343/unet_norm_w_no_bn-04249-0.3976.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-03499-1.1672.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
+
+
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/egg_laying/logs/egg_mobilenet_20170719_093128/egg_mobilenet-00649-0.3214.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/egg_laying

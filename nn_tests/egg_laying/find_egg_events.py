@@ -11,16 +11,44 @@ import pandas as pd
 import numpy as np
 import pymysql
 import matplotlib.pylab as plt
-import multiprocessing as mp
+#import multiprocessing as mp
 
-from keras.models import load_model
+from egg_augmentation import normalize_seq
+from modified_mobilenet import load_saved_model
 
-from egg_trainset import read_egg_events, get_files
 from tierpsy.analysis.ske_create.helperIterROI import generateMoviesROI
-from tierpsy.analysis.ske_init.filterTrajectModel import shift_and_normalize
-
 from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
 
+
+def read_egg_events(fname = 'manually_verified.xlsx'):
+    egg_lists = pd.read_excel(fname)
+    all_eggs = []
+    for ii, row in egg_lists.iterrows():
+        row = row.dropna()
+        row = row.values
+        
+        base_name =  row[0].replace('.hdf5', '')
+        egg_frames = list(map(int, row[1:]))
+        
+        if len(egg_frames) > 0:
+            all_eggs += zip([base_name]*len(egg_frames), egg_frames)
+        
+    egg_events = pd.DataFrame(all_eggs, columns=['base_name', 'frame_number'])
+    return egg_events
+
+def get_files(cur, base_name):
+    sql = '''
+    select results_dir
+    from experiments
+    where base_name ="{}"
+    '''.format(base_name)
+            
+    cur.execute(sql)
+    results_dir, = cur.fetchone()
+    masked_file = os.path.join(results_dir, base_name + '.hdf5')
+    skel_file = os.path.join(results_dir, base_name + '_skeletons.hdf5')
+    
+    return masked_file, skel_file
 
 #%%
 def get_possible_eggs(worm_probs, thresh ):
@@ -77,9 +105,12 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
                                        progress_prefix = progress_prefix)
     roi_model = model.input_shape[1]
     buff_size = model.input_shape[-1]
+    output_size = model.output_shape[-2]
+    assert model.output_shape[-1] == 2
+    
     worm_buff = []
     seq_dat = []
-    worm_probs = np.full((tot_frames, 2), np.nan)
+    worm_probs = np.full((tot_frames, output_size,  2), np.nan)
     for worms_in_frame in ROIs_generator:
         assert len(worms_in_frame) == 1 #we are only dealing with one worm case
         for ind, roi_dat in worms_in_frame.items():
@@ -88,21 +119,25 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
             
             worm_img, roi_corner = roi_dat
             
-            worm_img = worm_img.astype(np.float)
-            worm_img = shift_and_normalize(worm_img)
+            #worm_img = worm_img.astype(np.float)
+            #worm_img = shift_and_normalize(worm_img)
                 
             if worm_img.shape[0] != roi_model:
                 worm_img = cv2.resize(worm_img, (roi_model,roi_model))
             
-    
             if len(worm_buff) < buff_size:
                 worm_buff.append(worm_img)
             else:
                 worm_buff = worm_buff[1:] + [worm_img]
-                worm_seq = np.array(worm_buff)
+                worm_seq = np.array(worm_buff, np.float32)
+                worm_seq = np.rollaxis(worm_seq, 0, 3)
+                worm_seq = normalize_seq(worm_seq)
+                
                 #worm_seq = shift_and_normalize(worm_seq)
-                seq_dat.append((frame_number-1, np.rollaxis(worm_seq, 0, 3)))
-    
+                seq_dat.append((frame_number-1, worm_seq))
+                
+        
+        
         if (len(seq_dat)+1) % 100 == 0:
             frame_numbers, worm_seq_batch = map(np.array, zip(*seq_dat))
             
@@ -115,7 +150,7 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
         frame_numbers, worm_seqs = zip(*seq_dat)
         worm_seqs = np.array(worm_seqs)
         worm_prob = model.predict(worm_seqs, verbose=0)
-        worm_probs[frame_numbers, :] = worm_prob
+        worm_probs[frame_numbers] = worm_prob
     #%%
     return worm_probs
 
@@ -148,14 +183,14 @@ def process_data(input_d):
 if __name__ == '__main__':
     #%%
     #save_results_dir = './results'
-    save_results_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/results'
+    save_results_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/results_N'
     if not os.path.exists(save_results_dir):
         os.makedirs(save_results_dir)
     
     #%%
     #model_trained_path = 'model_egg_laying3_epocs20_20170308_194818.h5'
     #model_trained_path = 'model_egg_laying_diff_20170309_193209.h5'
-    model_paths = '/Volumes/behavgenom_archive$/Avelino/neural_networks/eggs_tests/logs/main_20170328_180144/'
+    #model_paths = '/Volumes/behavgenom_archive$/Avelino/neural_networks/eggs_tests/logs/main_20170328_180144/'
     
     
     egg_events = read_egg_events()
@@ -175,8 +210,9 @@ if __name__ == '__main__':
     
     
     #%%
-    model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
-    model_resized = load_model(model_path_resized)
+    #model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
+    model_path = 'egg_mobilenet-00649-0.3214.h5'
+    model_resized = load_saved_model(model_path)
     
     results = []
     gg = [x for x in vid_group]
@@ -186,4 +222,3 @@ if __name__ == '__main__':
             results.append(process_data(dd))
         except:
             pass
-    

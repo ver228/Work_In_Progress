@@ -15,7 +15,6 @@ import matplotlib.pylab as plt
 import cv2
 
 from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
-from tierpsy.analysis.compress.compressVideo import IMG_FILTERS
 from tierpsy.analysis.ske_init.filterTrajectModel import shift_and_normalize
 
 def plot_seq(seq_worm, irow=0, n_rows=1):
