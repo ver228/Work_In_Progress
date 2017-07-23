@@ -1,8 +1,10 @@
+ssh -L 16006:127.0.0.1:7007 ajaver@login.cx1.hpc.imperial.ac.uk
+
 module load anaconda3
 module load cuda
 source activate tierpsy
-tensorboard --logdir=$WORK/food/results/logs/ --port=7007
 tensorboard --logdir=$WORK/egg_laying/logs/ --port=7007
+tensorboard --logdir=$WORK/food/results/logs/ --port=7007
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_bn_20170709_123247/unet_norm_bn-08249-0.0071.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
@@ -14,7 +16,6 @@ rsync -vr --exclude '*.h5' --exclude '*.npy' /Users/ajaver/Documents/GitHub/work
 
 rsync -vr "/Users/ajaver/OneDrive - Imperial College London/food/train_set" ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/train_set
 
-ssh -L 16006:127.0.0.1:7007 ajaver@login.cx1.hpc.imperial.ac.uk
 
 /work/ajaver/food/results/logs/unet_norm_w_bn_bias_20170711_091038/unet_norm_w_bn_bias-02249-0.7477.h5
 
