@@ -142,16 +142,16 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
             frame_numbers, worm_seq_batch = map(np.array, zip(*seq_dat))
             
             worm_prob_batch = model.predict(worm_seq_batch, verbose=0)
-            worm_probs[frame_numbers, :] = worm_prob_batch
+            worm_probs[frame_numbers] = worm_prob_batch
             seq_dat = []
             #return worm_probs
     
     if len(seq_dat) > 0:
-        frame_numbers, worm_seqs = zip(*seq_dat)
-        worm_seqs = np.array(worm_seqs)
-        worm_prob = model.predict(worm_seqs, verbose=0)
+        frame_numbers, worm_seq_batch = map(np.array, zip(*seq_dat))
+        
+        worm_prob = model.predict(worm_seq_batch, verbose=0)
         worm_probs[frame_numbers] = worm_prob
-    #%%
+    
     return worm_probs
 
 def process_data(base_name, eggs, save_results_dir, model):
@@ -164,14 +164,16 @@ def process_data(base_name, eggs, save_results_dir, model):
     #trajectories_data = trajectories_data[trajectories_data['frame_number']< 1000]
     #%%
     Y_pred = get_egg_probabilities(masked_file, 
-                                               trajectories_data, 
-                                               model=model, 
-                                               roi_size = -1,
-                                               progress_prefix = base_name + ' model resized -> ' )
+                                   trajectories_data, 
+                                   model=model, 
+                                   roi_size = -1,
+                                   progress_prefix = base_name + ' model resized -> ' )
+    
+    
     Y_true = np.zeros(Y_pred.shape[0])
     Y_true[eggs['frame_number'].values] = 1
     
-    sname = os.path.join(save_results_dir, base_name + '_eggs.npy')
+    sname = os.path.join(save_results_dir, base_name + '_eggs')
     np.savez(sname, Y_pred, Y_true)
     
 
@@ -181,6 +183,8 @@ if __name__ == '__main__':
     save_results_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_laying/results_N'
     if not os.path.exists(save_results_dir):
         os.makedirs(save_results_dir)
+    
+    
     
     #%%
     #model_trained_path = 'model_egg_laying3_epocs20_20170308_194818.h5'
@@ -207,12 +211,8 @@ if __name__ == '__main__':
     #model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
     model_path = 'egg_mobilenet-00649-0.3214.h5'
     model_e = load_saved_model(model_path)
-    
     results = []
     for ii, (base_name, eggs) in enumerate(vid_group):
-        try:
-            print('{} of {}'.format(ii, tot))
-            process_data(base_name, eggs, save_results_dir, model_e)
-
-        except:
-            pass
+        print('{} of {}'.format(ii, tot))
+        process_data(base_name, eggs, save_results_dir, model_e)
+        
