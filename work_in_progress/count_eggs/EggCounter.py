@@ -8,7 +8,7 @@ import cv2
 from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QMessageBox
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtCore import Qt, QPointF
-from tierpsy.gui.HDF5VideoPlayer import HDF5VideoPlayerGUI
+from HDF5VideoPlayer import HDF5VideoPlayerGUI
 
 #mask_file = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/control_pulse/pkd2_5min_Ch1_11052017_121414.hdf5'
 #mask_file = '/Users/ajaver/OneDrive - Imperial College London/aggregation/N2_1_Ch1_29062017_182108_comp3.hdf5'
