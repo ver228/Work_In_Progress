@@ -12,9 +12,6 @@ from HDF5VideoPlayer import HDF5VideoPlayerGUI
 
 #mask_file = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/control_pulse/pkd2_5min_Ch1_11052017_121414.hdf5'
 #mask_file = '/Users/ajaver/OneDrive - Imperial College London/aggregation/N2_1_Ch1_29062017_182108_comp3.hdf5'
-mask_file = '/Volumes/behavgenom_archive$/RigRawVideos/PC1/Syngenta_Agar_Screening_003_210717_1/SYN_003_Egg_Set_1_P1.bmp'
-assert os.path.exists(mask_file)
-
 
 MIN_DIST = 2
 TIME_BTW_PRESS_RELEASE = 0.2
@@ -70,7 +67,6 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
 
         self.ui.save_push_button.clicked.connect(self.save_eggs_table)
 
-        self.updateVideoFile(mask_file)
         self.mainImage.zoomFitInView()
 
 
