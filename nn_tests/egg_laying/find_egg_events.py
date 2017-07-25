@@ -35,8 +35,12 @@ def read_egg_events(fname = 'manually_verified.xlsx'):
         
     egg_events = pd.DataFrame(all_eggs, columns=['base_name', 'frame_number'])
     return egg_events
-
-def get_files(cur, base_name):
+#%%
+def get_files(base_name):
+    
+    conn = pymysql.connect(host='localhost', db = 'single_worm_db')
+    cur = conn.cursor()
+    
     sql = '''
     select results_dir
     from experiments
@@ -48,6 +52,7 @@ def get_files(cur, base_name):
     masked_file = os.path.join(results_dir, base_name + '.hdf5')
     skel_file = os.path.join(results_dir, base_name + '_skeletons.hdf5')
     
+    conn.close()
     return masked_file, skel_file
 
 #%%
@@ -97,6 +102,7 @@ def plot_indexes(inds, roi_size=-1, n_rows = 5):
 
 def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, progress_prefix = ''):
     #%%
+    #%%
     tot_frames = trajectories_data['frame_number'].max() + 1
     progress_prefix = progress_prefix + ' Searching egg events'
     ROIs_generator = generateMoviesROI(masked_file, 
@@ -111,6 +117,7 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
     worm_buff = []
     seq_dat = []
     worm_probs = np.full((tot_frames, output_size,  2), np.nan)
+    
     for worms_in_frame in ROIs_generator:
         assert len(worms_in_frame) == 1 #we are only dealing with one worm case
         for ind, roi_dat in worms_in_frame.items():
@@ -119,25 +126,25 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
             
             worm_img, roi_corner = roi_dat
             
-            #worm_img = worm_img.astype(np.float)
-            #worm_img = shift_and_normalize(worm_img)
-                
-            if worm_img.shape[0] != roi_model:
-                worm_img = cv2.resize(worm_img, (roi_model,roi_model))
-            
             if len(worm_buff) < buff_size:
                 worm_buff.append(worm_img)
             else:
                 worm_buff = worm_buff[1:] + [worm_img]
-                worm_seq = np.array(worm_buff, np.float32)
-                worm_seq = np.rollaxis(worm_seq, 0, 3)
-                worm_seq = normalize_seq(worm_seq)
+                try:
+                    worm_seq = np.array(worm_buff, np.float32)
+                except:
+                    import pdb
+                    pdb.set_trace()
+                worm_seq = normalize_seq(worm_seq, channel_axis=0)
+                if worm_img.shape[0] != roi_model:
+                    worm_seq = [cv2.resize(x, (roi_model,roi_model)) for x in worm_seq]
+                
+                worm_seq = np.rollaxis(np.array(worm_seq), 0, 3)
                 
                 #worm_seq = shift_and_normalize(worm_seq)
                 seq_dat.append((frame_number-1, worm_seq))
                 
-        
-        
+    
         if (len(seq_dat)+1) % 100 == 0:
             frame_numbers, worm_seq_batch = map(np.array, zip(*seq_dat))
             
@@ -156,8 +163,11 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
 
 def process_data(base_name, eggs, save_results_dir, model):
     
-        
-    masked_file, skel_file = get_files(cur, base_name)
+    #%%   
+    
+    
+    masked_file, skel_file = get_files(base_name)
+    
     
     with pd.HDFStore(skel_file, 'r') as fid:
         trajectories_data = fid['/trajectories_data']
@@ -171,7 +181,10 @@ def process_data(base_name, eggs, save_results_dir, model):
     
     
     Y_true = np.zeros(Y_pred.shape[0])
-    Y_true[eggs['frame_number'].values] = 1
+    egg_events = eggs['frame_number'].values
+    egg_events = egg_events[egg_events<Y_pred.shape[0]]
+    
+    Y_true[egg_events] = 1
     
     sname = os.path.join(save_results_dir, base_name + '_eggs')
     np.savez(sname, Y_pred, Y_true)
@@ -195,14 +208,13 @@ if __name__ == '__main__':
     egg_events = read_egg_events()
     
     #process only files that has not been finished
-    files_done = [x.replace('_eggs.csv', '') for x in os.listdir(save_results_dir) if x.endswith('_eggs.csv')]
+    files_done = [x.partition('_eggs.')[0] for x in os.listdir(save_results_dir) if x.endswith('_eggs.csv')]
     
     
     idone = egg_events.base_name.isin(files_done)
     egg_events = egg_events[~idone]
     
-    conn = pymysql.connect(host='localhost', db = 'single_worm_db')
-    cur = conn.cursor()
+    
     
     vid_group = egg_events.groupby('base_name')
     tot = len(vid_group)

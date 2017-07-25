@@ -6,8 +6,6 @@ Created on Wed Mar  8 11:11:22 2017
 @author: ajaver
 """
 import os
-import cv2
-import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 import glob
@@ -27,5 +25,5 @@ Y_true = data['arr_1']
 plt.figure()
 for kk in range(Y_pred.shape[1]):
     plt.plot(Y_pred[:,kk,1], '.')
-    plt.plot(Y_true)
+    plt.plot(Y_true, 'x')
 

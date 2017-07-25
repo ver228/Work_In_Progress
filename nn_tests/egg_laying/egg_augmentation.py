@@ -91,16 +91,24 @@ def plot_seq(seq):
         plt.imshow(seq[..., ii], cmap='gray', interpolation='none')
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
-
-def normalize_seq(seq):
+#%%
+def normalize_seq(seq, channel_axis=-1):
+    
+    assert channel_axis == -1 or channel_axis == 0
     seq_e = seq>0
-    for nn in range(seq.shape[-1]):
-        seq_e[..., nn] -= binary_erosion(seq_e[..., nn])
+    
+    if channel_axis == -1:
+        for nn in range(seq.shape[-1]):
+            seq_e[..., nn] -= binary_erosion(seq_e[..., nn])
+    else:
+        for nn in range(seq.shape[0]):
+            seq_e[nn] -= binary_erosion(seq_e[nn])
+    
     seq[seq>0] -= np.median(seq[seq_e])
     seq /= 255.
     
     return seq
-
+#%%
 class DirectoryImgGenerator(object):
     def __init__(self, 
                  file_name,
