@@ -98,7 +98,25 @@ def plot_indexes(inds, roi_size=-1, n_rows = 5):
             plt.imshow(worm_seq[ii], interpolation = 'none', cmap='gray')
             #plt.imshow(worm_seq[:, :, ii], interpolation = 'none', cmap='gray')
             plt.axis('off')
- 
+def _fix_padding(worm_img, roi_corner, roi_size):        
+    if worm_img.shape[0] != roi_size:
+        dd = int(roi_size - worm_img.shape[0])
+        assert dd > 0
+        if roi_corner[1] == 0:
+            worm_img = np.pad(worm_img, ((dd, 0),(0,0)), mode='constant')
+        else:
+            worm_img = np.pad(worm_img, ((0, dd),(0,0)), mode='constant')
+        
+    
+    if worm_img.shape[1] != roi_size:
+        dd = int(roi_size - worm_img.shape[0])
+        if roi_corner[0] == 0:
+            worm_img = np.pad(worm_img, ((0,0),(dd, 0)), mode='constant')
+        else:
+            worm_img = np.pad(worm_img, ((0,0),(0, dd)), mode='constant')
+    
+    assert all(x==roi_size for x in worm_img.shape) 
+    return worm_img
 
 def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, progress_prefix = ''):
     #%%
@@ -120,21 +138,16 @@ def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, 
     
     for worms_in_frame in ROIs_generator:
         assert len(worms_in_frame) == 1 #we are only dealing with one worm case
-        for ind, roi_dat in worms_in_frame.items():
+        for ind, (worm_img, roi_corner) in worms_in_frame.items():
             row_data = trajectories_data.loc[ind]
             frame_number = row_data['frame_number']
-            
-            worm_img, roi_corner = roi_dat
+            worm_img = _fix_padding(worm_img, roi_corner, row_data['roi_size'])
             
             if len(worm_buff) < buff_size:
                 worm_buff.append(worm_img)
             else:
                 worm_buff = worm_buff[1:] + [worm_img]
-                try:
-                    worm_seq = np.array(worm_buff, np.float32)
-                except:
-                    import pdb
-                    pdb.set_trace()
+                worm_seq = np.array(worm_buff, np.float32)
                 worm_seq = normalize_seq(worm_seq, channel_axis=0)
                 if worm_img.shape[0] != roi_model:
                     worm_seq = [cv2.resize(x, (roi_model,roi_model)) for x in worm_seq]
@@ -208,8 +221,7 @@ if __name__ == '__main__':
     egg_events = read_egg_events()
     
     #process only files that has not been finished
-    files_done = [x.partition('_eggs.')[0] for x in os.listdir(save_results_dir) if x.endswith('_eggs.csv')]
-    
+    files_done = [x.partition('_eggs.')[0] for x in os.listdir(save_results_dir) if '_eggs' in x]
     
     idone = egg_events.base_name.isin(files_done)
     egg_events = egg_events[~idone]
