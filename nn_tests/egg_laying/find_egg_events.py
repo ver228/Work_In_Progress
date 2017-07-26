@@ -115,7 +115,9 @@ def _fix_padding(worm_img, roi_corner, roi_size):
         else:
             worm_img = np.pad(worm_img, ((0,0),(0, dd)), mode='constant')
     
-    assert all(x==roi_size for x in worm_img.shape) 
+    if not all(x==roi_size for x in worm_img.shape):
+        import pdb
+        pdb.set_trace()
     return worm_img
 
 def get_egg_probabilities(masked_file, trajectories_data, model, roi_size = -1, progress_prefix = ''):

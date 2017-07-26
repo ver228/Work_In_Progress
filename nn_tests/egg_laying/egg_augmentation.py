@@ -11,12 +11,14 @@ import numpy as np
 import pandas as pd
 from math import ceil
 import random
+import cv2
 import matplotlib.pylab as plt
 from skimage.transform import resize
 from skimage.morphology import binary_erosion
 
 from keras.preprocessing.image import Iterator
 from keras.utils import to_categorical
+
 
 import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'find_food'))
@@ -316,15 +318,40 @@ if __name__ == '__main__':
         seq_x = batch_x[nn]
         seq_y = batch_y[nn]
         ncols = seq_x.shape[-1]
+        #%%
         
-        plt.figure()
+        mid = seq_x.shape[-1]//2
+        plt.figure(figsize=(15,10))
         for ii in range(ncols):
-            plt.subplot(1, ncols, ii+1)
+            plt.subplot(2, ncols, ii+1)
             plt.imshow(seq_x[...,ii])
-            
             yi = ii-y_offset_left
             if yi >= 0 and yi < seq_y.shape[0]:
                 plt.title(seq_y[ii-y_offset_left])
+            
+            if ii != mid:
+                img1 = seq_x[...,mid]
+                img2= seq_x[...,ii]
+                if ii < mid:
+                    img1, img2 = img2, img1
+                
+                flow = cv2.calcOpticalFlowFarneback(img1, img2, None, 0.5, 3, 5, 3, 5, 1.2, 0)
+                flow -= np.mean(flow, axis=(0,1)) #substract the median flow to compensate for camera motion
+                
+                bot = np.min(flow)
+                top = np.max(flow)
+                flow_n = ((flow-bot)/(top-bot)*255).astype(np.uint8)
+                
+                flow_rbg = np.zeros((flow.shape[0], flow.shape[1], 3), np.uint8)
+                flow_rbg[..., :2] = flow_n
+                plt.subplot(2, ncols, ncols+ii+1)
+                plt.imshow(flow_rbg)
+                
+                if False:
+                    for nn in range(2):
+                        plt.subplot(3, ncols, (nn+1)*ncols+ii+1)
+                        plt.imshow(flow[...,nn])
+                
+            
         
-    
-    
+        print('h')

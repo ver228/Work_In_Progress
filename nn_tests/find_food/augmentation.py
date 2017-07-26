@@ -21,7 +21,7 @@ from functools import partial
 
 import keras.backend as K
 from keras.preprocessing.image import Iterator
-
+from keras.utils import to_categorical
 
 
 #%%
@@ -119,8 +119,11 @@ def random_transform(h,
     transform_mat = np.dot(shift_mat, rot_mat)
     transform_mat = np.dot(transform_mat, zoom_mat)
     
-    elastic_inds = elastic_transform(h, w, elastic_alpha_range, elastic_sigma)
-    
+    if elastic_alpha_range is not None and elastic_sigma is not None:
+        elastic_inds = elastic_transform(h, w, elastic_alpha_range, elastic_sigma)
+    else:
+        elastic_inds = None
+        
     is_h_flip =  horizontal_flip and np.random.random() < 0.5
     is_v_flip =  vertical_flip and np.random.random() < 0.5
         
@@ -143,7 +146,9 @@ def _transform_img(img, transform_matrix, is_h_flip, is_v_flip, elastic_inds):
     if is_v_flip:
         img_aug = img_aug[:, ::-1] 
     
-    img_aug = map_coordinates(img_aug, elastic_inds, order=1).reshape((img.shape))
+    if elastic_inds is not None:
+        img_aug = map_coordinates(img_aug, elastic_inds, order=1).reshape((img.shape))
+    
     return img_aug
 
 def transform_img(D,
@@ -359,7 +364,7 @@ class DirectoryImgGenerator(object):
             Yc = Yo - binary_erosion(Yo)
             Yo = dilation(Yc, disk(1))
         
-        Y = keras.utils.to_categorical(Yo, 2)
+        Y = to_categorical(Yo, 2)
         Y = np.reshape(Y, (Yo.shape[0], Yo.shape[1], 2))
         
         

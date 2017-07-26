@@ -11,7 +11,8 @@ import pandas as pd
 from scipy.ndimage.filters import gaussian_filter
 
 import sys
-sys.path.append("../find_food")
+dname = os.path.dirname(__file__)
+sys.path.append(os.path.join(dname, "..", "find_food"))
 
 
 from skimage.io import imread
@@ -82,12 +83,16 @@ class DirectoryImgGenerator(object):
                  weight_params={}
                  ):
         
+        fnames = os.listdir(main_dir)
+        fnames = [x for x in fnames if x.endswith('.bmp')]
+        if fnames:
+            raise ValueError("Directory {} does not contain .bmp files.".format(main_dir))
+        
+        
         self.main_dir = main_dir
         self.weight_params = weight_params
         self.im_size = im_size
         self.weight_params = weight_params 
-        fnames = os.listdir(main_dir)
-        fnames = [x for x in fnames if x.endswith('.bmp')]
         self.fnames = fnames
         
         
