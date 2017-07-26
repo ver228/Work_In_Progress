@@ -6,31 +6,23 @@ Created on Tue Mar  7 17:13:12 2017
 @author: ajaver
 """
 
-import matplotlib.pylab as plt
 import numpy as np
-import tables
-import time
-import os
 
-from tensorflow.contrib import keras
+from keras import layers
+from keras.layers import Input
+from keras.layers import SeparableConv2D
+from keras.layers import Conv2D
+from keras.layers import MaxPooling2D
+from keras.layers import GlobalMaxPooling2D
 
-layers = keras.layers
-Input = keras.layers.Input
-Conv2D = keras.layers.Conv2D
-SeparableConv2D = keras.layers.SeparableConv2D
-MaxPooling2D = keras.layers.MaxPooling2D
-GlobalMaxPooling2D = keras.layers.GlobalMaxPooling2D
+from keras.layers import Dropout
+from keras.layers import Dense
+from keras.layers import Reshape
+from keras.layers import Lambda
+from keras.layers import Activation
+from keras.layers import BatchNormalization
 
-Dropout = keras.layers.Dropout
-Dense = keras.layers.Dense
-Reshape = keras.layers.Reshape 
-Lambda = keras.layers.Lambda
-Activation = keras.layers.Activation
-BatchNormalization = keras.layers.BatchNormalization
-
-concatenate = keras.layers.concatenate
-
-Model = keras.models.Model
+from keras.models import Model
 
 rand_seed = 1337
 np.random.seed(rand_seed)  # for reproducibility

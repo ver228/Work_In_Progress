@@ -30,7 +30,7 @@ module load cuda
 ## This job requires CUDA support.
 
 source activate tierpsy
-python $HOME/nn_tests/egg_laying/train_eggs.py --window_size {} --y_offset_left {} --y_offset_right {} --is_tiny True
+KERAS_BACKEND=tensorflow python $HOME/nn_tests/egg_laying/train_eggs.py --window_size {} --y_offset_left {} --y_offset_right {} --is_tiny True
 '''
 
 window_sizes = [3, 5, 7]

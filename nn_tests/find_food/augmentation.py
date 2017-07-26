@@ -19,11 +19,8 @@ import os
 import multiprocessing as mp
 from functools import partial
 
-from tensorflow.contrib import keras
-K = keras.backend
-Iterator = keras.preprocessing.image.Iterator
-#from keras.preprocessing.image import Iterator
-#from keras import backend as K
+import keras.backend as K
+from keras.preprocessing.image import Iterator
 
 
 
@@ -445,11 +442,11 @@ def get_sizes(im_size, d4a_size= 24, n_tiles=4):
         
         if len(tile_corners) != n_tiles:
             nn = n_tiles-len(tile_corners)
-            extra_tiles = np.random.randint(0, int(input_size-output_size), (nn, 2))
+            extra_tiles = np.random.randint(0, int(im_size[0]-output_size), (nn, 2))
             tile_corners += [tuple(x) for x in extra_tiles]
-#%%
-    return input_size, output_size, pad_size, tile_corners
 
+    return input_size, output_size, pad_size, tile_corners
+#%%
 if __name__ == '__main__':
     import matplotlib.pylab as plt
 

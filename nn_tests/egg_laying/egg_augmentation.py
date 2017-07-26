@@ -15,11 +15,8 @@ import matplotlib.pylab as plt
 from skimage.transform import resize
 from skimage.morphology import binary_erosion
 
-
-from tensorflow.contrib import keras
-K = keras.backend
-Iterator = keras.preprocessing.image.Iterator
-to_categorical =  keras.utils.to_categorical
+from keras.preprocessing.image import Iterator
+from keras.utils import to_categorical
 
 import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'find_food'))

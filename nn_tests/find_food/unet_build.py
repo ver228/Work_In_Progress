@@ -8,25 +8,23 @@ Created on Thu Jul  6 11:04:11 2017
 
 from math import ceil, floor
 
-from tensorflow.contrib import keras
-Input = keras.layers.Input
-Conv2D = keras.layers.Conv2D
-MaxPooling2D = keras.layers.MaxPooling2D
-Dropout = keras.layers.Dropout
-concatenate = keras.layers.concatenate
-Conv2DTranspose = keras.layers.Conv2DTranspose
-Cropping2D = keras.layers.Cropping2D
-Activation = keras.layers.Activation
-BatchNormalization = keras.layers.BatchNormalization
+from keras.layers import Input 
+from keras.layers import Conv2D 
+from keras.layers import MaxPooling2D 
+from keras.layers import Dropout 
+from keras.layers import concatenate 
+from keras.layers import Conv2DTranspose 
+from keras.layers import Cropping2D 
+from keras.layers import Activation 
+from keras.layers import BatchNormalization 
 
-Model = keras.models.Model
+from keras.models import Model
 
-#from keras.models import Model
-#from keras.layers import Input, Conv2D, MaxPooling2D, Dropout, \
-#concatenate, Conv2DTranspose, Cropping2D, Activation
 
 #%% METRICS
 import tensorflow as tf
+from keras.metrics import categorical_accuracy
+
 _EPSILON = 10e-8    
 def _to_tensor(x, dtype):
     """Convert the input `x` to a tensor of type `dtype`.
@@ -61,9 +59,9 @@ def w_pix_categorical_crossentropy(w_y_true, y_pred, from_logits=False):
     
 def w_categorical_accuracy(w_y_true, y_pred, from_logits=False):
     y_true = w_y_true[:,:,:,:-1]
-    return keras.metrics.categorical_accuracy(y_true, y_pred)
+    return categorical_accuracy(y_true, y_pred)
     
-    
+
     
     
 #%%

@@ -13,11 +13,11 @@ from egg_augmentation import DirectoryImgGenerator, ImageMaskGenerator
 from egg_models import model_separable
 from modified_mobilenet import MobileNetE, load_saved_model
 
-from tensorflow.contrib import keras
-load_model = keras.models.load_model
-TensorBoard = keras.callbacks.TensorBoard
-ModelCheckpoint = keras.callbacks.ModelCheckpoint
-Adam = keras.optimizers.Adam
+from keras.models import load_model
+from keras.callbacks import TensorBoard
+from keras.callbacks import ModelCheckpoint
+from keras.optimizers import Adam
+
 
 #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
 SAVE_DIR = '/work/ajaver/egg_laying'
@@ -34,8 +34,6 @@ def main(
         saving_period = 50,
         model_path = None
         ):
-
-if __name__ == '__main__':
     
     assert window_size - y_offset_left - y_offset_right > 0
     im_size = (roi_size, roi_size)

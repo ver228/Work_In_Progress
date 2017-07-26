@@ -9,17 +9,10 @@ import os
 import time
 import numpy as np
 
-from tensorflow.contrib import keras
-TensorBoard = keras.callbacks.TensorBoard
-ModelCheckpoint = keras.callbacks.ModelCheckpoint
-K = keras.backend
-Adam = keras.optimizers.Adam
-RMSprop = keras.optimizers.RMSprop
-
-
-#from keras.callbacks import TensorBoard, ModelCheckpoint
-#from keras import backend as K
-#from keras.optimizers import Adam
+from keras.callbacks import TensorBoard
+from keras.callbacks import ModelCheckpoint
+from keras.optimizers import Adam
+from keras.optimizers import RMSprop
 
 from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 from unet_build import get_unet_model

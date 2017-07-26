@@ -5,8 +5,7 @@ Created on Tue Jul 18 11:16:02 2017
 
 @author: ajaver
 """
-from tensorflow.contrib import keras
-load_model = keras.models.load_model
+from keras.models import load_model
 
 import tables
 import glob

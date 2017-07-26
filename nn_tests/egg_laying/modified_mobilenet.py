@@ -6,31 +6,30 @@ MobileNet v1 models for Keras.
    Mobile Vision Applications](https://arxiv.org/pdf/1704.04861.pdf))
 """
 
-import warnings
-
 import tensorflow as tf
-from tensorflow.contrib import keras
-Model = keras.models.Model
 
-Input = keras.layers.Input
-Activation = keras.layers.Activation
-Dropout = keras.layers.Dropout
-Reshape = keras.layers.Reshape
-BatchNormalization = keras.layers.BatchNormalization
-GlobalAveragePooling2D = keras.layers.GlobalAveragePooling2D
-GlobalMaxPooling2D = keras.layers.GlobalMaxPooling2D
-Conv2D = keras.layers.Conv2D
+from keras.layers import Input
+from keras.layers import Activation
+from keras.layers import Dropout
+from keras.layers import Reshape
+from keras.layers import BatchNormalization
+from keras.layers import GlobalAveragePooling2D
+from keras.layers import Conv2D
 
-initializers = keras.initializers
-regularizers = keras.regularizers
-constraints = keras.constraints
+from keras import initializers
+from keras import regularizers
+from keras import constraints
 
-K = keras.backend
+from keras.models import Model
+from keras.models import load_model
 
-load_model = keras.models.load_model
+from keras import backend as K
+
+from keras.utils import get_custom_objects
+
 
 def load_saved_model(model_path):
-    keras.utils.get_custom_objects().update({'relu6':relu6})
+    get_custom_objects().update({'relu6':relu6})
     custom_objects={'DepthwiseConv2D' : DepthwiseConv2D}
     model = load_model(model_path, custom_objects = custom_objects)
     return model
