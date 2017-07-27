@@ -14,7 +14,7 @@ import matplotlib.pylab as plt
 #import multiprocessing as mp
 
 from egg_augmentation import normalize_seq
-from modified_mobilenet import load_saved_model
+from modified_mobilenet import load_saved_model, MobileNetE
 
 from tierpsy.analysis.ske_create.helperIterROI import generateMoviesROI
 from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
@@ -109,7 +109,7 @@ def _fix_padding(worm_img, roi_corner, roi_size):
         
     
     if worm_img.shape[1] != roi_size:
-        dd = int(roi_size - worm_img.shape[0])
+        dd = int(roi_size - worm_img.shape[1])
         if roi_corner[0] == 0:
             worm_img = np.pad(worm_img, ((0,0),(dd, 0)), mode='constant')
         else:
@@ -203,7 +203,6 @@ def process_data(base_name, eggs, save_results_dir, model):
     
     sname = os.path.join(save_results_dir, base_name + '_eggs')
     np.savez(sname, Y_pred, Y_true)
-    
 
 if __name__ == '__main__':
     #%%
@@ -235,8 +234,22 @@ if __name__ == '__main__':
     
     #%%
     #model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
-    model_path = 'egg_mobilenet-00649-0.3214.h5'
-    model_e = load_saved_model(model_path)
+    #model_path = 'egg_mobilenet-00649-0.3214.h5'
+    model_path = 'egg_mobilenet_W5-2-2_R128_B32-00299-0.3961.h5'
+    
+    try:
+        model_e = load_saved_model(model_path)
+    except:
+        model_e = MobileNetE(rows=128, 
+              cols=128,
+              win_size=5,
+              y_offset_left=2,
+              y_offset_right=2,
+              nb_classes=2
+              )
+        model_e.load_weights(model_path)
+    
+    
     results = []
     for ii, (base_name, eggs) in enumerate(vid_group):
         print('{} of {}'.format(ii, tot))

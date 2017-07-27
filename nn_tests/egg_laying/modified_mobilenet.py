@@ -25,13 +25,22 @@ from keras.models import load_model
 
 from keras import backend as K
 
-from keras.utils import get_custom_objects
+
+
 
 
 def load_saved_model(model_path):
-    get_custom_objects().update({'relu6':relu6})
-    custom_objects={'DepthwiseConv2D' : DepthwiseConv2D}
-    model = load_model(model_path, custom_objects = custom_objects)
+    #%%
+    
+    model = load_model(model_path, custom_objects = {'relu6':relu6, 'DepthwiseConv2D' : DepthwiseConv2D})
+#%%
+#    except:
+#        from tensorflow.contrib import keras as KK
+#        KK.utils.get_custom_objects().update({'relu6':relu6})
+#        custom_objects={'DepthwiseConv2D' : DepthwiseConv2D}
+#        model = KK.models.load_model(model_path, custom_objects = custom_objects)
+        
+    
     return model
 
 def relu6(x):

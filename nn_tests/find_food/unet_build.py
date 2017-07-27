@@ -20,6 +20,65 @@ from keras.layers import BatchNormalization
 
 from keras.models import Model
 
+## in model.load_model:
+# add import
+from .utils.io_utils import ask_to_proceed_with_overwrite, update_config
+
+# At 225 add a version check and call an updating function
+model_config = json.loads(model_config.decode('utf-8'))
+
+k_version = float(f.attrs.get('keras_version')[0])
+if k_version < 2:
+    # Have to rename params to load old models
+    model_config = update_config(model_config)
+
+model = model_from_config(model_config, custom_objects=custom_objects)
+
+## in utils.io_utils:
+# add imports
+from ..legacy.interfaces import all_conversions, all_value_conversions, raise_duplicate_arg_error
+
+# update function
+def update_config(model_config):
+    """Update outdated config parameters from <2.0
+    # Arguments
+        model_config: json-decoded model_config from load_model()
+    # Returns
+        model_config: update model_config
+    """
+
+
+
+    for l in model_config['config']['layers']:
+
+        # Specific to Convolution2D
+        if l['class_name'] == "Convolution2D":
+            l['config']['kernel_size'] = [l['config'].pop('nb_row'),
+                                          l['config'].pop('nb_col')]
+
+        if 'W_regularizer' in l['config'].keys():
+            if l['config']['W_regularizer']:
+                l['config']['W_regularizer'].pop('name')
+                l1_val = l['config']['W_regularizer'].pop('l1')
+                l2_val = l['config']['W_regularizer'].pop('l2')
+                l['config']['W_regularizer'][u'class_name'] = u'L1L2'
+                l['config']['W_regularizer'][u'config'] = {u'l1': l1_val,
+                                                           u'l2': l2_val}
+
+        for key in all_value_conversions:
+            if key in l['config']:
+                old_value = l['config'][key]
+                if old_value in all_value_conversions[key]:
+                    l['config'][key] = all_value_conversions[key][old_value]
+        for old_name, new_name in all_conversions:
+            if old_name in l['config']:
+                value = l['config'].pop(old_name)
+                if new_name in l['config']:
+                    raise_duplicate_arg_error(old_name, new_name)
+                l['config'][new_name] = value
+
+    return model_config
+
 
 #%% METRICS
 import tensorflow as tf
@@ -60,7 +119,74 @@ def w_pix_categorical_crossentropy(w_y_true, y_pred, from_logits=False):
 def w_categorical_accuracy(w_y_true, y_pred, from_logits=False):
     y_true = w_y_true[:,:,:,:-1]
     return categorical_accuracy(y_true, y_pred)
+
+#%%
+def get_unet_small(input_shape = (444, 444, 1), n_outputs=2):
+    #    #NOTES:
+    #    #Conv2D defaults are:
+    #    #kernel_initializer='glorot_uniform' is also known as Xavier
+    #    #padding='valid' means "no padding"
+    #    
+    #    # if we include the batch normalization we could use use_bias=False, 
+    #    #x = BatchNormalization(name='norm_d0a-b')(x)
     
+    
+    data =  Input(shape=input_shape, name='loaddata')
+    d0b = Conv2D(64, (3, 3), name='conv_d0a-b', activation='relu')(data)
+    d0c = Conv2D(64, (3, 3), name='conv_d0b-c', activation='relu')(d0b)
+    
+    d1a = MaxPooling2D((2, 2), strides=(2, 2), name='pool_d0c-1a')(d0c)
+    d1b = Conv2D(128, (3, 3), name='conv_d1a-b', activation='relu')(d1a)
+    d1c = Conv2D(128, (3, 3), name='conv_d1b-c', activation='relu')(d1b)
+    
+    d2a = MaxPooling2D((2, 2), strides=(2, 2), name='pool_d1c-2a')(d1c)
+    d2b = Conv2D(256, (3, 3), name='conv_d2a-b', activation='relu')(d2a)
+    d2c = Conv2D(256, (3, 3), name='conv_d2b-c', activation='relu')(d2b)
+    
+    d3a = MaxPooling2D((2, 2), strides=(2, 2), name='pool_d2c-3a')(d2c)
+    d3b = Conv2D(512, (3, 3), name='conv_d3a-b', activation='relu')(d3a)
+    d3c = Conv2D(512, (3, 3), name='conv_d3b-c', activation='relu')(d3b)
+    d3c = Dropout(0.5, name='dropout_d3c')(d3c)
+    
+    u2a = Conv2DTranspose(256, 
+                          (2, 2), 
+                          strides=(2, 2),
+                          name='upconv_u3d_u2a', 
+                          padding='valid',
+                          activation='relu')(d3c)
+    d2cc = Cropping2D(cropping=_get_crop_size(d3c, d2c), name= 'crop_d2c-d2cc')(d2c)
+    u2b = concatenate([u2a, d2cc], axis=3,  name= 'concat_d2cc_u2a-b')
+    u2c = Conv2D(256, (3, 3), name='conv_u2b-c', activation='relu')(u2b)
+    u2d = Conv2D(256, (3, 3), name='conv_u2c-d', activation='relu')(u2c)
+    
+    u1a = Conv2DTranspose(128, 
+                          (2, 2), 
+                          strides=(2, 2),
+                          name='upconv_u2d_u1a', 
+                          padding='valid',
+                          activation='relu')(u2d)
+    d1cc = Cropping2D(cropping=_get_crop_size(u2d, d1c), name= 'crop_d1c-d1cc')(d1c)
+    u1b = concatenate([u1a, d1cc], axis=3,  name= 'concat_d1cc_u1a-b')
+    u1c = Conv2D(128, (3, 3), name='conv_u1b-c', activation='relu')(u1b)
+    u1d = Conv2D(128, (3, 3), name='conv_u1c-d', activation='relu')(u1c)
+    
+    u0a = Conv2DTranspose(64, 
+                          (2, 2), 
+                          strides=(2, 2),
+                          name='upconv_u1d_u0a', 
+                          padding='valid',
+                          activation='relu')(u1d)
+    d0cc = Cropping2D(cropping=_get_crop_size(u1d, d0c), name= 'crop_d0c-d0cc')(d0c)
+    u0b = concatenate([u0a, d0cc], axis=3,  name= 'concat_d0cc_u0a-b')
+    u0c = Conv2D(64, (3, 3), name='conv_u0b-c', activation='relu')(u0b)
+    u0d = Conv2D(64, (3, 3), name='conv_u0c-d', activation='relu')(u0c)
+    
+    score = Conv2D(n_outputs, (1, 1), name='conv_u0c-score', activation='relu')(u0d)
+    loss = Activation('softmax')(score)
+    
+    model = Model(data, loss)
+        
+    return model
 
     
     
@@ -249,4 +375,4 @@ def get_unet_model_bn(input_shape = (444, 444, 1), n_outputs=2):
 
 if __name__ == '__main__':
     mod = get_unet_model((444, 444, 1))
-    mod_bn = get_unet_model_bn((444, 444, 1))
+    mod_bn = get_unet_small((260, 260, 1))

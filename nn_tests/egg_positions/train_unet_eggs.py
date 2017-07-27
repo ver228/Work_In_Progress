@@ -11,56 +11,48 @@ import numpy as np
 
 from keras.callbacks import TensorBoard
 from keras.callbacks import ModelCheckpoint
-from keras.optimizers import Adam
-from keras.optimizers import RMSprop
+from keras.optimizers import Adam, RMSprop
 
-from egg_augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
-from unet_build import get_unet_model
+from egg_p_augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
+from unet_build import get_unet_model, get_unet_small
 
 if __name__ == '__main__':
     epochs = 20000
-    batch_size = 6
+    batch_size = 24#6
     saving_period = 50
     im_size = ((2048, 2048))
     n_tiles = batch_size
     
-    transform_ags = dict(
-            rotation_range=90, 
-             shift_range = 0.1,
-             zoom_range = (0.9, 1.5),
-             horizontal_flip=True,
-             vertical_flip=True,
-             elastic_alpha_range=None,
-             elastic_sigma=None,
-             int_alpha=(0.5,2.25)
-             )
+#    transform_ags = dict(
+#            rotation_range=90, 
+#             shift_range = 0.1,
+#             zoom_range = (0.9, 1.5),
+#             horizontal_flip=True,
+#             vertical_flip=True,
+#             elastic_alpha_range=None,
+#             elastic_sigma=None,
+#             int_alpha=(0.5,2.25)
+#             )
+    transform_ags = {}
     
-    weight_params = dict(
-            sigma = 5,
-            weigth = 20
-            )
+    #main_dir = '/work/ajaver/egg_counter/train_set'
+    #SAVE_DIR = '/work/ajaver/egg_counter/results'
     
-    main_dir = '/work/ajaver/egg_counter/train_set'
-    SAVE_DIR = '/work/ajaver/egg_counter/results'
-    
-    #main_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/example'
-    #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/results'
+    main_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/example'
+    SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/results'
     
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
     
-    model = get_unet_model()
+    input_size, output_size, pad_size, _ = get_sizes(im_size, d4a_size=24, n_conv_layers=3)
+    model = get_unet_small(input_shape = (input_size, input_size, 1), n_outputs=2)
+    
     model_name = 'unet_eggs_Adam5'
     
-    optimizer = Adam(lr=1e-5)
-    #optimizer = RMSprop(lr=1e-5, rho=0.99)
+    optimizer = Adam(lr=1e-4)
+    #optimizer = RMSprop(lr=1e-4, rho=0.9)
     
-    
-    gen_d = DirectoryImgGenerator(main_dir, 
-                                  weight_params=weight_params)
-    
-    input_size, output_size, pad_size, tile_corners = get_sizes(im_size, n_random_tiles=n_tiles, d4a_size=24)
-    
+    gen_d = DirectoryImgGenerator(main_dir)
     
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
@@ -72,23 +64,20 @@ if __name__ == '__main__':
                           mode='auto', 
                           period=saving_period)
     
-    gen_d = DirectoryImgGenerator(main_dir, 
-                                  weight_params=weight_params)
+    gen_d = DirectoryImgGenerator(main_dir)
     
     img_generator = ImageMaskGenerator(gen_d, 
                              transform_ags, 
                              pad_size,
                              input_size,
-                             tile_corners,
+                             n_tiles=n_tiles,
                              batch_size=batch_size,
                              epoch_size = batch_size*20,
                              )
     
-    
-    
     model.compile(optimizer=optimizer, 
-                  loss='categorical_crossentropy',
-                  metrics=['categorical_accuracy'])
+                  loss='categorical_crossentropy'
+                  )
     
     model.fit_generator(img_generator,
                         steps_per_epoch = round(img_generator.tot_samples/batch_size), 
