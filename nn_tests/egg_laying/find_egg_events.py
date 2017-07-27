@@ -235,7 +235,7 @@ if __name__ == '__main__':
     #%%
     #model_path_resized = os.path.join(model_paths, 'main_resized-008-0.0891.h5')
     #model_path = 'egg_mobilenet-00649-0.3214.h5'
-    model_path = 'egg_mobilenet_W5-2-2_R128_B32-00299-0.3961.h5'
+    model_path = 'egg_mobilenet_W5-2-2_R128_B32-00349-0.3753.h5'
     
     try:
         model_e = load_saved_model(model_path)
@@ -253,5 +253,7 @@ if __name__ == '__main__':
     results = []
     for ii, (base_name, eggs) in enumerate(vid_group):
         print('{} of {}'.format(ii, tot))
-        process_data(base_name, eggs, save_results_dir, model_e)
-        
+        try:
+            process_data(base_name, eggs, save_results_dir, model_e)
+        except:
+            pass
