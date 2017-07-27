@@ -106,7 +106,6 @@ def get_model_old(X_train, Y_train, X_val, Y_val):
               verbose=1, validation_data=(X_val, Y_val))
     return model
 
-#%%
 def get_model(roi_size, nb_classes):
     name = ''
     
@@ -164,10 +163,6 @@ def get_model(roi_size, nb_classes):
                   optimizer=optimizer,
                   metrics=['accuracy'])
     return model
-
-
-    
- #%%    
 
 if __name__ == '__main__':
     filename = '/Users/ajaver/OneDrive - Imperial College London/training_data/sample.hdf5'

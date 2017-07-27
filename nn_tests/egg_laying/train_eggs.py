@@ -10,8 +10,9 @@ import os
 import numpy as np
 
 from egg_augmentation import DirectoryImgGenerator, ImageMaskGenerator
-from egg_models import model_separable
+from egg_models import model_separable, simple_model, model_timedistributed
 from modified_mobilenet import MobileNetE, load_saved_model
+from densenet.densenet import DenseNet
 
 from keras.models import load_model
 from keras.callbacks import TensorBoard
@@ -19,8 +20,9 @@ from keras.callbacks import ModelCheckpoint
 from keras.optimizers import Adam
 
 
-#SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
-SAVE_DIR = '/work/ajaver/egg_laying'
+
+SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
+#SAVE_DIR = '/work/ajaver/egg_laying'
 
 def main(
         model_name = 'egg_mobilenet',
@@ -37,6 +39,14 @@ def main(
     
     assert window_size - y_offset_left - y_offset_right > 0
     im_size = (roi_size, roi_size)
+    
+    y_size = window_size-y_offset_left-y_offset_right
+    assert y_size > 0
+    
+    input_shape = (roi_size, roi_size, window_size)
+    output_shape = (y_size, 2)
+    
+    is_timedistributed = False
     
     if model_path is not None:
         model = load_saved_model(model_path)
@@ -56,6 +66,20 @@ def main(
             y_offset_right = 0
             model = model_separable(window_size, roi_size, nb_classes=2, y_offset=y_offset_left)
         
+        elif 'densenet121' in model_name:
+            model = DenseNet(input_shape=input_shape, output_shape=output_shape)
+        elif 'densenet_short':
+            model = DenseNet(input_shape=input_shape, 
+                             output_shape=output_shape,
+                             nb_layers = [6,12,16]
+                             )
+        elif 'simple':
+            model = simple_model(input_shape, output_shape)
+            
+        elif 'timedistributed':
+            is_timedistributed = True
+            model = model_timedistributed(roi_size, window_size, output_shape)
+    
     dd = (model_name,
         window_size,
         y_offset_left,
@@ -77,7 +101,8 @@ def main(
                           monitor='loss',
                           verbose=1,  
                           mode='auto', 
-                          period=saving_period)
+                          period=saving_period
+                          )
     
     save_name = os.path.join(SAVE_DIR, 'train_data_eggs.hdf5')
     transform_ags = dict(
@@ -102,7 +127,8 @@ def main(
                              window_size=window_size,
                              batch_size=batch_size,
                              y_offset_left=y_offset_left,
-                             y_offset_right=y_offset_right
+                             y_offset_right=y_offset_right, 
+                             is_timedistributed = is_timedistributed
                              )
     
     gen_d_val = DirectoryImgGenerator(save_name, 
@@ -116,7 +142,8 @@ def main(
                              window_size=window_size,
                              batch_size=batch_size,
                              y_offset_left=y_offset_left,
-                             y_offset_right=y_offset_right
+                             y_offset_right=y_offset_right,
+                             is_timedistributed = is_timedistributed
                              )
     
     model.compile(optimizer=Adam(lr=1e-4), 

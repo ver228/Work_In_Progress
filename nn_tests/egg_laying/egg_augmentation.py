@@ -216,7 +216,8 @@ class ImageMaskGenerator(Iterator):
                  y_offset_right = 0,
                  batch_size=32, 
                  shuffle=True, 
-                 seed=None
+                 seed=None,
+                 is_timedistributed = False
                  ):
         
         
@@ -232,8 +233,9 @@ class ImageMaskGenerator(Iterator):
         self.window_size = window_size
         self.y_offset_left = y_offset_left
         self.y_offset_right = y_offset_right
-        assert window_size-y_offset_right > y_offset_left
+        self.is_timedistributed = is_timedistributed
         
+        assert window_size-y_offset_right > y_offset_left
         
         #i really do not use this functionality i could reimplement it in the future
         super(ImageMaskGenerator, self).__init__(self.tot_samples, batch_size, shuffle, seed)
@@ -265,6 +267,8 @@ class ImageMaskGenerator(Iterator):
         D = random.sample(D, self.batch_size)
         seq_x_t, seq_y_t = map(np.stack, zip(*D))
         
+        if self.is_timedistributed:
+            seq_x_t = np.rollaxis(seq_x_t, 2, 0)[..., None]
         
         return seq_x_t, seq_y_t
 
@@ -307,7 +311,7 @@ if __name__ == '__main__':
     
 #    import time
 #    tic = time.time()
-#    for nn, (batch_x, batch_y) in enumerate(gen_d):
+#    for nn, (batch_x, batch_y) in enumerate(gen_d):seq_x
 #        print(nn, time.time() - tic)
 #        tic = time.time()
     
