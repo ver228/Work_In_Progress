@@ -19,8 +19,6 @@ from keras.callbacks import TensorBoard
 from keras.callbacks import ModelCheckpoint
 from keras.optimizers import Adam
 
-
-
 SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
 #SAVE_DIR = '/work/ajaver/egg_laying'
 
@@ -51,7 +49,7 @@ def main(
     if model_path is not None:
         model = load_saved_model(model_path)
     else:
-        if 'egg_mobilenet' in model_name:
+        if model_name.startswith('egg_mobilenet'):
             model = MobileNetE(roi_size, 
                                roi_size, 
                                window_size, 
@@ -60,25 +58,33 @@ def main(
                                nb_classes=2,
                                name = model_name
                                )
-        elif 'separable' in model_name:
+        
+        elif model_name.startswith('separable'):
             #model_name='egg_separable_conv2d'
             #possibly broken
             y_offset_right = 0
             model = model_separable(window_size, roi_size, nb_classes=2, y_offset=y_offset_left)
         
-        elif 'densenet121' in model_name:
+        elif model_name.startswith('densenet121'):
+            print('densenet121')
             model = DenseNet(input_shape=input_shape, output_shape=output_shape)
-        elif 'densenet_short':
+        
+        elif model_name.startswith('densenet_short'):
+            print('densenet_short')
             model = DenseNet(input_shape=input_shape, 
                              output_shape=output_shape,
                              nb_layers = [6,12,16]
                              )
-        elif 'simple':
+        elif model_name.startswith('simple'):
+            print('simple')
             model = simple_model(input_shape, output_shape)
             
-        elif 'timedistributed':
+        elif model_name.startswith('timedistributed'):
+            print('timedistributed')
             is_timedistributed = True
             model = model_timedistributed(roi_size, window_size, output_shape)
+    
+    print(model.summary())
     
     dd = (model_name,
         window_size,

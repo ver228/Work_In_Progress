@@ -268,7 +268,7 @@ class ImageMaskGenerator(Iterator):
         seq_x_t, seq_y_t = map(np.stack, zip(*D))
         
         if self.is_timedistributed:
-            seq_x_t = np.rollaxis(seq_x_t, 2, 0)[..., None]
+            seq_x_t = np.rollaxis(seq_x_t, 3, 1)[..., None]
         
         return seq_x_t, seq_y_t
 

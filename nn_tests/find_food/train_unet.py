@@ -17,24 +17,29 @@ from keras.optimizers import RMSprop
 from augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 from unet_build import get_unet_model
 
-if __name__ == '__main__':
-    epochs = 20000
-    batch_size = 6
-    saving_period = 250
-    im_size = (512, 512)
-    only_contours = False
-    
-    main_dir = '/work/ajaver/food/train_set'
-    SAVE_DIR = '/work/ajaver/food/results'
-    
-    #main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
-    #SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
+main_dir = '/work/ajaver/food/train_set'
+SAVE_DIR = '/work/ajaver/food/results'
+
+#main_dir = '/Users/ajaver/OneDrive - Imperial College London/food/train_set'
+#SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/food/results'
+
+def main(
+    epochs = 20000,
+    batch_size = 6,
+    saving_period = 250,
+    im_size = (512, 512),
+    only_contours = False,
+    optimizer = 'RMSprop',
+    lr = 1e-5
+    ):
     
     model = get_unet_model()
-    model_name = 'unet_w_no_bn_RMSprop5'
+    model_name = 'unet_{}{}'.format(optimizer, int(np.log10(lr)))
     
-    #optimizer = Adam(lr=1e-5)
-    optimizer = RMSprop(lr=1e-5, rho=0.99)
+    if optimizer == 'Adam':
+        optimizer = Adam(lr=1e-5)
+    elif optimizer == 'RMSprop':
+        optimizer = RMSprop(lr=lr, rho=0.99)
     
     if only_contours:
         model_name += '_cnt'
@@ -95,4 +100,8 @@ if __name__ == '__main__':
                         epochs = epochs,
                         verbose = 1,
                         callbacks=[tb, mcp]) #some how they were breaking the mpc ? this crashes...
-                        
+
+
+import fire
+if __name__ == '__main__':
+    fire.Fire(main)

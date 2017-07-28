@@ -35,3 +35,4 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/egg_laying/logs/egg_mobilen
 
 
 python $HOME/nn_tests/egg_laying/train_eggs.py --window_size 7 --y_offset_left 3 --y_offset_right 3 --is_tiny False --model_name "densenet121"
+

@@ -20,66 +20,6 @@ from keras.layers import BatchNormalization
 
 from keras.models import Model
 
-## in model.load_model:
-# add import
-from .utils.io_utils import ask_to_proceed_with_overwrite, update_config
-
-# At 225 add a version check and call an updating function
-model_config = json.loads(model_config.decode('utf-8'))
-
-k_version = float(f.attrs.get('keras_version')[0])
-if k_version < 2:
-    # Have to rename params to load old models
-    model_config = update_config(model_config)
-
-model = model_from_config(model_config, custom_objects=custom_objects)
-
-## in utils.io_utils:
-# add imports
-from ..legacy.interfaces import all_conversions, all_value_conversions, raise_duplicate_arg_error
-
-# update function
-def update_config(model_config):
-    """Update outdated config parameters from <2.0
-    # Arguments
-        model_config: json-decoded model_config from load_model()
-    # Returns
-        model_config: update model_config
-    """
-
-
-
-    for l in model_config['config']['layers']:
-
-        # Specific to Convolution2D
-        if l['class_name'] == "Convolution2D":
-            l['config']['kernel_size'] = [l['config'].pop('nb_row'),
-                                          l['config'].pop('nb_col')]
-
-        if 'W_regularizer' in l['config'].keys():
-            if l['config']['W_regularizer']:
-                l['config']['W_regularizer'].pop('name')
-                l1_val = l['config']['W_regularizer'].pop('l1')
-                l2_val = l['config']['W_regularizer'].pop('l2')
-                l['config']['W_regularizer'][u'class_name'] = u'L1L2'
-                l['config']['W_regularizer'][u'config'] = {u'l1': l1_val,
-                                                           u'l2': l2_val}
-
-        for key in all_value_conversions:
-            if key in l['config']:
-                old_value = l['config'][key]
-                if old_value in all_value_conversions[key]:
-                    l['config'][key] = all_value_conversions[key][old_value]
-        for old_name, new_name in all_conversions:
-            if old_name in l['config']:
-                value = l['config'].pop(old_name)
-                if new_name in l['config']:
-                    raise_duplicate_arg_error(old_name, new_name)
-                l['config'][new_name] = value
-
-    return model_config
-
-
 #%% METRICS
 import tensorflow as tf
 from keras.metrics import categorical_accuracy

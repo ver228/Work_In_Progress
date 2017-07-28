@@ -289,9 +289,6 @@ class ImageMaskGenerator(Iterator):
         D = [np.concatenate(sum(x, [])) for x in D] #pack data
         D = [None if x is None else x[:self.batch_size] for x in D]
         return D
-        
-    
-    
 
 class DirectoryImgGenerator(object):
     def __init__(self, 
