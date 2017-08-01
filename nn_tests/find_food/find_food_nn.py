@@ -24,9 +24,9 @@ def get_train_test_files(prev_results=[]):
     base_names_f = [os.path.basename(x).replace('_res.png', '') for x in valid_files]
     
     all_mask_dir = [
-#            '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/',
-#            '/Users/ajaver/OneDrive - Imperial College London/optogenetics/',
-#            '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/',
+            '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/',
+            '/Users/ajaver/OneDrive - Imperial College London/optogenetics/',
+            '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/',
             '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/'
             ]
 
@@ -119,13 +119,13 @@ if __name__ == '__main__':
     
     train_files, test_files = get_train_test_files(prev_results)
     
-    model_patch = load_model('unet_norm_w_no_bn-04249-0.3976.h5')
-    model_border = load_model('unet_norm_w_no_bn_cnt-03499-1.1672.h5')
+    model_patch = load_model('unet_RMSprop-5-04999-0.3997.h5')
+    model_border = load_model('unet_RMSprop-5_cnt-02499-1.2666.h5')
     #%%
     import random
     sample_files = test_files
     #sample_files = [x for x in train_files if 'oig' in x]
-    #sample_files = random.sample(test_files, 5)
+    sample_files = random.sample(test_files, 5)
     
     
     MAX_BGND = 2
@@ -136,10 +136,12 @@ if __name__ == '__main__':
         try:
             with tables.File(mask_file, 'r') as fid:
                 if not '/full_data' in fid:
+                    print('Missing full_data')
                     continue
                 
                 bgnd_o = fid.get_node('/full_data')[:MAX_BGND]
         except tables.exceptions.HDF5ExtError:
+            print('Bad File')
             continue
         
         assert bgnd_o.ndim == 3

@@ -28,7 +28,7 @@ scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_20170714_132343/unet_norm_w_no_bn-04249-0.3976.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
-scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_norm_w_no_bn_cnt_20170715_094511/unet_norm_w_no_bn_cnt-03499-1.1672.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
+scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/food/results/logs/unet_RMSprop-5_cnt_20170730_201024/unet_RMSprop-5_cnt-02499-1.2666.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/find_food
 
 
 scp ajaver@login.cx1.hpc.imperial.ac.uk:/work/ajaver/egg_laying/logs/egg_mobilenet_W5-2-2_R128_B32_20170725_231800/egg_mobilenet_W5-2-2_R128_B32-00349-0.3753.h5 /Users/ajaver/Documents/GitHub/work-in-progress/nn_tests/egg_laying
