@@ -73,14 +73,21 @@ def test_aligment(masked_file, skeletons_file, is_calculate_diff=False):
     else:
         with tables.File(skeletons_file, 'r') as fid:
             video_timestamp_ind = fid.get_node('/timestamp/raw')[:].astype(np.int)
-            frame_diffs = fid.get_node('/stage_movement/frame_diffs')[:]
-            frame_diffs = np.squeeze(frame_diffs)
+            frame_diffs_d = fid.get_node('/stage_movement/frame_diffs')[:]
+            frame_diffs_d = np.squeeze(frame_diffs_d)
         
     
         # The shift makes everything a bit more complicated. I have to remove the first frame, before resizing the array considering the dropping frames.
-        if video_timestamp_ind.size > frame_diffs.size + 1:
-            video_timestamp_ind = video_timestamp_ind[:frame_diffs.size + 1];
-    
+        if video_timestamp_ind.size > frame_diffs_d.size + 1:
+            video_timestamp_ind = video_timestamp_ind[:frame_diffs_d.size + 1];
+        
+        dd = video_timestamp_ind - np.min(video_timestamp_ind)-1; #shift data
+        dd = dd[dd>=0];
+        if frame_diffs_d.size != dd.size: 
+            raise(ValueError('the number of frames and time stamps do not match, nothing to do here'))
+            #%%
+        frame_diffs = np.full(np.max(dd)+1, np.nan);
+        frame_diffs[dd] = frame_diffs_d;
     
     
     is_stage_move, movesI, stage_locations = \
@@ -107,9 +114,8 @@ def fix_timestamps(masked_file, skeletons_file):
     
     save_modified_table(skeletons_file, trajectories_data, 'trajectories_data')
 
-if __name__ == '__main__':
+def main_sql():
     import pymysql
-    import os
     
     save_dir = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments'
     if not os.path.exists(save_dir):
@@ -176,6 +182,41 @@ if __name__ == '__main__':
             break
         
     #%%
-
-
-
+if __name__ == '__main__':
+    import glob
+    
+    save_dir = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments'
+    
+    fnames = glob.glob(os.path.join(save_dir, '*_skeletons.hdf5'))
+    #fnames = ['/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments/del-1 (ok150)X on food R_2012_03_08__13_16_35___7___6_skeletons.hdf5']
+    
+    problem_l = []
+    for ifile, skeletons_file in enumerate(fnames):
+        masked_file = skeletons_file.replace('_skeletons.hdf5', '.hdf5')
+        if not os.path.exists(masked_file):
+            continue
+        
+        try:
+            (is_stage_move_d, is_stage_move_o), (stage_vec_o, stage_vec_d)  = \
+            test_aligment(masked_file, skeletons_file, is_calculate_diff = False)   
+        except ValueError:
+            problem_l.append(skeletons_file)
+            continue
+            
+        aligment_diff= is_stage_move_o-is_stage_move_d
+        if np.any(aligment_diff!=0):
+            print(np.where(aligment_diff))
+            
+            
+            plt.figure()
+            plt.subplot(2,1,1)
+            plt.plot(is_stage_move_o, 'x')
+            plt.plot(is_stage_move_d, '.')
+            
+            plt.subplot(2,1,2)
+            plt.plot(aligment_diff, 'x')
+            
+            plt.title(os.path.basename(masked_file))
+            break
+        
+    

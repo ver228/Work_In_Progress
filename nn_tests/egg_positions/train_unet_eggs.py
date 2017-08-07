@@ -16,11 +16,32 @@ from keras.optimizers import Adam, RMSprop
 from egg_p_augmentation import get_sizes, ImageMaskGenerator, DirectoryImgGenerator
 from unet_build import get_unet_model, get_unet_small
 
-if __name__ == '__main__':
-    epochs = 20000
-    batch_size = 24#6
-    saving_period = 50
-    im_size = ((2048, 2048))
+
+#main_dir = '/work/ajaver/egg_counter/train_set'
+#SAVE_DIR = '/work/ajaver/egg_counter/results'
+
+main_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/example'
+SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/results'
+
+
+def main(
+    epochs = 20000,
+    batch_size = 24,
+    saving_period = 50,
+    im_size = (2048, 2048),
+    optimizer = 'Adam',
+    lr = 1e-6
+    ):
+    
+    model = get_unet_model()
+    model_name = 'unet_{}{}'.format(optimizer, int(np.log10(lr)))
+    
+    if optimizer == 'Adam':
+        optimizer = Adam(lr=lr)
+    elif optimizer == 'RMSprop':
+        optimizer = RMSprop(lr=lr, rho=0.99)
+    
+
     n_tiles = batch_size
     
 #    transform_ags = dict(
@@ -35,22 +56,12 @@ if __name__ == '__main__':
 #             )
     transform_ags = {}
     
-    #main_dir = '/work/ajaver/egg_counter/train_set'
-    #SAVE_DIR = '/work/ajaver/egg_counter/results'
-    
-    main_dir = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/example'
-    SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_counter/results'
-    
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
     
     input_size, output_size, pad_size, _ = get_sizes(im_size, d4a_size=24, n_conv_layers=3)
     model = get_unet_small(input_shape = (input_size, input_size, 1), n_outputs=2)
     
-    model_name = 'unet_eggs_Adam5'
-    
-    optimizer = Adam(lr=1e-4)
-    #optimizer = RMSprop(lr=1e-4, rho=0.9)
     
     gen_d = DirectoryImgGenerator(main_dir)
     
@@ -85,3 +96,6 @@ if __name__ == '__main__':
                         verbose = 1,
                         callbacks=[tb, mcp]) #some how they were breaking the mpc ? this crashes...
                         
+import fire
+if __name__ == '__main__':
+    fire.Fire(main)

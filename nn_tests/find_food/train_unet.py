@@ -37,7 +37,7 @@ def main(
     model_name = 'unet_{}{}'.format(optimizer, int(np.log10(lr)))
     
     if optimizer == 'Adam':
-        optimizer = Adam(lr=1e-5)
+        optimizer = Adam(lr=lr)
     elif optimizer == 'RMSprop':
         optimizer = RMSprop(lr=lr, rho=0.99)
     

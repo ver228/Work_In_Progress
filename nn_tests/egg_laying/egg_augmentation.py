@@ -217,7 +217,8 @@ class ImageMaskGenerator(Iterator):
                  batch_size=32, 
                  shuffle=True, 
                  seed=None,
-                 is_timedistributed = False
+                 is_timedistributed = False,
+                 is_optical_flow = False
                  ):
         
         
@@ -234,6 +235,7 @@ class ImageMaskGenerator(Iterator):
         self.y_offset_left = y_offset_left
         self.y_offset_right = y_offset_right
         self.is_timedistributed = is_timedistributed
+        self.is_optical_flow = is_optical_flow
         
         assert window_size-y_offset_right > y_offset_left
         
@@ -259,6 +261,26 @@ class ImageMaskGenerator(Iterator):
                                   y_offset_right=self.y_offset_right, 
                                   transform_ags=self.transform_ags
                                   )
+            
+            
+            if self.is_optical_flow:
+                x_flow = []
+                for xs in xx:
+                    #xs = ((xs_n-np.min(xs_n))*255).astype(np.uint8)
+                    img1 = xs[..., self.y_offset_left]
+                    
+                    xs_flow = []
+                    for ii in range(xs.shape[-1]):
+                        if not ii == self.y_offset_left:
+                            img2 = xs[..., ii]
+                            
+                            flow = cv2.calcOpticalFlowFarneback(img1, img2, None, 0.5, 1, 3, 3, 5, 1.2, 0)
+                            flow -= np.mean(flow, axis=(0,1)) #substract the median flow to compensate for camera motion
+                            xs_flow.append(flow)
+                    x_flow.append(np.concatenate(xs_flow, axis=2))
+                xx = x_flow
+            
+            
             seq_x_t += xx
             seq_y_t += yy
         
@@ -294,7 +316,7 @@ if __name__ == '__main__':
     y_offset_left = 2
     y_offset_right = 2
     batch_size = 5
-    
+    is_optical_flow = True
     gen_d = DirectoryImgGenerator(save_name, 
                                   im_size, 
                                   is_train = False,
@@ -306,7 +328,8 @@ if __name__ == '__main__':
                              window_size=window_size,
                              y_offset_left = y_offset_left,
                              y_offset_right = y_offset_right,
-                             batch_size = batch_size
+                             batch_size = batch_size,
+                             is_optical_flow = is_optical_flow
                              )
     
 #    import time
@@ -322,7 +345,7 @@ if __name__ == '__main__':
         seq_x = batch_x[nn]
         seq_y = batch_y[nn]
         ncols = seq_x.shape[-1]
-        #%%
+        
         
         mid = seq_x.shape[-1]//2
         plt.figure(figsize=(15,10))
@@ -333,13 +356,13 @@ if __name__ == '__main__':
             if yi >= 0 and yi < seq_y.shape[0]:
                 plt.title(seq_y[ii-y_offset_left])
             
-            if ii != mid:
+            if False and ii != mid:
                 img1 = seq_x[...,mid]
                 img2= seq_x[...,ii]
                 if ii < mid:
                     img1, img2 = img2, img1
                 
-                flow = cv2.calcOpticalFlowFarneback(img1, img2, None, 0.5, 3, 5, 3, 5, 1.2, 0)
+                flow = cv2.calcOpticalFlowFarneback(img1, img2, None, 0.5, 1, 3, 3, 5, 1.2, 0)
                 flow -= np.mean(flow, axis=(0,1)) #substract the median flow to compensate for camera motion
                 
                 bot = np.min(flow)

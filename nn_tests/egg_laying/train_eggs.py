@@ -23,7 +23,7 @@ SAVE_DIR = '/Users/ajaver/OneDrive - Imperial College London/egg_laying'
 #SAVE_DIR = '/work/ajaver/egg_laying'
 
 def main(
-        model_name = 'egg_mobilenet',
+        model_name = 'simple',
         roi_size = 128,
         window_size = 5,
         y_offset_left = 2,
@@ -32,7 +32,8 @@ def main(
         epochs = 20000,
         batch_size = 32,
         saving_period = 50,
-        model_path = None
+        model_path = None,
+        is_optical_flow = True
         ):
     
     assert window_size - y_offset_left - y_offset_right > 0
@@ -41,7 +42,12 @@ def main(
     y_size = window_size-y_offset_left-y_offset_right
     assert y_size > 0
     
-    input_shape = (roi_size, roi_size, window_size)
+    if not is_optical_flow:
+        input_shape = (roi_size, roi_size, window_size)
+    else:
+        input_shape = (roi_size, roi_size, (window_size-1)*2)
+    
+    print(input_shape)
     output_shape = (y_size, 2)
     
     is_timedistributed = False
@@ -99,6 +105,9 @@ def main(
     if is_tiny:
         model_name = 'T_' + model_name
     
+    if is_optical_flow:
+        model_name += '_oflow'
+    
     log_dir = os.path.join(SAVE_DIR, 'logs', '%s_%s' % (model_name, time.strftime('%Y%m%d_%H%M%S')))
     pad=int(np.ceil(np.log10(epochs+1)))
     checkpoint_file = os.path.join(log_dir, '%s-{epoch:0%id}-{loss:.4f}.h5' % (model_name, pad))
@@ -134,7 +143,8 @@ def main(
                              batch_size=batch_size,
                              y_offset_left=y_offset_left,
                              y_offset_right=y_offset_right, 
-                             is_timedistributed = is_timedistributed
+                             is_timedistributed = is_timedistributed,
+                             is_optical_flow = is_optical_flow
                              )
     
     gen_d_val = DirectoryImgGenerator(save_name, 
@@ -149,7 +159,8 @@ def main(
                              batch_size=batch_size,
                              y_offset_left=y_offset_left,
                              y_offset_right=y_offset_right,
-                             is_timedistributed = is_timedistributed
+                             is_timedistributed = is_timedistributed,
+                             is_optical_flow = is_optical_flow
                              )
     
     model.compile(optimizer=Adam(lr=1e-4), 
