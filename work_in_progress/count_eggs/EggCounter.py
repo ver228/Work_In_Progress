@@ -208,9 +208,10 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
             rr = np.sqrt(dx*dx + dy*dy)
 
             ind = np.argmin(rr)
-            if is_delete and rr[ind] <= MIN_DIST:
-                #delete it if there was a click almost over a previous point
-                del current_list[ind]
+            if rr[ind] <= MIN_DIST:
+                if is_delete:
+                    #delete it if there was a click almost over a previous point
+                    del current_list[ind]
             else:
                 #otherwise add it
                 current_list.append((x,y))
