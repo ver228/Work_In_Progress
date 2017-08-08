@@ -368,8 +368,8 @@ class HDF5VideoPlayerGUI(SimplePlayer):
         self.updateImage()
 
     def getImGroup(self, index):
-        h5path = self.ui.comboBox_h5path.itemText(index)
-        self.updateImGroup(h5path)
+        self.h5path = self.ui.comboBox_h5path.itemText(index)
+        self.updateImGroup(self.h5path)
 
     # read a valid groupset from the hdf5
     def updateImGroup(self, h5path):

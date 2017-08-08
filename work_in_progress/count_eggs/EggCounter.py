@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import cv2
 
-from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QMessageBox
+from PyQt5.QtWidgets import QApplication, QLabel, QCheckBox, QPushButton, QMessageBox
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtCore import Qt, QPointF
 from HDF5VideoPlayer import HDF5VideoPlayerGUI
@@ -30,9 +30,29 @@ def _updateUI(ui):
     ui.label_fps.deleteLater()
     ui.label_fps = None
 
+    ui.horizontalLayout_3.removeWidget(ui.spinBox_step)
+    ui.spinBox_step.deleteLater()
+    ui.spinBox_step = None
+
+    ui.horizontalLayout_3.removeWidget(ui.label_step)
+    ui.label_step.deleteLater()
+    ui.label_step = None
+
+
     ui.number_of_eggs = QLabel(ui.centralWidget)
     ui.horizontalLayout_3.addWidget(ui.number_of_eggs)
     ui.number_of_eggs.setText("0 Eggs")
+
+    
+
+    ui.show_prev = QCheckBox(ui.centralWidget)
+    ui.horizontalLayout_3.addWidget(ui.show_prev)
+    ui.show_prev.setText("Show Prev Eggs")
+    ui.show_prev.setChecked(True)
+
+    ui.copy_prev_b = QPushButton(ui.centralWidget)
+    ui.horizontalLayout_3.addWidget(ui.copy_prev_b)
+    ui.copy_prev_b.setText("Copy Prev")
 
     ui.save_push_button = QPushButton(ui.centralWidget)
     ui.horizontalLayout_3.addWidget(ui.save_push_button)
@@ -51,21 +71,14 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
         #default expected groups in the hdf5
         self.ui.comboBox_h5path.setItemText(1, "/mask")
         self.ui.comboBox_h5path.setItemText(0, "/full_data")
-
-        #self._canvas_enter_event = self.mainImage._canvas.enterEvent
-        #self.mainImage._scene.enterEvent = self.enter_event
-
-
-        #self._canvas_press_event = self.mainImage._canvas.mousePressEvent
-        #self.mainImage._canvas.mousePressEvent = self.press_event
-        #self._canvas_release_event = self.mainImage._canvas.mouseReleaseEvent
-        #self.mainImage._scene.mouseReleaseEvent = self.release_event
         
         self.mainImage._canvas.mouseDoubleClickEvent = self.doubleclick_event
 
         self.eggs = {}
 
         self.ui.save_push_button.clicked.connect(self.save_eggs_table)
+        self.ui.show_prev.clicked.connect(self.updateImage)
+        self.ui.copy_prev_b.clicked.connect(self.copy_prev_fun)
 
         self.mainImage.zoomFitInView()
 
@@ -122,66 +135,67 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
 
         self.mainImage._canvas.setCursor(Qt.CrossCursor)
 
-        if not self.h5path in self.eggs or \
-            not self.frame_number in self.eggs[self.h5path]:
-            self.mainImage.setPixmap(self.frame_qimg)
-            return
+        if self.h5path in self.eggs:
+            if self.frame_number in self.eggs[self.h5path]:
+                current_list = self.eggs[self.h5path][self.frame_number]
 
-        current_list = self.eggs[self.h5path][self.frame_number]
+                painter = QPainter()
+                painter.begin(self.frame_qimg)
+                pen = QPen()
+                
+                pen.setWidth(2)
+                pen.setColor(Qt.red)
+                painter.setPen(pen)
+                painter.setBrush(Qt.red)
+                for (x,y) in current_list:
+                    #painter.drawEllipse(x,y, 1,1)
+                    painter.drawPoint(x,y)
+                painter.end()
 
-        painter = QPainter()
-        painter.begin(self.frame_qimg)
-        pen = QPen()
-        
-        pen.setWidth(2)
-        pen.setColor(Qt.red)
-        painter.setPen(pen)
-        painter.setBrush(Qt.red)
+                #set number of eggs eggs
+                n_eggs_txt = "{} Eggs".format(len(self.eggs[self.h5path][self.frame_number]))
+                self.ui.number_of_eggs.setText(n_eggs_txt)
+            else:
+                self.ui.number_of_eggs.setText("0 Eggs")
 
-        
-        for (x,y) in current_list:
-            painter.drawEllipse(x,y, 1,1)
-            #painter.drawPoint(x,y)
-        painter.end()
+            prev_frame = self.frame_number-1
+            if self.ui.show_prev.isChecked() and prev_frame in self.eggs[self.h5path]:
+                prev_list = self.eggs[self.h5path][prev_frame]
+
+                painter = QPainter()
+                painter.begin(self.frame_qimg)
+                pen = QPen()
+                
+                pen.setWidth(1)
+                pen.setColor(Qt.blue)
+                painter.setPen(pen)
+                for (x,y) in prev_list:
+                    painter.drawEllipse(x-3,y-3, 5,5)
+                    #painter.drawPoint(x,y)
+                painter.end()
+
+
+
         
         self.mainImage.setPixmap(self.frame_qimg)
+        
 
-        n_eggs_txt = "{} Eggs".format(len(self.eggs[self.h5path][self.frame_number]))
-        self.ui.number_of_eggs.setText(n_eggs_txt)
 
     def doubleclick_event(self, event):
         self.m_x = event.pos().x()
         self.m_y = event.pos().y()
-        self._add_coordinate(self.m_x, self.m_y)
+        self._add_coordinate(self.h5path, self.frame_number, self.m_x, self.m_y)
         self.updateImage()
 
-    # def release_event(self, event):
-    #     self._canvas_release_event(event)
-    #     #if the delay between the release and the press is too large it means that the user is dragging
-    #     #in that case do not add the coordinate
-    #     if time.time() - self.enter_time > TIME_BTW_PRESS_RELEASE:
-    #         return
-
-    #     self._add_coordinate(self.m_x, self.m_y)
-    #     self.updateImage()
-
-    # def press_event(self, event):
-    #     self.enter_time = time.time()
-    #     self.m_x = event.pos().x()
-    #     self.m_y = event.pos().y()
-    #     self._canvas_press_event(event)
-    
-
-    def _add_coordinate(self, x, y):
+    def _add_coordinate(self, h5path, frame_number, x, y, is_delete=True):
         self.is_new_eggs = True
+        if not h5path in self.eggs:
+            self.eggs[h5path] = {}
 
-        if not self.h5path in self.eggs:
-            self.eggs[self.h5path] = {}
+        if not frame_number in self.eggs[h5path]:
+            self.eggs[h5path][frame_number] = []
 
-        if not self.frame_number in self.eggs[self.h5path]:
-            self.eggs[self.h5path][self.frame_number] = []
-
-        current_list = self.eggs[self.h5path][self.frame_number]
+        current_list = self.eggs[h5path][frame_number]
         
         if not current_list:
             #add the element if the list if empty
@@ -194,14 +208,22 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
             rr = np.sqrt(dx*dx + dy*dy)
 
             ind = np.argmin(rr)
-            if rr[ind] <= MIN_DIST:
+            if is_delete and rr[ind] <= MIN_DIST:
                 #delete it if there was a click almost over a previous point
                 del current_list[ind]
             else:
                 #otherwise add it
                 current_list.append((x,y))
 
+    def copy_prev_fun(self):
+        prev_frame = self.frame_number -1 
+        if not prev_frame in self.eggs[self.h5path]:
+            return
+        else:
+            for (x,y) in self.eggs[self.h5path][prev_frame]:
+                self._add_coordinate(self.h5path, self.frame_number, x, y, is_delete=False)
 
+        self.updateImage()
 
 
     def save_eggs_table(self):
@@ -230,7 +252,6 @@ class EggCounterGUI(HDF5VideoPlayerGUI):
             
             if os.path.exists(save_name):
                 df = pd.read_csv(save_name)
-                
                 
                 for gg, g_dat in df.groupby('group_name'):
                     if not gg in self.eggs:
