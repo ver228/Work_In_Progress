@@ -50,15 +50,27 @@ def sort_by_similarity(data, ftype='desc'):
     return sorted_s
 
 if __name__ == '__main__':
-    fname = 'CeNDR_strains.txt'
-    with open(fname, 'r') as fid:
-        strains = fid.read().split('\n')
-    sorted_s = sort_by_similarity(strains)
+    with open('CeNDR_strains_keys.txt', 'r') as fid:
+        rows_old = [x for x in fid.read().split('\n') if x]
+    strains_old, code_done = zip(*[x.split(' ') for x in rows_old])
+    
+    with open('CeNDR_set4.txt', 'r') as fid:
+        strains_set4 = [x for x in fid.read().split('\n') if x]
+    
+    
+    rows = [s + ' ' + c for s,c in zip(strains_old, code_done) if s in strains_set4]
+    for x in rows:
+        print(x)
+    
 
-
-#%%
-numbers = [format(x, '#04x')[2:].upper() for x in range(256)]
-numbers = sort_by_similarity(numbers, ftype='asc')
-
-rows = [y + ' ' + x for x, y in list(zip(numbers, sorted_s))]
-
+#    numbers = set([format(x, '#04x')[2:].upper() for x in range(256)])
+#    numbers = list(numbers - set(code_done))
+#    numbers = sort_by_similarity(numbers, ftype='asc')
+#    sorted_s = sort_by_similarity(strains_set4)
+#    rows = [y + ' ' + x for x, y in list(zip(numbers, sorted_s))]
+#    
+#    rows += rows_old
+#    rows = sorted(rows)
+#    
+#    with open('CeNDR_strains_keys.txt', 'w') as fid:
+#        fid.write('\n'.join(rows))
