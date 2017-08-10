@@ -52,6 +52,7 @@ def graythreshmat(I_ori):
     
     #make nan zeros (that's what matlab does)
     I[np.isnan(I)]=0
+    I[I<0]=0
     assert np.all(I>=0) and np.all(I<=1)
     
     I = np.round(I*255).astype(np.uint8)
@@ -130,6 +131,7 @@ def maxPeaksDistHeight(x, dist, height):
     p = None; #% the current, potential, max peak value
     i = 0; #% the vector index
     
+    print('II')
     #% Search for peaks.
     while i < x.size:
         #% Found a potential peak.
@@ -137,13 +139,14 @@ def maxPeaksDistHeight(x, dist, height):
             ip = i;
             p = x[i];
         
-        
         #% Test the potential peak.
-        if not p is None and (i - ip >= dist) or i == x.size-1:
+        if (p is not None) and ((i - ip >= dist) or (i == x.size-1)):
             #% Check the untested values next to the previous maxima.
             if im is not None and ip - im <= 2 * dist:
                 #% Record the peak.
                 if p > np.nanmax(x[(ip - dist):(im + dist+1)]):
+                    print('B', p, ip)
+
                     indices.append(ip);
                     peaks.append(p);
                 
@@ -154,6 +157,7 @@ def maxPeaksDistHeight(x, dist, height):
                 
             #% Record the peak.
             else:
+                print('A', p, ip)
                 indices.append(ip);
                 peaks.append(p);
                 im = ip;
@@ -163,6 +167,7 @@ def maxPeaksDistHeight(x, dist, height):
         #% Advance.
         i = i + 1;
     
+    print('III', np.array(indices))
     return np.array(peaks), np.array(indices)
 #%%
 def _initial_checks(mediaTimes, locations, delayFrames, fps):
@@ -305,11 +310,14 @@ def _init_search(frameDiffs, gOtsuThr, gSmallDiffs, gSmallThr,
         print([searchDiffs.size, firstPeakI+1, maxMoveFrames])
         if firstPeakI < maxMoveFrames:
             #% Find the largest frame-difference peak.
-            peakI = np.nanargmax(frameDiffs[:maxMoveFrames+1]);
+            peakI = np.nanargmax(frameDiffs[:maxMoveFrames]);
+            
+            print(frameDiffs[:maxMoveFrames])
+            
             prevPeakI = peakI;
             #% Compute the media time offset.
             timeOff = (peakI +1) / fps;
-            print([timeOff, peakI+1])
+            print([timeOff, peakI+1, maxMoveFrames])
             
         # Is there a still interval before the first stage movement?
         if peakI > 0:
@@ -485,6 +493,7 @@ def _get_peak_indices(frameDiffs,
         
         #% Find at least one distinguishably large peak.
         _, indices = maxPeaksDistHeight(searchDiffs, maxMoveFrames, otsuThr);
+        print(indices)
         print(otsuThr, smallThr)
         print(j+1, searchDiffs.size, maxMoveFrames)
     return indices, prevOtsuThr, prevSmallThr
@@ -792,6 +801,7 @@ def findStageMovement(frameDiffs, mediaTimes, locations, delayFrames, fps):
         # Use the first peak.
         else:
             #%%
+            print(indices, startI)
             peakI = indices[0] + startI;
             print(-3331, peakI+1, indices[0]+1, startI+1)
             

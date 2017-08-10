@@ -1,5 +1,7 @@
 clc
-masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments/trp-2 (ok298) off food_2010_04_30__13_03_40___1___8.hdf5'
+
+masked_image_file = '/Volumes/behavgenom_archive$/single_worm/finished/mutants/unc-7(e5)X@CB5/food_OP50/XX/30m_wait/clockwise/unc-7 (cb5) on food L_2010_09_10__16_17_47__12.hdf5'
+%masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments/trp-2 (ok298) off food_2010_04_30__13_03_40___1___8.hdf5'
 %masked_image_file = '/Users/ajaver/OneDrive - Imperial College London/Local_Videos/miss_aligments/N2 Laura on food R_2011_08_04__15_44_14__10.hdf5'
 skeletons_file = strrep(masked_image_file, 'MaskedVideos', 'Results');
 skeletons_file = strrep(skeletons_file, '.hdf5', '_skeletons.hdf5');
@@ -99,21 +101,9 @@ end
 frame_diffs(dd) = frame_diffs_d;
 
 %% try to run the aligment and return empty data if it fails 
-try
-    clear is_stage_move movesI stage_locations
-    [is_stage_move, movesI, stage_locations] = findStageMovement_ver2(frame_diffs, mediaTimes, locations, delay_frames, fps);
-    exit_flag = 1;
-catch ME
-    warning(ME.getReport)
-    exit_flag = 82;
-    warning('Returning all nan stage vector. Exiting with has_finished flag %i', exit_flag)
-    h5writeatt(skeletons_file, '/stage_movement', 'has_finished', uint8(exit_flag))
+clear is_stage_move movesI stage_locations
+[is_stage_move, movesI, stage_locations] = findStageMovement_ver2(frame_diffs, mediaTimes, locations, delay_frames, fps);
 
-    %remove the if we want to create an empty 
-    is_stage_move = ones(numel(frame_diffs)+1, 1);
-    stage_locations = [];
-    movesI = [];
-end
 %%
 stage_vec = nan(numel(is_stage_move),2);
 if numel(movesI) == 2 && all(movesI==0)

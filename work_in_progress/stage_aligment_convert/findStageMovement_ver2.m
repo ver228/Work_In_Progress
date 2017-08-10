@@ -356,11 +356,14 @@ if isOtsu
     
         % Find the largest frame-difference peak.
         [~, peakI] = max(frameDiffs(1:maxMoveFrames));
+        
+        disp(frameDiffs(1:maxMoveFrames))
+        
         prevPeakI = peakI;
         % Compute the media time offset.
         timeOff = peakI / fps;
         
-        disp([timeOff, peakI])
+        disp([timeOff, peakI, maxMoveFrames])
         if verbose
             peaksI(1) = peakI;
             otsuThrs(1) = otsuThr;
@@ -1092,7 +1095,7 @@ while i < length(mediaTimes)
     disp(movesI(i, :))
     disp(diff(movesI(i-1, :)))
     disp('________________')
-    %if i > 467, break; end
+    %if i > 5, break; end
     
 end
 

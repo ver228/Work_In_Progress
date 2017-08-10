@@ -12,7 +12,8 @@ import pandas as pd
 import shutil
 
 from tierpsy.helper.params import read_fps
-from tierpsy.analysis.stage_aligment.findStageMovement import getFrameDiffVar, findStageMovement, shift2video_ref
+from tierpsy.analysis.stage_aligment.findStageMovement import getFrameDiffVar
+from _findStageMovement import findStageMovement, shift2video_ref
 
 def test_var_diff(masked_file, skeletons_file):
     #%%
@@ -54,13 +55,8 @@ def test_aligment(masked_file, skeletons_file, is_calculate_diff=False):
     with pd.HDFStore(masked_file, 'r') as fid:
         stage_log = fid['/stage_log']
     
-    #%%
-    with tables.File(skeletons_file, 'r') as fid:
-        is_stage_move_o = fid.get_node('/stage_movement/is_stage_move')[:]
-        is_stage_move_o = np.squeeze(is_stage_move_o)
-        stage_vec_o = fid.get_node('/stage_movement/stage_vec')[:]
-        stage_vec_o = np.squeeze(stage_vec_o)
-    #%%
+    
+            #%%
     #%this is not the cleaneast but matlab does not have a xml parser from
     #%text string
     delay_str = xml_info.partition('<delay>')[-1].partition('</delay>')[0]
@@ -72,12 +68,12 @@ def test_aligment(masked_file, skeletons_file, is_calculate_diff=False):
     if is_calculate_diff:
         frame_diffs, video_timestamp_ind = test_var_diff(masked_file, skeletons_file)
     else:
-        
+        #%%
         with tables.File(skeletons_file, 'r') as fid:
             video_timestamp_ind = fid.get_node('/timestamp/raw')[:].astype(np.int)
             frame_diffs_d = fid.get_node('/stage_movement/frame_diffs')[:]
             frame_diffs_d = np.squeeze(frame_diffs_d)
-        
+        #%%
         
         # The shift makes everything a bit more complicated. I have to remove the first frame, before resizing the array considering the dropping frames.
         if video_timestamp_ind.size > frame_diffs_d.size + 1:
@@ -104,12 +100,19 @@ def test_aligment(masked_file, skeletons_file, is_calculate_diff=False):
     #print('T2:', np.where(dd!=1), np.unique(dd))
     #for x in movesI: print(x[0] + 1, x[1], x[1]-x[0]-1)
     
+    #%%
+    try:
+        with tables.File(skeletons_file, 'r') as fid:
+            is_stage_move_o = fid.get_node('/stage_movement/is_stage_move')[:]
+            is_stage_move_o = np.squeeze(is_stage_move_o)
+            stage_vec_o = fid.get_node('/stage_movement/stage_vec')[:]
+            stage_vec_o = np.squeeze(stage_vec_o)
+            return (is_stage_move_d, is_stage_move_o), (stage_vec_o, stage_vec_d)
+
+    except tables.exceptions.NoSuchNodeError:
+        return is_stage_move_d, stage_vec_d
+        
     
-    return (is_stage_move_d, is_stage_move_o), (stage_vec_o, stage_vec_d)
-
-
-
-#%%
 
 import multiprocessing as mp
 import pymysql
