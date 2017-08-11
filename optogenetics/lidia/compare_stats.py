@@ -9,10 +9,15 @@ Created on Thu Aug 10 16:11:21 2017
 import matplotlib.pylab as plt
 import tables
 import pandas as pd
+import numpy as np
+
+import statsmodels.stats.multitest as smm
+from scipy.stats import ttest_ind
+
 if __name__ == '__main__':
     all_data = pd.read_csv('regions_stats.csv')
     exp_df = pd.read_csv('exp_info.csv', index_col=0)
-    
+    #%%
     problem_files = exp_df.loc[~exp_df['has_valid_light'], 'mask_file'].values
     for mask_file in problem_files:
         with tables.File(mask_file) as fid:
@@ -21,7 +26,7 @@ if __name__ == '__main__':
             plt.figure()
             plt.plot(mean_intensity)
     
-    
+    #%%
     
     if False:
         #get the number of experiments (I am using lenght as proxy)
@@ -31,10 +36,41 @@ if __name__ == '__main__':
             plt.subplot(2,3,ii+1)
             exp_df[feat].plot()
             plt.title(feat)
+            
+    #add the experiment information from exp_df dataframe 
     
+    #let's get p-values of controls vs atr samples. 
+    #This is a naive approach, probably it will be better to compare the "change" between regions
+    #e.g. How much does the speed change before and during a pulse in the control with respect to the atr.
     all_data = all_data.join(exp_df[['strain', 'exp_type']], on='exp_id')
     
+    exp_pvals = []
     for group, group_data in all_data.groupby(['strain', 'region', 'stat', 'feat']):
         good = group_data['exp_type'] == 'EtOH'
         ctr = group_data.loc[good, 'value'].values
         atr = group_data.loc[~good, 'value'].values
+        
+        
+        _, p = ttest_ind(ctr, atr)
+        
+        exp_pvals.append(list(group) + [p])
+    
+    exp_pvals_df = pd.DataFrame(exp_pvals, columns = ['strain', 'region', 'stat', 'feat', 'p-values'])
+    
+    #%%
+    
+    exp_pvals_df = exp_pvals_df.dropna()
+    exp_pvals_df['p-values_corr'] = np.nan
+    for strain, g_data in exp_pvals_df.groupby('strain'):
+        reject, pvals_corrected, alphacSidak, alphacBonf = \
+            smm.multipletests(g_data['p-values'].values, method = 'fdr_tsbky')
+        exp_pvals_df.loc[g_data.index, 'p-values_corr'] = pvals_corrected
+#%%
+    for strain, s_data in exp_pvals_df.groupby('strain'):
+        print(strain)
+        s_data = s_data.sort_values(['p-values_corr'])
+        print(s_data.head(n=10))
+        
+
+
+

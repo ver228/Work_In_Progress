@@ -45,6 +45,8 @@ signed_ventral_feats = ['head_bend_mean', 'neck_bend_mean',
                 'midbody_crawling_frequency', 'tail_crawling_frequency', 
                 'path_curvature']
 
+bad_feats = ['bend_count', 'head_orientation', 'tail_to_head_orientation', 'tail_orientation']
+
 def read_light_data(mask_file, n_sigmas=6):
     #%%
     with tables.File(mask_file) as fid:
@@ -167,7 +169,7 @@ def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
     
     return feat_timeseries, region_size
 
-def get_feat_stats(feat_timeseries):
+def get_feat_stats(feat_timeseries, FRAC_MIN=0.8):
     #columns that correspond to indexes (not really features)
     index_cols =['worm_index','timestamp','skeleton_id','motion_modes']
     normal_feats = [x for x in feat_timeseries.columns if not x in index_cols]
@@ -182,27 +184,30 @@ def get_feat_stats(feat_timeseries):
         lab = REGION_LABELS_I[r_lab]
         
         for feat in normal_feats:
-            feat_d = r_dat['tail_crawling_frequency']
+            feat_d = r_dat[feat]
             q = np.nanpercentile(feat_d, [5, 50, 95])
             frac_valid = feat_d.count()/feat_d.size
-            dd = [
-            (lab, feat, '5th', q[0]),
-            (lab, feat, '50th', q[1]),
-            (lab, feat, '95th', q[2]),
-            (lab, feat, 'f_good', frac_valid),
-            ]
             
-            r_stats += dd
+            if frac_valid > FRAC_MIN:
+                dd = [
+                (lab, feat, '5th', q[0]),
+                (lab, feat, '50th', q[1]),
+                (lab, feat, '95th', q[2])
+                ]
+            
+                r_stats += dd
         #the motion_modes is a bit different. It is -1 if the worm is going backwards,
         # 0 if it is paused and 1 if it is going forward
         feat_d = r_dat['motion_modes']
         nn = feat_d.count()
-        dd = [
-            (lab, 'motion_modes', 'f_backwards', np.sum(feat_d==-1)/nn),
-            (lab, 'motion_modes', 'f_paused', np.sum(feat_d==0)/nn),
-            (lab, 'motion_modes', 'f_forward', np.sum(feat_d==1)/nn),
-            (lab, 'motion_modes', 'f_good', nn/feat_d.size),
-                ]
+        
+        if nn/feat_d.size > FRAC_MIN:
+            dd = [
+                (lab, 'motion_modes', 'f_backwards', np.sum(feat_d==-1)/nn),
+                (lab, 'motion_modes', 'f_paused', np.sum(feat_d==0)/nn),
+                (lab, 'motion_modes', 'f_forward', np.sum(feat_d==1)/nn)
+                    ]
+            r_stats += dd
         
         
     r_stats = pd.DataFrame(r_stats, columns=['region', 'feat', 'stat', 'value'])
