@@ -301,14 +301,14 @@ if __name__ == '__main__':
     save_name = os.path.join(save_dir, 'train_data_eggs.hdf5')
     im_size = (128, 128)
     transform_ags = dict(
-             rotation_range=90, 
+             rotation_range=0, 
              shift_range = 0.1,
              zoom_range = (0.75, 1.5),
              same_zoom = True,
              horizontal_flip = True,
              vertical_flip = True,
-             elastic_alpha_range = 400,
-             elastic_sigma=15,
+             elastic_alpha_range = None,
+             elastic_sigma=None,
              int_alpha = (0.5,2.25)
              )
     
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     y_offset_left = 2
     y_offset_right = 2
     batch_size = 5
-    is_optical_flow = True
+    is_optical_flow = False
     gen_d = DirectoryImgGenerator(save_name, 
                                   im_size, 
                                   is_train = False,
@@ -351,7 +351,7 @@ if __name__ == '__main__':
         plt.figure(figsize=(15,10))
         for ii in range(ncols):
             plt.subplot(2, ncols, ii+1)
-            plt.imshow(seq_x[...,ii])
+            plt.imshow(seq_x[...,ii], cmap='gray')
             yi = ii-y_offset_left
             if yi >= 0 and yi < seq_y.shape[0]:
                 plt.title(seq_y[ii-y_offset_left])

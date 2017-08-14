@@ -15,15 +15,14 @@ import tables
 import matplotlib.pylab as plt
 from tierpsy.helper.params import read_fps
 
+n_pulses = 5
+regions = ['before', 'after', 'long_pulse']
+pulses_regions = ['short_pulse_{}'.format(ii+1) for ii in range(n_pulses)]
+inter_pulses_regions = ['inter_pulses_{}'.format(ii+1) for ii in range(n_pulses)]
+regions += pulses_regions + inter_pulses_regions
 
-REGION_LABELS = dict(
-        before = 1,
-        after = 2,
-        short_pulses = 3,
-        inter_pulses = 4,
-        long_pulse = 5
-        )
-
+REGION_LABELS = {x:ii for ii,x in enumerate(regions)}
+#%%
 #make the inverse diccionary to get the name from the index
 REGION_LABELS_I = {val:key for key, val in REGION_LABELS.items()}
 
@@ -101,24 +100,25 @@ def define_regions(tot_frames, turn_on, turn_off, frames_w = 15):
     
     regions_lab[turn_on[-1] + 1 :turn_off[-1]] = REGION_LABELS['long_pulse']
     
-    for ini,fin in zip(turn_on[:-1], turn_off[:-1]):
-        regions_lab[ini + 1 : fin] = REGION_LABELS['short_pulses']
-        
-    for ii in range(turn_on.size-1):
+    for ii in range(n_pulses):
+        ini = turn_on[ii]
+        fin = turn_off[ii]
+        regions_lab[ini + 1 : fin] = REGION_LABELS['short_pulse_{}'.format(ii+1)]
+    
+    for ii in range(n_pulses):
         ini = turn_off[ii]
         fin = turn_on[ii+1]
-        regions_lab[ini + frames_w : fin-frames_w+1] = REGION_LABELS['inter_pulses']
+        regions_lab[ini + 1 : fin] = REGION_LABELS['inter_pulses_{}'.format(ii+1)]
     
+        
     return regions_lab
 
 def get_exp_data(mask_dir):
     fnames = glob.glob(os.path.join(mask_dir, '**', '*.hdf5'), recursive=True)
     
-    
-    extra_cols_v =  [False] +  [np.nan]*6
-    
     col_names = ['day', 'strain', 'exp_type', 'mask_file', 'has_valid_light', 'video_duration']
     col_names +=  [REGION_LABELS_I[x] for x in sorted(REGION_LABELS_I.keys())]
+    extra_cols_v =  [False] +  [np.nan]* (len(REGION_LABELS_I) + 1)
     
     data = []
     for fname in fnames:
@@ -156,7 +156,7 @@ def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
         plt.plot(light_on)
         plt.plot(turn_on, light_on[turn_on], 'o')
         plt.plot(turn_off, light_on[turn_off], 'x')
-    
+        plt.title(os.path.basename(mask_file))
     #read features
     with pd.HDFStore(feat_file, 'r') as fid:
         feat_timeseries = fid['/features_timeseries']
@@ -219,7 +219,7 @@ def get_feat_stats(feat_timeseries, FRAC_MIN=0.8):
 #
 #   
 if __name__ == '__main__':
-    _is_debug = False
+    _is_debug = True
     
     mask_dir = '/Volumes/behavgenom_archive$/Lidia/MaskedVideos'
     exp_df = get_exp_data(mask_dir)
