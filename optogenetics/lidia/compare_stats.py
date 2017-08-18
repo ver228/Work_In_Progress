@@ -88,5 +88,5 @@ if __name__ == '__main__':
             plt.title((row['feat'], row['stat']))
             
         plt.suptitle(strain)
-        break
+        
 

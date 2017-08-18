@@ -173,4 +173,3 @@ if __name__ == '__main__':
             skeletons = worm.skeleton
             is_debug = True
         break
-        
