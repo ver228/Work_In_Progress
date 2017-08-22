@@ -3,51 +3,8 @@
 This module defines the NormalizedWorm class
 
 """
-
 import numpy as np
-from read_worm import nanunwrap
-
-class DataPartition():
-    def __init__(self, partitions=None, n_segments=49):
-        partitions_dflt = {'head': (0, 8),
-                            'neck': (8, 16),
-                            'midbody': (16, 33),
-                            'hips': (33, 41),
-                            'tail': (41, 49),
-                            'head_tip': (0, 3),
-                            'head_base': (5, 8),
-                            'tail_base': (41, 44),
-                            'tail_tip': (46, 49),
-                            'all': (0, 49),
-                            'body': (8, 41)
-                            }
-        
-        if partitions is None:
-            partitions = partitions_dflt
-        else:
-            partitions = {p:partitions_dflt[p] for p in partitions}
-            
-        
-        if n_segments != 49:
-            r_fun = lambda x : int(round(x/49*n_segments))
-            for key in partitions:
-                partitions[key] = tuple(map(r_fun, partitions[key]))
-        
-        self.n_segments = n_segments
-        self.partitions =  partitions
-
-    def apply(self, data, partition, func, segment_axis=1):
-        assert self.n_segments == data.shape[segment_axis]
-        assert partition in self.partitions
-        
-        ini, fin = self.partitions[partition]
-        sub_data = np.take(data, np.arange(ini, fin), axis=segment_axis)
-        d_transform = func(sub_data, axis=segment_axis)
-        
-        return d_transform
-   
-    def apply_partitions(self, data, func, segment_axis=1):
-        return {p:self.apply(data, p, func, segment_axis=segment_axis) for p in self.partitions}
+from helper import DataPartition, nanunwrap
 
 #%%
 def _h_orientation_vector(x, axis=None):
@@ -79,7 +36,7 @@ def _h_segment_position(skeletons, partition):
     return coords, orientation_v
 
 #%%
-def midbody_velocity(skeletons, delta_frames, fps, _is_plot = False):
+def get_midbody_velocity(skeletons, delta_frames, fps, _is_plot = False):
     coords, orientation_v = _h_segment_position(skeletons, partition = 'midbody')
     
     velocity = _h_get_velocity(coords, delta_frames, fps)
@@ -111,7 +68,7 @@ def _h_relative_velocity(segment_coords, delta_frames, fps):
     return r_radial_velocity, r_angular_velocity
 
 
-def relative_velocities(centered_skeleton, delta_frames, fps):
+def get_relative_velocities(centered_skeleton, delta_frames, fps):
     partitions = ['head_tip', 'head', 'neck', 'hips', 'tail', 'tail_tip']
     p_obj = DataPartition(partitions, n_segments=centered_skeleton.shape[1])
 

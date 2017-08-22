@@ -7,160 +7,6 @@ This module defines the NormalizedWorm class
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-import numba
-import tables
-import warnings
-
-@numba.jit
-def fillfnan(arr):
-    '''
-    fill foward nan values (iterate using the last valid nan)
-    I define this function so I do not have to call pandas DataFrame
-    '''
-    out = arr.copy()
-    for idx in range(out.shape[0]):
-        if np.isnan(out[idx]):
-            out[idx] = out[idx - 1]
-    return out
-
-def nanunwrap(x):
-    '''correct for phase change for a vector with nan values 
-    '''
-    bad = np.isnan(x)
-    x = fillfnan(x)
-    x = np.unwrap(x)
-    x[bad] = np.nan
-    return x
-
-#%% properties
-def _h_tangent_angles(skels, points_window):
-    '''this is a vectorize version to calculate the angles between segments
-    segment_size points from each side of a center point.
-    '''
-    s_center = skels[:, points_window:-points_window, :] #center points
-    s_left = skels[:, :-2*points_window, :] #left side points
-    s_right = skels[:, 2*points_window:, :] #right side points
-    
-    d_left = s_left - s_center 
-    d_right = s_center - s_right
-    
-    #arctan2 expects the y,x angle
-    ang_l = np.arctan2(d_left[...,1], d_left[...,0])
-    ang_r = np.arctan2(d_right[...,1], d_right[...,0])
-    
-    with warnings.catch_warnings():
-        #I am unwraping in one dimension first
-        warnings.simplefilter("ignore")
-        ang = np.unwrap(ang_r-ang_l, axis=1);
-    
-    for ii in range(ang.shape[1]):
-        ang[:, ii] = nanunwrap(ang[:, ii])
-    return ang
-
-def _h_curvature(skeletons, points_window, lengths=None):
-    if lengths is None:
-        #caculate the length if it is not given
-        lengths = _h_lengths(skeletons)
-    
-    #Number of segments is the number of vertices minus 1
-    n_segments = skeletons.shape[1] -1 
-    
-    #This is the fraction of the length the angle is calculated on
-    length_frac = 2*(points_window-1)/(n_segments-1)
-    segment_length = length_frac*lengths
-    segment_angles = _h_tangent_angles(skeletons, points_window)
-    
-    curvature = segment_angles/segment_length[:, None]
-    
-    return curvature
-    
-
-
-def _h_curvature_test(skeletons):
-    '''
-    Calculate the curvature using univariate splines. This method is slower and can fail
-    badly if the fit does not work, so I am only using it as testing
-    '''
-    from scipy.interpolate import UnivariateSpline
-    
-    def _get_curvature(skel):
-        if np.any(np.isnan(skel)):
-            return np.full(skel.shape[0], np.nan)
-        
-        x = skel[:, 0]
-        y = skel[:, 1]
-        n = np.arange(x.size)
-    
-        fx = UnivariateSpline(n, x, k=5)
-        fy = UnivariateSpline(n, y, k=5)
-    
-        x_d = fx.derivative(1)(n)
-        x_dd = fx.derivative(2)(n)
-        y_d = fy.derivative(1)(n)
-        y_dd = fy.derivative(2)(n)
-        curvature = (x_d*y_dd - y_d*x_dd) / np.power(x_d** 2 + y_d** 2, 3 / 2)
-        return  curvature
-    
-    
-    curvatures_fit = np.array([_get_curvature(skel) for skel in skeletons])
-    return curvatures_fit
-
-
-#%%
-def _h_angles(skeletons):
-    dd = np.diff(skeletons,axis=1);
-    angles = np.arctan2(dd[...,0], dd[...,1])
-    
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        angles = np.unwrap(angles, axis=1);
-    
-    mean_angles = np.mean(angles, axis=1)
-    angles -= mean_angles[:, None]
-    
-    return angles, mean_angles
-
-
-EIGEN_PROJECTION_FILE = 'master_eigen_worms_N2.mat'
-def _h_eigen_projections(skeletons):
-    with tables.File(EIGEN_PROJECTION_FILE) as fid:
-        eigen_worms = fid.get_node('/eigenWorms')[:]
-        eigen_worms = eigen_worms.T
-    
-    angles, _ = _h_angles(skeletons)   
-    eigen_projections = np.dot(eigen_worms, angles.T)
-    eigen_projections = np.rollaxis(eigen_projections, -1, 0)
-    return eigen_projections
-
-#%%   
-
-def _h_signed_areas(cnt_side1, cnt_side2):
-    '''calculate the contour area using the shoelace method, the sign indicate the contour orientation.'''
-    assert cnt_side1.shape == cnt_side2.shape
-    if cnt_side1.ndim == 2:
-        # if it is only two dimenssion (as if in a single skeleton).
-        # Add an extra dimension to be compatible with the rest of the code
-        cnt_side1 = cnt_side1[None, ...]
-        cnt_side2 = cnt_side2[None, ...]
-
-    contour = np.hstack((cnt_side1, cnt_side2[:, ::-1, :]))
-    signed_area = np.sum(
-        contour[:,:-1,0] * contour[:,1:,1] -
-        contour[:,1:,0] * contour[:,:-1,1],
-        axis=1)/ 2
-    
-    assert signed_area.size == contour.shape[0]
-    return signed_area
-
-
-def _h_lengths(skeletons):
-    '''
-    Calculate length using the skeletons
-    '''
-    delta_coords = np.diff(skeletons, axis=1)
-    segment_sizes = np.linalg.norm(delta_coords, axis=2)
-    w_lenght = np.sum(segment_sizes, axis=1)
-    return w_lenght
 
 #%%
 def _h_resample_curve(curve, resampling_N=49, widths=None):
@@ -227,7 +73,7 @@ def _h_smooth_curve(curve, window=5, pol_degree=3):
     
 #%%
 
-class NormalizedWormN():
+class SmoothedWorm():
     """
     Encapsulates the notion of a worm's elementary measurements, scaled
     (i.e. "normalized") to 49 points along the length of the worm.
@@ -238,7 +84,8 @@ class NormalizedWormN():
                  widths = None, 
                  ventral_contour = None, 
                  dorsal_contour = None,
-                 smooth_window = None
+                 skel_smooth_window = None,
+                 coords_smooth_window = None
                  ):
         """
         I assume data is evenly distributed in time, and missing frames are nan.
@@ -266,8 +113,22 @@ class NormalizedWormN():
             assert widths.shape == (n_frames, n_segments)
         
         
-        self._smooth_coords(smooth_window)
+        def _fix_smooth(smooth_window):
+            if smooth_window is not None and smooth_window % 2 == 0:
+                smooth_window += 1
+            assert smooth_window is None or smooth_window > self.pol_degree
+            return smooth_window
+        
+        self.pol_degree = 3
+        
+        skel_smooth_window = _fix_smooth(skel_smooth_window)
+        coords_smooth_window = _fix_smooth(coords_smooth_window)
+        
+        self._smooth_coords(s_win = coords_smooth_window)
+        self._smooth_skeletons(s_win = skel_smooth_window)
         self._resample_coords()
+        
+    
         
     def _resample_coords(self):
         
@@ -294,22 +155,19 @@ class NormalizedWormN():
             self.ventral_contour = _resample(self.ventral_contour)
             self.dorsal_contour = _resample(self.dorsal_contour)
     
-    def _smooth_coords(self, smooth_window = None):
-        if smooth_window is None:
+    def _smooth_skeletons(self, s_win):
+        if s_win is None:
             return
         
-        POL_DEGREE_DFLT = 3
-        if smooth_window % 2 == 0:
-            smooth_window += 1
-        
-        assert smooth_window>POL_DEGREE_DFLT
-
         def _smooth(curves, pol_degree=3):
             if curves is not None:
                 for ii in range(curves.shape[0]):
                     if not np.any(np.isnan(curves[ii])):
                         curves[ii] = _h_smooth_curve(
-                            curves[ii], window = smooth_window, pol_degree=pol_degree)
+                            curves[ii], 
+                            window = s_win, 
+                            pol_degree = self.pol_degree
+                            )
             return curves
         
         self.skeleton = _smooth(self.skeleton)
@@ -317,10 +175,42 @@ class NormalizedWormN():
         self.ventral_contour = _smooth(self.ventral_contour)
         self.dorsal_contour = _smooth(self.dorsal_contour)
 
+    def _smooth_coords(self, s_win):
+        if s_win is None:
+            return
+        
+        good_index, = np.where(~np.isnan(self.skeleton[:, 0, 0]))
+        
+        def _smooth(dat):
+            dat_S = np.full_like(dat, np.nan)
+            for ii in range(dat.shape[1]):
+                fx = interp1d(good_index, dat[good_index, ii, 0])
+                fy = interp1d(good_index, dat[good_index, ii, 1])
+                
+                ind = np.arange(good_index[0], good_index[-1]+1)
+                
+                xx = fx(ind)
+                yy = fy(ind)
+                xs = savgol_filter(xx, s_win, self.pol_degree)
+                ys = savgol_filter(yy, s_win, self.pol_degree)
+                
+                good_index_s = good_index-good_index[0]
+                
+                dat_S[good_index, ii, 0] = xs[good_index_s]
+                dat_S[good_index, ii, 1] = ys[good_index_s]
+                
+            return dat_S
+        
+        self.skeleton = _smooth(self.skeleton)
+        self.ventral_contour = _smooth(self.ventral_contour)
+        self.dorsal_contour = _smooth(self.dorsal_contour)
+
+
 
 if __name__ == '__main__':
     from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTableSimple
     from tierpsy.analysis.feat_create.obtainFeatures import getGoodTrajIndexes
+    from tierpsy.helper.misc import RESERVED_EXT
     import glob
     import os
     import fnmatch
@@ -337,9 +227,16 @@ if __name__ == '__main__':
     #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
     #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
     mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/tests/join/'
+    
+    #save_dir = '/Users/ajaver/OneDrive - Imperial College London/smooth_examples'
+    save_dir = './'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     
     fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
     fnames = [x for x in fnames if any(fnmatch.fnmatch(x, ext) for ext in exts)]
+    fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
     
     #x.n_valid_skel/x.n_frames >= feat_filt_param['bad_seg_thresh']]
     for mask_video in fnames[1:]:
@@ -351,21 +248,28 @@ if __name__ == '__main__':
                                 worm_index_type=worm_index_type
                                 )
             
-            wormN = NormalizedWormN(
+            wormN = SmoothedWorm(
                      worm.skeleton, 
                      worm.widths, 
                      worm.ventral_contour, 
                      worm.dorsal_contour,
-                     smooth_window=5
+                     skel_smooth_window = 5,
+                     coords_smooth_window = 11
                     )
             
-            
-            np.savez('worm_example_W{}.npz'.format(worm_index), 
+            save_file = os.path.join(save_dir, 'worm_example_W{}.npz'.format(worm_index))
+            np.savez(save_file, 
                      skeleton=wormN.skeleton, 
                      ventral_contour=wormN.ventral_contour, 
                      dorsal_contour=wormN.dorsal_contour
                      )
+            
+            
+            #%%
             break
             
         break
         
+#%%
+
+
