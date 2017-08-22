@@ -7,10 +7,9 @@ This module defines the NormalizedWorm class
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-import warnings
-
-
 import numba
+import tables
+import warnings
 
 @numba.jit
 def fillfnan(arr):
@@ -33,6 +32,137 @@ def nanunwrap(x):
     x[bad] = np.nan
     return x
 
+#%% properties
+def _h_tangent_angles(skels, points_window):
+    '''this is a vectorize version to calculate the angles between segments
+    segment_size points from each side of a center point.
+    '''
+    s_center = skels[:, points_window:-points_window, :] #center points
+    s_left = skels[:, :-2*points_window, :] #left side points
+    s_right = skels[:, 2*points_window:, :] #right side points
+    
+    d_left = s_left - s_center 
+    d_right = s_center - s_right
+    
+    #arctan2 expects the y,x angle
+    ang_l = np.arctan2(d_left[...,1], d_left[...,0])
+    ang_r = np.arctan2(d_right[...,1], d_right[...,0])
+    
+    with warnings.catch_warnings():
+        #I am unwraping in one dimension first
+        warnings.simplefilter("ignore")
+        ang = np.unwrap(ang_r-ang_l, axis=1);
+    
+    for ii in range(ang.shape[1]):
+        ang[:, ii] = nanunwrap(ang[:, ii])
+    return ang
+
+def _h_curvature(skeletons, points_window, lengths=None):
+    if lengths is None:
+        #caculate the length if it is not given
+        lengths = _h_lengths(skeletons)
+    
+    #Number of segments is the number of vertices minus 1
+    n_segments = skeletons.shape[1] -1 
+    
+    #This is the fraction of the length the angle is calculated on
+    length_frac = 2*(points_window-1)/(n_segments-1)
+    segment_length = length_frac*lengths
+    segment_angles = _h_tangent_angles(skeletons, points_window)
+    
+    curvature = segment_angles/segment_length[:, None]
+    
+    return curvature
+    
+
+
+def _h_curvature_test(skeletons):
+    '''
+    Calculate the curvature using univariate splines. This method is slower and can fail
+    badly if the fit does not work, so I am only using it as testing
+    '''
+    from scipy.interpolate import UnivariateSpline
+    
+    def _get_curvature(skel):
+        if np.any(np.isnan(skel)):
+            return np.full(skel.shape[0], np.nan)
+        
+        x = skel[:, 0]
+        y = skel[:, 1]
+        n = np.arange(x.size)
+    
+        fx = UnivariateSpline(n, x, k=5)
+        fy = UnivariateSpline(n, y, k=5)
+    
+        x_d = fx.derivative(1)(n)
+        x_dd = fx.derivative(2)(n)
+        y_d = fy.derivative(1)(n)
+        y_dd = fy.derivative(2)(n)
+        curvature = (x_d*y_dd - y_d*x_dd) / np.power(x_d** 2 + y_d** 2, 3 / 2)
+        return  curvature
+    
+    
+    curvatures_fit = np.array([_get_curvature(skel) for skel in skeletons])
+    return curvatures_fit
+
+
+#%%
+def _h_angles(skeletons):
+    dd = np.diff(skeletons,axis=1);
+    angles = np.arctan2(dd[...,0], dd[...,1])
+    
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        angles = np.unwrap(angles, axis=1);
+    
+    mean_angles = np.mean(angles, axis=1)
+    angles -= mean_angles[:, None]
+    
+    return angles, mean_angles
+
+
+EIGEN_PROJECTION_FILE = 'master_eigen_worms_N2.mat'
+def _h_eigen_projections(skeletons):
+    with tables.File(EIGEN_PROJECTION_FILE) as fid:
+        eigen_worms = fid.get_node('/eigenWorms')[:]
+        eigen_worms = eigen_worms.T
+    
+    angles, _ = _h_angles(skeletons)   
+    eigen_projections = np.dot(eigen_worms, angles.T)
+    eigen_projections = np.rollaxis(eigen_projections, -1, 0)
+    return eigen_projections
+
+#%%   
+
+def _h_signed_areas(cnt_side1, cnt_side2):
+    '''calculate the contour area using the shoelace method, the sign indicate the contour orientation.'''
+    assert cnt_side1.shape == cnt_side2.shape
+    if cnt_side1.ndim == 2:
+        # if it is only two dimenssion (as if in a single skeleton).
+        # Add an extra dimension to be compatible with the rest of the code
+        cnt_side1 = cnt_side1[None, ...]
+        cnt_side2 = cnt_side2[None, ...]
+
+    contour = np.hstack((cnt_side1, cnt_side2[:, ::-1, :]))
+    signed_area = np.sum(
+        contour[:,:-1,0] * contour[:,1:,1] -
+        contour[:,1:,0] * contour[:,:-1,1],
+        axis=1)/ 2
+    
+    assert signed_area.size == contour.shape[0]
+    return signed_area
+
+
+def _h_lengths(skeletons):
+    '''
+    Calculate length using the skeletons
+    '''
+    delta_coords = np.diff(skeletons, axis=1)
+    segment_sizes = np.linalg.norm(delta_coords, axis=2)
+    w_lenght = np.sum(segment_sizes, axis=1)
+    return w_lenght
+
+#%%
 def _h_resample_curve(curve, resampling_N=49, widths=None):
     '''Resample curve to have resampling_N equidistant segments
     I give width as an optional parameter since I want to use the 
@@ -89,100 +219,10 @@ def _h_smooth_curve(curve, window=5, pol_degree=3):
         smoothed_curve = np.zeros_like(curve)
         for nn in range(curve.ndim):
             smoothed_curve[:, nn] = savgol_filter(
-                curve[:, nn], window, pol_degree)
+                curve[:, nn], window, pol_degree, mode='mirror')
 
     return smoothed_curve
 
-#%% properties
-def _h_bend_angles(skels, segment_size):
-    '''this is a vectorize version to calculate the angles between segments
-    segment_size points from each side of a center point.
-    '''
-    s_center = skels[:, segment_size:-segment_size, :] #center points
-    s_left = skels[:, :-2*segment_size, :] #left side points
-    s_right = skels[:, 2*segment_size:, :] #right side points
-    
-    d_left = s_left - s_center 
-    d_right = s_center - s_right
-    
-    ang_l = np.arctan2(d_left[...,0], d_left[...,1])
-    ang_r = np.arctan2(d_right[...,0], d_right[...,1])
-    
-    ang = ang_l-ang_r
-    ang[ang > np.pi] -= 2 * np.pi
-    ang[ang < -np.pi] += 2 * np.pi
-    
-    return ang
-
-def _h_signed_areas(cnt_side1, cnt_side2):
-    '''calculate the contour area using the shoelace method, the sign indicate the contour orientation.'''
-    assert cnt_side1.shape == cnt_side2.shape
-    if cnt_side1.ndim == 2:
-        # if it is only two dimenssion (as if in a single skeleton).
-        # Add an extra dimension to be compatible with the rest of the code
-        cnt_side1 = cnt_side1[None, ...]
-        cnt_side2 = cnt_side2[None, ...]
-
-    contour = np.hstack((cnt_side1, cnt_side2[:, ::-1, :]))
-    signed_area = np.sum(
-        contour[:,:-1,0] * contour[:,1:,1] -
-        contour[:,1:,0] * contour[:,:-1,1],
-        axis=1)/ 2
-    
-    assert signed_area.size == contour.shape[0]
-    return signed_area
-
-
-def _h_lengths(skeletons):
-    '''
-    Calculate length using the skeletons
-    '''
-    delta_coords = np.diff(skeletons, axis=1)
-    segment_sizes = np.linalg.norm(delta_coords, axis=2)
-    w_lenght = np.sum(segment_sizes, axis=1)
-    return w_lenght
-
-#%%
-class DataPartition():
-    def __init__(self, n_segments=49):
-        partitions_limits = {'head': (0, 8),
-                            'neck': (8, 16),
-                            'midbody': (16, 33),
-                            'hips': (33, 41),
-                            'tail': (41, 49),
-                            'head_tip': (0, 3),
-                            'head_base': (5, 8),
-                            'tail_base': (41, 44),
-                            'tail_tip': (46, 49),
-                            'all': (0, 49),
-                            'body': (8, 41)
-                            }
-        
-        if n_segments != 49:
-            r_fun = lambda x : int(round(x/49*n_segments))
-            for key in partitions_limits:
-                partitions_limits[key] = tuple(map(r_fun, partitions_limits[key]))
-        
-        self.n_segments = n_segments
-        self.partitions_limits =  partitions_limits
-
-    def apply(self, data, partition = 'all', func=np.mean, axis=1):
-        assert self.n_segments == data.shape[1]
-        assert partition in self.partitions_limits
-        
-        ini, fin = self.partitions_limits[partition]
-        
-        d_transform = func(data[:, ini:fin, :], axis=1)
-        return d_transform
-    
-    def apply_partitions(self, data, partitions=None, func=np.mean):
-        if partitions is None:
-            partitions = self.partitions_limits.keys()
-        
-        data_transforms = \
-        {pp : self.apply(data, partition=pp, func=func) for pp in partitions}
-        
-        return data_transforms
                                 
     
 #%%
@@ -214,14 +254,14 @@ class NormalizedWormN():
 
 
         self.ventral_contour = ventral_contour
-        self.ventral_contour = dorsal_contour
+        self.dorsal_contour = dorsal_contour
         self.skeleton = skeleton
         
         self.n_segments = n_segments
         self.n_frames = n_frames
         
         if widths is not None:
-            #I might be able to calculate the widths if the dorsal and ventral contour are given
+            #TODO I might be able to calculate the widths if the dorsal and ventral contour are given
             self.widths = widths
             assert widths.shape == (n_frames, n_segments)
         
@@ -275,44 +315,12 @@ class NormalizedWormN():
         self.skeleton = _smooth(self.skeleton)
         self.widths = _smooth(self.widths)
         self.ventral_contour = _smooth(self.ventral_contour)
-        self.dorsal_contour = _smooth(self.ventral_contour)
-        
-        
-#    @property
-#    def signed_areas(self):
-#        try:
-#            return self._signed_area
-#        except:
-#            if self.ventral_contour is not None:
-#                self._signed_area = _h_signed_areas(self.ventral_contour, self.dorsal_contour)
-#                return self._signed_area
-#            else:
-#                warnings.warn('No contours were given therefore the area cannot be calculated.')
-#                return None
-#    
-#    @property
-#    def areas(self):
-#        try:
-#            return self._area
-#        except:
-#            self._area = np.abs(self._signed_area)
-#            return self._area
-#    
-#    @property
-#    def bend_angles(self):
-#        try:
-#            return self._bend_angles
-#        except:
-#            self._bend_angles = _h_bend_angles(self.skeleton, self.bend_segment_size)
-#            return self._bend_angles
+        self.dorsal_contour = _smooth(self.dorsal_contour)
 
 
 if __name__ == '__main__':
     from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTableSimple
     from tierpsy.analysis.feat_create.obtainFeatures import getGoodTrajIndexes
-
-    
-    import matplotlib.pylab as plt
     import glob
     import os
     import fnmatch
@@ -350,153 +358,14 @@ if __name__ == '__main__':
                      worm.dorsal_contour,
                      smooth_window=5
                     )
-            #%%
-            #dd = np.linalg.norm(np.diff(coord_avgs, axis=0), axis=-1)
-            
-            def _h_orientation_vector(x, axis=None):
-                return x[:, -1, :] - x[:, 0, :]
-            p_obj = DataPartition()
-            coord_avgs = p_obj.apply_partitions(worm.skeleton)
-            coord_orientations = p_obj.apply_partitions(worm.skeleton, func=_h_orientation_vector)
             
             
-            delta_size = 12
-            
-            for part in ['head', 'neck', 'midbody', 'hips', 'tail']:
-            
-                orientation_v = coord_orientations[part].copy()
-                coords = coord_avgs[part].copy()
-                
-                
-                vv = coords[delta_size:] - coords[:-delta_size]
-                speed_c = np.linalg.norm(vv, axis=1)
-                
-                if part != 'midbody':
-                    coords -= coord_avgs['midbody']
-                    
-                
-                velocity = coords[delta_size:] - coords[:-delta_size]
-                speed = np.linalg.norm(velocity, axis=1)
-                
-                #I do not need to normalize the vectors because it will only add a constant factor, 
-                #and I am only interested in the sign
-                s_sign = np.sign(np.sum(velocity*orientation_v[delta_size:], axis=1))
-                signed_speed = speed *s_sign
-            
-                
-                orientation = np.arctan2(orientation_v[:, 0], orientation_v[:, 1])
-                orientation = nanunwrap(orientation)
-                angular_velocity = orientation[delta_size:] - orientation[:-delta_size]
-                
-                
-                xlim = (0, 500)
-                plt.figure()
-                plt.subplot(2,1,1)
-                #plt.plot(np.abs(np.diff(signed_speed)))
-                plt.plot(angular_velocity)
-                plt.xlim(xlim)
-                plt.subplot(2,1,2)
-                plt.plot(speed_c)
-                plt.plot(speed)
-                
-                plt.xlim(xlim)
-                
-                plt.title(part)
-            
-            
-            #%%
-            
-            
-            
-            
-            #%%
-            
-            #% normalise orientation
-            #speed = sqrt(sum(velocity.^2));
-            #signedSpeed = sign(sum(velocity.*orientation)).*speed;
-
-            #plt.plot(coord_avgs['head'][:, 0])
-            #plt.plot(coord_avgs['midbody'][:, 0])
-            #plt.plot(coord_avgs['head'][:, 0]-coord_avgs['midbody'][:, 0])
-            
-            #%%
-            #plt.figure()
-            #plt.plot(xx,yy, '-')
-            #plt.axis('equal')
-            #vv = np.linalg.norm(np.diff(worm.skeleton, axis=0), axis=2)
-            
-            
-            
-            #%%
+            np.savez('worm_example_W{}.npz'.format(worm_index), 
+                     skeleton=wormN.skeleton, 
+                     ventral_contour=wormN.ventral_contour, 
+                     dorsal_contour=wormN.dorsal_contour
+                     )
             break
-        #%%
-            plt.figure()
-            #plt.plot(worm.skeleton[0,:,0], worm.skeleton[0,:,1], '.-')
-            #plt.plot(worm.ventral_contour[0,:,0], worm.ventral_contour[0,:,1], '.-')
-            #plt.plot(worm.dorsal_contour[0,:,0], worm.dorsal_contour[0,:,1], '.-')
             
-            plt.plot(wormN.skeleton[0,:,0], wormN.skeleton[0,:,1], '.-')
-            plt.plot(wormN.ventral_contour[0,:,0], wormN.ventral_contour[0,:,1], '.-')
-            plt.plot(wormN.dorsal_contour[0,:,0], wormN.dorsal_contour[0,:,1], '.-')
-            plt.axis('equal')
-        #%%
-            
-            #%%
-            skels = wormN.skeleton
-            angles = [(segment_size, _h_bend_angles(skels, segment_size)) for segment_size in  range(4,8)]
-            
-            tot = len(angles)
-            n_cols = tot
-            n_rows = 2#int(np.ceil(tot/n_cols))
-            
-            import matplotlib.cm as cm
-            segment_size, ang = angles[2]
-            
-            n_range = 301
-            start_p = 7000
-            delta_f = 30
-            for ii in range(start_p, start_p+n_range, delta_f):
-                plt.figure(figsize=(3*n_cols,3*n_rows))
-                
-                for iseg, (segment_size, ang) in enumerate(angles):
-                    plt.subplot(2, n_cols, iseg+1)
-                    x = wormN.skeleton[ii,:,0]
-                    y = wormN.skeleton[ii,:,1]
-                    c = (ang[ii]+np.pi)/(2*np.pi)
-                    c = np.pad(c, (segment_size,segment_size), 'edge')
-                    c = cm.plasma(c)
-                    plt.scatter(x, y, c=c)
-                    plt.axis('equal')
-                    
-                    
-                    plt.subplot(2,n_cols, iseg+1+n_cols)
-                    dd = np.arange(ang[ii].size) + segment_size
-                    plt.plot(dd, ang[ii], '.-')
-                    
-                    plt.xlim(0, x.size)
-                    
-            
-             #%%
-            
-            
-#            plt.figure(figsize = (15, 5))
-#            plt.subplot(1,2,1)
-#                
-#            plt.plot(, '.-')
-#            plt.plot(wormN.ventral_contour[ii,:,0], wormN.ventral_contour[ii,:,1], '.-')
-#            plt.plot(wormN.dorsal_contour[ii,:,0], wormN.dorsal_contour[ii,:,1], '.-')
-#            plt.axis('equal')
-#            
-#            for segment_size, ang in angles:
-#                #plt.subplot(2,1,2)
-#                #plt.plot(ang[:, 0])
-#                
-#                plt.subplot(1,2,2)
-#                dd = np.arange(ang[ii].size) + segment_size
-#                plt.plot(dd, ang[ii], '.-')
-          #%%     
         break
-#%%
-
-
-
+        
