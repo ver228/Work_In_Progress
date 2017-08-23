@@ -8,6 +8,8 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 
+from helper import DataPartition
+
 #%%
 def _h_resample_curve(curve, resampling_N=49, widths=None):
     '''Resample curve to have resampling_N equidistant segments
@@ -70,7 +72,21 @@ def _h_smooth_curve(curve, window=5, pol_degree=3):
     return smoothed_curve
 
                                 
+def _h_remove_small_gaps(index_o, max_gap_size):
+    #add zeros at the edge to consider any block in the edges
+    index = np.hstack([False, index_o , False])
+    switches = np.diff(index.astype(np.int))
+    turn_on, = np.where(switches==1)
+    turn_off, = np.where(switches==-1)
+    assert turn_off.size == turn_on.size
     
+    #fin if fin<index.size else fin-1)
+    ind_ranges = [(ini, fin) for ini, fin in zip(turn_on, turn_off) if fin-ini > max_gap_size]
+    index_filled = np.zeros_like(index_o)
+    for ini, fin in ind_ranges:
+        index_filled[ini:fin+1] = True
+
+    return index_filled  
 #%%
 
 class SmoothedWorm():
@@ -85,7 +101,8 @@ class SmoothedWorm():
                  ventral_contour = None, 
                  dorsal_contour = None,
                  skel_smooth_window = None,
-                 coords_smooth_window = None
+                 coords_smooth_window = None,
+                 gap_to_interp = 0
                  ):
         """
         I assume data is evenly distributed in time, and missing frames are nan.
@@ -120,6 +137,7 @@ class SmoothedWorm():
             return smooth_window
         
         self.pol_degree = 3
+        self.gap_to_interp = gap_to_interp
         
         skel_smooth_window = _fix_smooth(skel_smooth_window)
         coords_smooth_window = _fix_smooth(coords_smooth_window)
@@ -135,19 +153,16 @@ class SmoothedWorm():
         def _resample(A, W = None):
             #I am adding the W as width, in the case of skeletons, 
             #I want to interpolate the widths using the same spacing
-            new_A = np.full_like(A, np.nan)
-            
             if W is not None:
-                new_W = np.full(self.n_frames, np.nan)
                 L = np.full(self.n_frames, np.nan)
                 for ii in range(A.shape[0]):
-                    new_A[ii], L[ii], W[ii] = \
+                    A[ii], L[ii], W[ii] = \
                         _h_resample_curve(A[ii], self.n_segments, W[ii])
-                return new_A, L, new_W
+                return A, L, W
             else:
                 for ii in range(A.shape[0]):
-                    new_A[ii], _, _ = _h_resample_curve(A[ii], self.n_segments)
-                return new_A
+                    A[ii], _, _ = _h_resample_curve(A[ii], self.n_segments)
+                return A
         
         
         self.skeleton, self.length, self.widths = _resample(self.skeleton, W = self.widths)
@@ -179,7 +194,10 @@ class SmoothedWorm():
         if s_win is None:
             return
         
-        good_index, = np.where(~np.isnan(self.skeleton[:, 0, 0]))
+        bad = np.isnan(self.skeleton[:, 0, 0])
+        bad_filled = _h_remove_small_gaps(bad, self.gap_to_interp)
+        
+        good_index, = np.where(~bad)
         
         def _smooth(dat):
             dat_S = np.full_like(dat, np.nan)
@@ -194,10 +212,10 @@ class SmoothedWorm():
                 xs = savgol_filter(xx, s_win, self.pol_degree)
                 ys = savgol_filter(yy, s_win, self.pol_degree)
                 
-                good_index_s = good_index-good_index[0]
+                dat_S[good_index[0]:, ii, 0] = xs
+                dat_S[good_index[0]:, ii, 1] = ys
                 
-                dat_S[good_index, ii, 0] = xs[good_index_s]
-                dat_S[good_index, ii, 1] = ys[good_index_s]
+                dat_S[bad_filled, ii, :] = np.nan
                 
             return dat_S
         
@@ -208,68 +226,83 @@ class SmoothedWorm():
 
 
 if __name__ == '__main__':
-    from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTableSimple
+    from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTable
     from tierpsy.analysis.feat_create.obtainFeatures import getGoodTrajIndexes
     from tierpsy.helper.misc import RESERVED_EXT
-    import glob
+    from tierpsy.helper.params import read_fps
+    
     import os
-    import fnmatch
     
-    exts = ['']
-
-    exts = ['*'+ext+'.hdf5' for ext in exts]
-    
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_310517/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_160517/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/CeNDR/MaskedVideos/CeNDR_Set1_020617/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/Worm_Rig_Tests/Test_Food/MaskedVideos/FoodDilution_041116'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/Development_C1_170617/'
-    #mask_dir = '/Volumes/behavgenom_archive$/Avelino/screening/Development/MaskedVideos/**/'
-    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/ATR_210417'
-    mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
-    #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/tests/join/'
+    if False:
+        #use if if you want to get the file names
+        import glob
+        import fnmatch
+        
+        exts = ['']
+        exts = ['*'+ext+'.hdf5' for ext in exts]
+        
+        mask_dir = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/**/'
+        #mask_dir = '/Users/ajaver/OneDrive - Imperial College London/tests/join/'
+        fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
+        fnames = [x for x in fnames if any(fnmatch.fnmatch(x, ext) for ext in exts)]
+        fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
+        
     
     #save_dir = '/Users/ajaver/OneDrive - Imperial College London/smooth_examples'
     save_dir = './'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
-    fnames = glob.glob(os.path.join(mask_dir, '*.hdf5'))
-    fnames = [x for x in fnames if any(fnmatch.fnmatch(x, ext) for ext in exts)]
-    fnames = [x for x in fnames if not any(x.endswith(ext) for ext in RESERVED_EXT)]
+    
+#    mask_video = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/control_pulse/pkd2_5min_Ch1_11052017_121414.hdf5'
+#    save_prefix = 'worm_example.npz'
+#    is_WT2 = False
+    
+#    mask_video = '/Volumes/behavgenom_archive$/single_worm/finished/WT/N2/food_OP50/XX/30m_wait/clockwise/N2 on food L_2011_03_29__17_02_06___8___14.hdf5'
+#    save_prefix = 'worm_example_big_W{}.npz'
+#    is_WT2 = True
+    
+    mask_video = '/Volumes/behavgenom_archive$/single_worm/finished/WT/N2/food_OP50/XX/30m_wait/anticlockwise/N2 on food R_2009_09_04__10_59_59___8___5.hdf5'
+    save_prefix = 'worm_example_small_W{}.npz'
+    is_WT2 = True
     
     #x.n_valid_skel/x.n_frames >= feat_filt_param['bad_seg_thresh']]
-    for mask_video in fnames[1:]:
-        skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
-        good_traj_index, worm_index_type = getGoodTrajIndexes(skeletons_file)
-        for iw, worm_index in enumerate(good_traj_index):
-            worm = WormFromTableSimple(skeletons_file,
-                                worm_index,
-                                worm_index_type=worm_index_type
-                                )
-            
-            wormN = SmoothedWorm(
-                     worm.skeleton, 
-                     worm.widths, 
-                     worm.ventral_contour, 
-                     worm.dorsal_contour,
-                     skel_smooth_window = 5,
-                     coords_smooth_window = 11
-                    )
-            
-            save_file = os.path.join(save_dir, 'worm_example_W{}.npz'.format(worm_index))
-            np.savez(save_file, 
-                     skeleton=wormN.skeleton, 
-                     ventral_contour=wormN.ventral_contour, 
-                     dorsal_contour=wormN.dorsal_contour
-                     )
-            
-            
-            #%%
-            break
-            
-        break
+    skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
+    
+    
+    fps = read_fps(skeletons_file)
+    coords_smooth_window = int(np.round(fps/3))
+    if coords_smooth_window <= 3:
+        coords_smooth_window = None
+    
+    good_traj_index, worm_index_type = getGoodTrajIndexes(skeletons_file)
+    for iw, worm_index in enumerate(good_traj_index):
+        worm = WormFromTable(skeletons_file,
+                            worm_index,
+                            worm_index_type=worm_index_type
+                            )
+        if is_WT2: worm.correct_schafer_worm()
         
-#%%
-
+        wormN = SmoothedWorm(
+                 worm.skeleton, 
+                 worm.widths, 
+                 worm.ventral_contour, 
+                 worm.dorsal_contour,
+                 skel_smooth_window = 5,
+                 coords_smooth_window = coords_smooth_window,
+                 gap_to_interp = 5
+                )
+        
+        
+        save_file = os.path.join(save_dir, save_prefix.format(worm_index))
+        np.savez_compressed(save_file, 
+                 skeleton=wormN.skeleton, 
+                 ventral_contour=wormN.ventral_contour, 
+                 dorsal_contour=wormN.dorsal_contour,
+                 widths = wormN.widths
+                 )
+            
+            
+        
+        break
 

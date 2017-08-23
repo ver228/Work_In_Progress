@@ -36,8 +36,8 @@ def _h_segment_position(skeletons, partition):
     return coords, orientation_v
 
 #%%
-def get_midbody_velocity(skeletons, delta_frames, fps, _is_plot = False):
-    coords, orientation_v = _h_segment_position(skeletons, partition = 'midbody')
+def get_velocity(skeletons, partition, delta_frames, fps, _is_plot = False):
+    coords, orientation_v = _h_segment_position(skeletons, partition = partition)
     
     velocity = _h_get_velocity(coords, delta_frames, fps)
     speed = np.linalg.norm(velocity, axis=1)
@@ -70,6 +70,7 @@ def _h_relative_velocity(segment_coords, delta_frames, fps):
 
 def get_relative_velocities(centered_skeleton, delta_frames, fps):
     partitions = ['head_tip', 'head', 'neck', 'hips', 'tail', 'tail_tip']
+    #partitions = ['head_tip', 'tail_tip']
     p_obj = DataPartition(partitions, n_segments=centered_skeleton.shape[1])
 
     r_radial_velocities = {}
@@ -137,4 +138,31 @@ def animate_velocity(skel_a, ini_arrow, arrow_size, speed_v, ang_v):
     anim = animation.FuncAnimation(fig, _animate,
                                    frames=skel_a.shape[0], interval=20, blit=True);
     return anim
-                            
+
+
+#%%
+if __name__ == '__main__':
+    data = np.load('worm_example_small_W1.npz')
+    skeletons = data['skeleton']
+    
+    
+    fps = 25
+    delta_time = 1/3 #delta time in seconds to calculate the velocity
+    delta_frames = fps*delta_time
+    
+    signed_speed_body, angular_velocity_body, centered_skeleton = get_velocity(skeletons, 'body', delta_frames, fps)
+    signed_speed_midbody, angular_velocity_midbody, _ = get_velocity(skeletons, 'midbody', delta_frames, fps)
+    r_radial_velocities, r_angular_velocities = get_relative_velocities(centered_skeleton, delta_frames, fps)
+    
+    velocities = OrderedDict(
+            [
+                ('speed_body',signed_speed_body),
+                ('angular_velocity_body',signed_speed_body),
+                
+                ]
+            )
+    
+    
+    
+    
+    
