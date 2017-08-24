@@ -254,17 +254,17 @@ if __name__ == '__main__':
         os.makedirs(save_dir)
     
     
-#    mask_video = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/control_pulse/pkd2_5min_Ch1_11052017_121414.hdf5'
-#    save_prefix = 'worm_example.npz'
-#    is_WT2 = False
+    mask_video = '/Users/ajaver/OneDrive - Imperial College London/optogenetics/Arantza/MaskedVideos/control_pulse/pkd2_5min_Ch1_11052017_121414.hdf5'
+    save_prefix = 'worm_example.npz'
+    is_WT2 = False
     
 #    mask_video = '/Volumes/behavgenom_archive$/single_worm/finished/WT/N2/food_OP50/XX/30m_wait/clockwise/N2 on food L_2011_03_29__17_02_06___8___14.hdf5'
 #    save_prefix = 'worm_example_big_W{}.npz'
 #    is_WT2 = True
     
-    mask_video = '/Volumes/behavgenom_archive$/single_worm/finished/WT/N2/food_OP50/XX/30m_wait/anticlockwise/N2 on food R_2009_09_04__10_59_59___8___5.hdf5'
-    save_prefix = 'worm_example_small_W{}.npz'
-    is_WT2 = True
+#    mask_video = '/Volumes/behavgenom_archive$/single_worm/finished/WT/N2/food_OP50/XX/30m_wait/anticlockwise/N2 on food R_2009_09_04__10_59_59___8___5.hdf5'
+#    save_prefix = 'worm_example_small_W{}.npz'
+#    is_WT2 = True
     
     #x.n_valid_skel/x.n_frames >= feat_filt_param['bad_seg_thresh']]
     skeletons_file = mask_video.replace('MaskedVideos','Results').replace('.hdf5', '_skeletons.hdf5')
