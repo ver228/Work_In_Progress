@@ -8,8 +8,6 @@ import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 
-from helper import DataPartition
-
 #%%
 def _h_resample_curve(curve, resampling_N=49, widths=None):
     '''Resample curve to have resampling_N equidistant segments
@@ -71,17 +69,24 @@ def _h_smooth_curve(curve, window=5, pol_degree=3):
 
     return smoothed_curve
 
-                                
-def _h_remove_small_gaps(index_o, max_gap_size):
+def get_group_borders(index_o, pad_val = False):
+    
     #add zeros at the edge to consider any block in the edges
-    index = np.hstack([False, index_o , False])
+    index = np.hstack([pad_val, index_o , pad_val])
     switches = np.diff(index.astype(np.int))
     turn_on, = np.where(switches==1)
     turn_off, = np.where(switches==-1)
     assert turn_off.size == turn_on.size
     
     #fin if fin<index.size else fin-1)
-    ind_ranges = [(ini, fin) for ini, fin in zip(turn_on, turn_off) if fin-ini > max_gap_size]
+    ind_ranges = list(zip(turn_on, turn_off))
+    return ind_ranges
+                                
+def _h_fill_small_gaps(index_o, max_gap_size):
+    ind_ranges = get_group_borders(index_o)
+    #ifter by the gap size
+    ind_ranges = [(ini, fin) for ini, fin in ind_ranges if fin-ini > max_gap_size]
+    
     index_filled = np.zeros_like(index_o)
     for ini, fin in ind_ranges:
         index_filled[ini:fin+1] = True
@@ -102,126 +107,155 @@ class SmoothedWorm():
                  dorsal_contour = None,
                  skel_smooth_window = None,
                  coords_smooth_window = None,
+                 frames_to_interpolate = None,
                  gap_to_interp = 0
                  ):
         """
         I assume data is evenly distributed in time, and missing frames are nan.
         """
         
-        #validate dimenssions
-        n_frames, n_segments, n_dims = skeleton.shape
-        assert n_dims == 2
-        if ventral_contour is not None:
-            assert dorsal_contour is not None
-            assert ventral_contour.shape == (n_frames, n_segments, n_dims)
-            assert ventral_contour.shape == dorsal_contour.shape
+        
 
 
         self.ventral_contour = ventral_contour
         self.dorsal_contour = dorsal_contour
         self.skeleton = skeleton
-        
-        self.n_segments = n_segments
-        self.n_frames = n_frames
-        
-        if widths is not None:
-            #TODO I might be able to calculate the widths if the dorsal and ventral contour are given
-            self.widths = widths
-            assert widths.shape == (n_frames, n_segments)
-        
-        
-        def _fix_smooth(smooth_window):
-            if smooth_window is not None and smooth_window % 2 == 0:
-                smooth_window += 1
-            assert smooth_window is None or smooth_window > self.pol_degree
-            return smooth_window
+        self.widths = widths
+        self._h_validate_dims()
         
         self.pol_degree = 3
         self.gap_to_interp = gap_to_interp
         
-        skel_smooth_window = _fix_smooth(skel_smooth_window)
-        coords_smooth_window = _fix_smooth(coords_smooth_window)
+        skel_smooth_window = self._h_fix_smooth(skel_smooth_window)
+        coords_smooth_window = self._h_fix_smooth(coords_smooth_window)
         
-        self._smooth_coords(s_win = coords_smooth_window)
+        self._smooth_coords(frames_to_interpolate, s_win = coords_smooth_window)
         self._smooth_skeletons(s_win = skel_smooth_window)
         self._resample_coords()
+        self._h_validate_dims()
         
+        
+    def _h_validate_dims(self):
+        #validate dimenssions
+        n_frames, n_segments, n_dims = self.skeleton.shape
+        assert n_dims == 2
+        if self.ventral_contour is not None:
+            assert self.dorsal_contour is not None
+            assert self.ventral_contour.shape == (n_frames, n_segments, n_dims)
+            assert self.ventral_contour.shape == self.dorsal_contour.shape
+        
+        if self.widths is not None:
+            #TODO I might be able to calculate the widths if the dorsal and ventral contour are given
+            assert self.widths.shape == (n_frames, n_segments)
+        
+        
+    def _h_fix_smooth(self, smooth_window):
+        if smooth_window is not None and smooth_window % 2 == 0:
+            smooth_window += 1
+        assert smooth_window is None or smooth_window > self.pol_degree
+        return smooth_window
     
+    
+    def _h_resample_coords(self, A, W = None):
+        #I am adding the W as width, in the case of skeletons, 
+        #I want to interpolate the widths using the same spacing
+        L = np.full(A.shape[0], np.nan)
+        for ii in range(A.shape[0]):
+            w = None if W is None else W[ii]
+                
+            A[ii], L[ii], w = \
+                _h_resample_curve(A[ii], A.shape[1], w)
+            
+            if not w is None:
+                W[ii] = w
         
+        return A, L, W
+    
     def _resample_coords(self):
         
-        def _resample(A, W = None):
-            #I am adding the W as width, in the case of skeletons, 
-            #I want to interpolate the widths using the same spacing
-            if W is not None:
-                L = np.full(self.n_frames, np.nan)
-                for ii in range(A.shape[0]):
-                    A[ii], L[ii], W[ii] = \
-                        _h_resample_curve(A[ii], self.n_segments, W[ii])
-                return A, L, W
-            else:
-                for ii in range(A.shape[0]):
-                    A[ii], _, _ = _h_resample_curve(A[ii], self.n_segments)
-                return A
+        self.skeleton, self.length, self.widths = \
+            self._h_resample_coords(self.skeleton, W = self.widths)
         
-        
-        self.skeleton, self.length, self.widths = _resample(self.skeleton, W = self.widths)
         if self.dorsal_contour is not None:
-            self.ventral_contour = _resample(self.ventral_contour)
-            self.dorsal_contour = _resample(self.dorsal_contour)
+            self.ventral_contour, _, _ = \
+                self._h_resample_coords(self.ventral_contour)
+            self.dorsal_contour, _, _ = \
+                self._h_resample_coords(self.dorsal_contour)
+    
+    
+    def _h_smooth_skeletons(self, curves, s_win, pol_degree=3):
+        if curves is not None:
+            for ii in range(curves.shape[0]):
+                if not np.any(np.isnan(curves[ii])):
+                    curves[ii] = _h_smooth_curve(
+                        curves[ii], 
+                        window = s_win, 
+                        pol_degree = self.pol_degree
+                        )
+        return curves
     
     def _smooth_skeletons(self, s_win):
         if s_win is None:
             return
-        
-        def _smooth(curves, pol_degree=3):
-            if curves is not None:
-                for ii in range(curves.shape[0]):
-                    if not np.any(np.isnan(curves[ii])):
-                        curves[ii] = _h_smooth_curve(
-                            curves[ii], 
-                            window = s_win, 
-                            pol_degree = self.pol_degree
-                            )
-            return curves
-        
-        self.skeleton = _smooth(self.skeleton)
-        self.widths = _smooth(self.widths)
-        self.ventral_contour = _smooth(self.ventral_contour)
-        self.dorsal_contour = _smooth(self.dorsal_contour)
+        self.skeleton = self._h_smooth_skeletons(self.skeleton, s_win)
+        self.widths = self._h_smooth_skeletons(self.widths, s_win)
+        self.ventral_contour = self._h_smooth_skeletons(self.ventral_contour, s_win)
+        self.dorsal_contour = self._h_smooth_skeletons(self.dorsal_contour, s_win)
 
-    def _smooth_coords(self, s_win):
+    def _h_interp_and_smooth(self, x, y, x_pred, s_win):
+        f = interp1d(x, y)
+        y_interp = f(x_pred)
+        y_smooth = savgol_filter(y_interp, s_win, self.pol_degree)
+        return y_smooth
+
+
+    def _h_smooth_coords(self, 
+                         dat_o, 
+                         s_win, 
+                         good_frames_index, 
+                         frames_to_interpolate, 
+                         frames_to_nan):
+        if dat_o is None:
+            return dat_o
+        
+         
+        dat_all = dat_o[good_frames_index]
+        
+        new_shape = (frames_to_interpolate.size, dat_o.shape[1], dat_o.shape[2]) 
+        dat_all_s = np.full(new_shape, np.nan)
+        
+        #add data in the borders to be able to interpolate within those regions
+        tt = np.hstack([-1, good_frames_index, dat_o.shape[0]]) 
+        for i_seg in range(dat_all.shape[1]):
+            for i_coord in range(2):
+                c = dat_all[:, i_seg, i_coord]
+                c = np.hstack([c[0], c, c[-1]])
+                c_s = self._h_interp_and_smooth(tt, c, frames_to_interpolate, s_win)
+                dat_all_s[:, i_seg, i_coord] = c_s
+                
+        dat_all_s[frames_to_nan, :, :] = np.nan
+        return dat_all_s
+
+    def _smooth_coords(self, frames_to_interpolate, s_win):
         if s_win is None:
             return
         
+        if frames_to_interpolate is None:
+            frames_to_interpolate = np.arange(self.skeleton.shape[0])
+        
         bad = np.isnan(self.skeleton[:, 0, 0])
-        bad_filled = _h_remove_small_gaps(bad, self.gap_to_interp)
+        good_frames_index, = np.where(~bad)
         
-        good_index, = np.where(~bad)
+        #get indexes of nan's after removing small gaps and interpolating
+        bad_filled = _h_fill_small_gaps(bad, self.gap_to_interp)
+        f = interp1d(np.arange(bad_filled.size), bad_filled)
+        frames_to_nan = np.ceil(f(frames_to_interpolate)).astype(np.bool)
+        assert frames_to_interpolate.size == frames_to_nan.size
         
-        def _smooth(dat):
-            dat_S = np.full_like(dat, np.nan)
-            for ii in range(dat.shape[1]):
-                fx = interp1d(good_index, dat[good_index, ii, 0])
-                fy = interp1d(good_index, dat[good_index, ii, 1])
-                
-                ind = np.arange(good_index[0], good_index[-1]+1)
-                
-                xx = fx(ind)
-                yy = fy(ind)
-                xs = savgol_filter(xx, s_win, self.pol_degree)
-                ys = savgol_filter(yy, s_win, self.pol_degree)
-                
-                dat_S[good_index[0]:, ii, 0] = xs
-                dat_S[good_index[0]:, ii, 1] = ys
-                
-                dat_S[bad_filled, ii, :] = np.nan
-                
-            return dat_S
-        
-        self.skeleton = _smooth(self.skeleton)
-        self.ventral_contour = _smooth(self.ventral_contour)
-        self.dorsal_contour = _smooth(self.dorsal_contour)
+        args = (s_win, good_frames_index, frames_to_interpolate, frames_to_nan)
+        self.skeleton = self._h_smooth_coords(self.skeleton,  *args)
+        self.ventral_contour = self._h_smooth_coords(self.ventral_contour, *args)
+        self.dorsal_contour = self._h_smooth_coords(self.dorsal_contour, *args)
 
 
 
@@ -305,4 +339,14 @@ if __name__ == '__main__':
             
         
         break
-
+    #%%
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.subplot(4,1,1)
+    plt.plot(wormN.skeleton[: ,0,0])
+    plt.subplot(4,1,2)
+    plt.plot(wormN.skeleton[: ,0,1])
+    plt.subplot(2,1,2)
+    plt.plot(wormN.skeleton[: ,0,0], wormN.skeleton[: ,0,1])
+    plt.axis('equal')
+    

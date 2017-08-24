@@ -152,7 +152,7 @@ def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
     #%%
     if _is_debug:
         plt.figure()
-        plt.plot(region_lab)
+        #plt.plot(region_lab)
         plt.plot(light_on)
         plt.plot(turn_on, light_on[turn_on], 'o')
         plt.plot(turn_off, light_on[turn_off], 'x')
@@ -261,6 +261,9 @@ if __name__ == '__main__':
         all_data = pd.concat([all_data, r_stats])
         
         
+        
+        if irow > 10:
+            sdafadsf
     #%%
     #save results
     all_data.to_csv('regions_stats.csv', index=False)
