@@ -8,6 +8,7 @@ Created on Thu Aug 24 09:52:44 2017
 import pymysql
 import pandas as pd
 import numpy as np
+import traceback
 import multiprocessing as mp
 import tables
 from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTable
@@ -75,6 +76,14 @@ if __name__ == '__main__':
         print(skeletons_file)        
         return row, wormN.skeleton, borders
     
+    
+    def process_file_wrapped(row):
+        #https://stackoverflow.com/questions/15314189/python-multiprocessing-pool-hangs-at-join
+        try:
+            return _process_row(row)
+        except:
+            print('%s: %s' % (row['skel_file'], traceback.format_exc()))
+    
     save_file = '/Users/ajaver/Desktop/SWDB_skel_smoothed_2.hdf5'
     
     # pytables filters.
@@ -119,15 +128,17 @@ if __name__ == '__main__':
                                         expectedrows = df.shape[0]*15000,
                                         filters = TABLE_FILTERS)
         
-        n_batch = 30
+        n_batch = 3
         p = mp.Pool(n_batch)
         
         batch_data = []
         tot_skels = 0
-        for irow, row in df.iterrows():
+        for irow, row in df[1000:].iterrows():
             batch_data.append(row)
             if len(batch_data) == n_batch or irow == df.index[-1]:
-                for row, skeletons, borders in p.map(_process_row, batch_data):
+                
+                results =  list(p.map(process_file_wrapped, batch_data))
+                for row, skeletons, borders in results:
                     if not borders:
                         continue
                     
@@ -145,11 +156,13 @@ if __name__ == '__main__':
                         
                         tot_skels += skels.shape[0]
                         
-            
+                data_table.flush()
+                skeletons_data.flush()
+                
                 batch_data = []
                 print(irow, len(df))
                 
-        
+                break
         
         
         
