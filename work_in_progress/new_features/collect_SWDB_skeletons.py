@@ -15,8 +15,6 @@ from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTable
 
 from smooth_worm import SmoothedWorm, get_group_borders
 
-
-
 if __name__ == '__main__':
     conn = pymysql.connect(host='localhost', database='single_worm_db')
     
@@ -34,7 +32,6 @@ if __name__ == '__main__':
     ORDER BY frac_valid
     '''
     df = pd.read_sql(sql, con=conn)
-    
     #filter strains that have at least 10 videos
     df = df.groupby('strain').filter(lambda x: len(x) > 10)
     
@@ -71,7 +68,7 @@ if __name__ == '__main__':
         
         
         borders = get_group_borders(~np.isnan(wormN.skeleton[: ,0,0]))
-        borders = [x for x in borders if x[1]-x[0] >= sample_size_frames]
+        borders = [x for x in borders if x[1]-x[0]-1 >= sample_size_frames]
         
         print(skeletons_file)        
         return row, wormN.skeleton, borders
@@ -128,41 +125,56 @@ if __name__ == '__main__':
                                         expectedrows = df.shape[0]*15000,
                                         filters = TABLE_FILTERS)
         
-        n_batch = 3
-        p = mp.Pool(n_batch)
+        n_batch = 1
+        #p = mp.Pool(n_batch)
         
         batch_data = []
         tot_skels = 0
-        for irow, row in df[1000:].iterrows():
+        for irow, row in df.iterrows():
             batch_data.append(row)
             if len(batch_data) == n_batch or irow == df.index[-1]:
                 
-                results =  list(p.map(process_file_wrapped, batch_data))
+                results =  list(map(process_file_wrapped, batch_data))
                 for row, skeletons, borders in results:
                     if not borders:
                         continue
                     
                     for bb in borders:
-                        skels = skeletons[bb[0]:bb[1]+1]
-                    
+                        skels = skeletons[bb[0]:bb[1]]
+                        assert not np.any(np.isnan(skels))
+                        
                         rr = (row['id'],
                               np.array(row['strain']),
                               bb[0]/expected_fps, 
-                              bb[0]+tot_skels, 
-                              bb[1]+tot_skels
+                              tot_skels, 
+                              tot_skels + skels.shape[0] - 1
                               )
                         data_table.append([rr])
                         skeletons_data.append(skels)
                         
                         tot_skels += skels.shape[0]
                         
+                        print(rr[3:], tot_skels, skeletons_data.shape)
+                        
                 data_table.flush()
                 skeletons_data.flush()
                 
                 batch_data = []
                 print(irow, len(df))
-                
-                break
-        
-        
-        
+        #%%
+    
+    with pd.HDFStore(save_file, 'r') as fid:
+        skeletons_groups = fid['/skeletons_groups']
+    #%%
+    ss = skeletons_groups['strain'].unique()
+    strains_dict = {x:ii for ii,x in enumerate(np.sort(ss))}
+    strains_codes = np.array(list(strains_dict.items()), 
+                             np.dtype([('strain', 'S7'), ('strain_id', np.int)]))
+    #%%
+    with tables.File(save_file, 'r+') as fid:
+        fid.create_table(
+                    '/',
+                    'strains_codes',
+                    obj = strains_codes,
+                    filters = TABLE_FILTERS
+                    )

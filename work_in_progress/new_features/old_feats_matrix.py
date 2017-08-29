@@ -62,8 +62,6 @@ if __name__ == '__main__':
     [x for x in bad_feats['feat'] if not any(f in x for f in ['orientation', 'path_curvature'])]
     
     #%%
-    
-    sadf
     from scipy.stats import ranksums
     import statsmodels.stats.multitest as smm
     
