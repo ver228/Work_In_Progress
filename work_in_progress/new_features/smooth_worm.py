@@ -65,7 +65,7 @@ def _h_smooth_curve(curve, window=5, pol_degree=3):
         smoothed_curve = np.zeros_like(curve)
         for nn in range(curve.ndim):
             smoothed_curve[:, nn] = savgol_filter(
-                curve[:, nn], window, pol_degree, mode='mirror')
+                curve[:, nn], window, pol_degree)
 
     return smoothed_curve
 

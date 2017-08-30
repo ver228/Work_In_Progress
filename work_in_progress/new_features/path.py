@@ -133,6 +133,7 @@ if __name__ == '__main__':
                             'hips': (33, 41),
                             'tail': (41, 49),
                             'all': (0, 49),
+                            'body': (8, 41)
                             }
     
     all_cnts = {}
@@ -165,4 +166,9 @@ if __name__ == '__main__':
         all_cnts[part] = counts
     
         print(part)
+    #%%
     
+    tt = 2500
+    plt.plot(ventral_contour[tt,:,0], ventral_contour[tt,:,1])
+    plt.plot(dorsal_contour[tt,:,0], dorsal_contour[tt,:,1])
+    plt.axis('equal')
