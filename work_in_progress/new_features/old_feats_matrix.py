@@ -265,7 +265,7 @@ if __name__ == '__main__':
     
     feat_mean_n = feat_mean.loc[feat_old_n.index]
     #%%
-    ratio_data =[(feat,(feat_mean_n[feat].abs()-feat_old_n[feat].abs())/(feat_old_n[feat].abs())  for feat in feat_mean_n]
+    ratio_data =[(feat, (feat_mean_n[feat].abs()-feat_old_n[feat].abs())/feat_old_n[feat].abs())  for feat in feat_mean_n]
    
     columns, dat = zip(*ratio_data)
     
