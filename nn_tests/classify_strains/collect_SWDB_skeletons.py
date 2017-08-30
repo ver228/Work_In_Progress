@@ -15,6 +15,9 @@ from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTable
 
 from smooth_worm import SmoothedWorm, get_group_borders
 
+import sys
+sys.path.append('/Users/ajaver/Documents/GitHub/work-in-progress/work_in_progress/new_features')
+
 if __name__ == '__main__':
     conn = pymysql.connect(host='localhost', database='single_worm_db')
     
