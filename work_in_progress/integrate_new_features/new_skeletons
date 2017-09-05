@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Sep  5 18:31:24 2017
+
+@author: ajaver
+"""
+import numpy as np
+import pandas as pd
+import tables
+
+from tierpsy_features import SmoothedWorm
+from tierpsy.analysis.feat_create.obtainFeaturesHelper import WormFromTable
+from tierpsy.helper.params import read_fps
+
+is_WT2 = True
+skel_smooth_window = 5
+coords_smooth_window_s = 0.25
+gap_to_interp_s = 0.25
+
+
+base_file = '/Volumes/behavgenom_archive$/single_worm/finished/mutants/gpa-10(pk362)V@NL1147/food_OP50/XX/30m_wait/clockwise/gpa-10 (pk362)V on food L_2009_07_16__12_55__4'
+
+skeletons_file = base_file + '_skeletons.hdf5'
+
+valid_fields = ['timestamp_raw', 'timestamp_time', 'worm_index_joined', 
+                'skeleton_id', 'coord_x', 'coord_y', 'threshold', 'roi_size', 
+                'area', 'frame_number', 'is_good_skel']
+
+with pd.HDFStore(skeletons_file, 'r') as fid:
+    trajectories_data = fid['/trajectories_data']
+trajectories_data = trajectories_data[valid_fields]
+trajectories_data.rename(columns = {'worm_index_joined':'worm_index', 'is_good_skel':'is_skeletonized'}, 
+                         inplace=True)
+
+#%%
+fps = read_fps(skeletons_file)
+coords_smooth_window = int(np.round(fps*coords_smooth_window_s))
+gap_to_interp = int(np.round(fps*gap_to_interp_s))
+
+if coords_smooth_window <= 3: #do not interpolate
+    coords_smooth_window = None
+    
+for worm_index, feat_data in trajectories_data.groupby('worm_index'):
+    pass
+#%%
+    worm = WormFromTable(skeletons_file,
+                        worm_index,
+                        worm_index_type = 'worm_index_joined'
+                        )
+
+    if is_WT2:
+        worm.correct_schafer_worm()
+        
+    wormN = SmoothedWorm(
+                 worm.skeleton, 
+                 worm.widths, 
+                 worm.ventral_contour, 
+                 worm.dorsal_contour,
+                 skel_smooth_window = skel_smooth_window,
+                 coords_smooth_window = coords_smooth_window,
+                 gap_to_interp = gap_to_interp
+                )
+    #%%
+    dlft_val = (-1, -1, -1,  -1, np.nan, np.nan, np.nan, np.nan, np.nan, -1, False)
+    valid_index = worm.timestamp - worm.first_frame
+    dat = np.array([dlft_val]*wormN.skeleton.shape[0], feat_data.dtypes)
+    worm_df = pd.DataFrame(dat, columns = feat_data.columns)
+    worm_df.loc[feat_data['timestamp_raw']] = feat_data.values
+    
