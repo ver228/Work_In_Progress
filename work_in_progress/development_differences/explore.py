@@ -76,5 +76,6 @@ for feat in ['midbody_speed']:#features_columns:
         plt.suptitle('{} {}'.format(stat, feat))
             
         
+#%%
 
 
