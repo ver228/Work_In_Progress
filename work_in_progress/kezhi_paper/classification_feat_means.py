@@ -176,9 +176,6 @@ def get_SVM(count=None):
 #Top1 0.736040609137
 #Top2 0.903553299492
 
-
-#%%
-
 clf_tree, _ = get_RF()
 clf_svm, _ = get_SVM()
 
@@ -234,11 +231,6 @@ print_results(SVM_avg)
 
 print('Random Forest')
 print_results(RF_avg)
-
-
-
-
-
 
 
 #%%
