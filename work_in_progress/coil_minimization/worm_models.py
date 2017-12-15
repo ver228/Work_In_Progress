@@ -20,7 +20,7 @@ eigenworms_components_full = torch.from_numpy(_eigenworms_n).float()
 class EigenWorms(nn.Module):
     def __init__(self, n_components = 6):
         super().__init__()
-        self.eigen_components = Variable(eigenworms_components_full[:n_components])
+        self.eigen_components = nn.Parameter(eigenworms_components_full[:n_components], requires_grad=False)
         self.n_angles = self.eigen_components.size(1)
         
     def _unwrap_t(self, angles):
@@ -85,8 +85,8 @@ class SkeletonsMaps(nn.Module):
         X_grid = torch.arange(0, roi_size).view(1, -1).expand(1, 1, roi_size, roi_size)
         Y_grid = torch.arange(0, roi_size).view(-1, 1).expand(1, 1, roi_size, roi_size)
         
-        self.X_grid = Variable(X_grid.contiguous())
-        self.Y_grid = Variable(Y_grid.contiguous())
+        self.X_grid = nn.Parameter(X_grid.contiguous(), requires_grad=False)
+        self.Y_grid = nn.Parameter(Y_grid.contiguous(), requires_grad=False)
 
     def forward(self, skel_coord, skel_width):
         skel_coord = skel_coord.view(-1, 49, 2, 1, 1)
@@ -94,8 +94,8 @@ class SkeletonsMaps(nn.Module):
         mu_y = skel_coord[:, :, 1]
         sigma = skel_width.view(1, 49, 1, 1)
         
-        dx = s_map.X_grid.view(1, 1, 128, 128) - mu_x
-        dy = s_map.Y_grid.view(1, 1, 128, 128) - mu_y
+        dx = self.X_grid.view(1, 1, 128, 128) - mu_x
+        dy = self.Y_grid.view(1, 1, 128, 128) - mu_y
         
         skel_maps = (-(dx.pow(2) + dy.pow(2))/(2*sigma.pow(2))).exp_()
         skel_map = skel_maps.sum(1).clamp(0,1)
@@ -109,7 +109,8 @@ if __name__ == '__main__':
     from tierpsy.helper.params import read_microns_per_pixel
     from tierpsy.analysis.ske_create.helperIterROI import getROIfromInd
 
-    mask_file = '/Users/ajaver/OneDrive - Imperial College London/aggregation/N2_1_Ch1_29062017_182108_comp3.hdf5'
+    #mask_file = '/Users/ajaver/OneDrive - Imperial College London/aggregation/N2_1_Ch1_29062017_182108_comp3.hdf5'
+    mask_file = '/data/ajaver/onedrive/aggregation/N2_1_Ch1_29062017_182108_comp3.hdf5'
     feat_file = mask_file.replace('.hdf5', '_featuresN.hdf5')
     
     w_ind = 264
@@ -143,18 +144,30 @@ if __name__ == '__main__':
 
     
     #%%
-    skels = Variable(torch.from_numpy(skeletons))
-    skel_width = Variable(torch.from_numpy(skel_w_avg))
+    is_cuda = True
+    skels = torch.from_numpy(skeletons)
+    skel_width = torch.from_numpy(skel_w_avg)
     eig = EigenWorms(6)
+    s_map = SkeletonsMaps()
+    
+    if is_cuda:
+        skels = skels.cuda()
+        skel_width = skel_width.cuda()
+        eig = eig.cuda()
+        s_map = s_map.cuda()
+        
+    skels = Variable(skels)
+    skel_width = Variable(skel_width)
+    
     
     DT = eig.transform(skels)
     skels_n = eig.invert(*DT)
     
     #%%
     import matplotlib.pylab as plt
-    nn = 1800
-    ss = skels.data.numpy()[nn]
-    ss_n = skels_n.data.numpy()[nn]
+    frame_i = 1800
+    ss = skels.data.cpu().numpy()[frame_i]
+    ss_n = skels_n.data.cpu().numpy()[frame_i]
     plt.plot(ss[:,1], ss[:,0])
     plt.plot(ss_n[:,1], ss_n[:,0])
     plt.axis('equal')
@@ -177,14 +190,17 @@ if __name__ == '__main__':
     
     #%%
     dd = torch.from_numpy(np.vstack(roi_corner_s)).float()
-    skel_ss = skels[nn:nn+32] - Variable(dd.view(-1, 1, 2))
+    if is_cuda:
+        dd = dd.cuda()
     
-    s_map = SkeletonsMaps()
+    skel_ss = skels[frame_i:frame_i+32] - Variable(dd.view(-1, 1, 2))
+    
+    
     sm = s_map(skel_ss, skel_width/4)
     
     #%%
-    ss = skel_ss.data[-1].numpy()
-    mm = sm.data.numpy()[-1]
+    ss = skel_ss.cpu().data[-1].numpy()
+    mm = sm.data.cpu().numpy()[-1]
     plt.figure()
     
     plt.subplot(1,2,1)
