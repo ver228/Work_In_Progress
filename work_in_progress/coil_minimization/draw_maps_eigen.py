@@ -302,4 +302,5 @@ for tt in range(10, 15, 3):
     #%%
     
     eigen_prev = [Variable(x.data) for x in eig_r]
+    
     break
