@@ -14,6 +14,7 @@ import tables
 
 import matplotlib.pylab as plt
 from tierpsy.helper.params import read_fps
+from tierpsy_features.summary_stats import _test_get_feat_stats_all
 
 n_pulses = 5
 regions = ['before', 'after', 'long_pulse']
@@ -26,28 +27,9 @@ REGION_LABELS = {x:ii for ii,x in enumerate(regions)}
 #make the inverse diccionary to get the name from the index
 REGION_LABELS_I = {val:key for key, val in REGION_LABELS.items()}
 
-#the sign of this features is related with the ventral orientation. This is not defined in the multiworm case.
-signed_ventral_feats = ['head_bend_mean', 'neck_bend_mean', 
-                'midbody_bend_mean', 'hips_bend_mean', 
-                'tail_bend_mean', 'head_bend_sd', 'neck_bend_sd', 
-                'midbody_bend_sd', 'hips_bend_sd', 'tail_bend_sd', 
-                'tail_to_head_orientation', 'head_orientation', 
-                'tail_orientation', 'eigen_projection_1', 
-                'eigen_projection_2', 'eigen_projection_3', 
-                'eigen_projection_4', 'eigen_projection_5', 
-                'eigen_projection_6', 'head_tip_motion_direction', 
-                'head_motion_direction', 'midbody_motion_direction', 
-                'tail_motion_direction', 'tail_tip_motion_direction', 
-                'foraging_amplitude', 'foraging_speed', 
-                'head_crawling_amplitude', 'midbody_crawling_amplitude', 
-                'tail_crawling_amplitude', 'head_crawling_frequency', 
-                'midbody_crawling_frequency', 'tail_crawling_frequency', 
-                'path_curvature']
-
-bad_feats = ['bend_count', 'head_orientation', 'tail_to_head_orientation', 'tail_orientation']
 
 def read_light_data(mask_file, n_sigmas=6):
-    #%%
+    
     with tables.File(mask_file) as fid:
         mean_intensity = fid.get_node('/mean_intensity')[:]
         timestamp = fid.get_node('/timestamp/raw')[:]
@@ -61,7 +43,7 @@ def read_light_data(mask_file, n_sigmas=6):
     #... and since the median should be equal to the mean in a gaussian dist
     # we can use 6 sigma as our threshold
     light_on = mean_intensity >  med + s*n_sigmas
-    #%%
+    
     #shift data to match the timestamps (deal with possible drop frames)
     
     if ~np.all(np.isnan(timestamp)) > 0:
@@ -138,7 +120,7 @@ def get_exp_data(mask_dir):
     return df
 
 def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
-    #%%
+    
     fps = read_fps(mask_file)
     min_pulse_size = fps*min_pulse_size_s
      
@@ -149,7 +131,7 @@ def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
     turn_on, turn_off = get_pulses_indexes(light_on, min_pulse_size)
     region_lab = define_regions(light_on.size, turn_on, turn_off)
     region_size = np.bincount(region_lab)[1:]/fps
-    #%%
+    
     if _is_debug:
         plt.figure()
         #plt.plot(region_lab)
@@ -159,63 +141,63 @@ def read_file_data(mask_file, feat_file, min_pulse_size_s=3, _is_debug=False):
         plt.title(os.path.basename(mask_file))
     #read features
     with pd.HDFStore(feat_file, 'r') as fid:
-        feat_timeseries = fid['/features_timeseries']
-    feat_timeseries['timestamp'] = feat_timeseries['timestamp'].astype(np.int)
-    for feat in signed_ventral_feats:
-        feat_timeseries[feat] = feat_timeseries[feat].abs()
-    
+        timeseries_data = fid['/timeseries_data']
+        blob_features = fid['/blob_features']
+        
+    timeseries_data['timestamp'] = timeseries_data['timestamp'].astype(np.int)
     #label if frame with the corresponding region
-    feat_timeseries['region_lab'] = region_lab[feat_timeseries['timestamp']]
+    timeseries_data['region_lab'] = region_lab[timeseries_data['timestamp']]
     
-    return feat_timeseries, region_size
+    return timeseries_data, blob_features, fps, region_size
 
-def get_feat_stats(feat_timeseries, FRAC_MIN=0.8):
-    #columns that correspond to indexes (not really features)
-    index_cols =['worm_index','timestamp','skeleton_id','motion_modes']
-    normal_feats = [x for x in feat_timeseries.columns if not x in index_cols]
-    
-    #get the stats for each region and each feature
-    r_stats = []
-    for r_lab, r_dat in feat_timeseries.groupby('region_lab'):
-        if r_lab not in REGION_LABELS_I:
-            #likely 0 value corresponding a frames between regions
-            continue
-        
-        lab = REGION_LABELS_I[r_lab]
-        
-        for feat in normal_feats:
-            feat_d = r_dat[feat]
-            q = np.nanpercentile(feat_d, [5, 50, 95])
-            frac_valid = feat_d.count()/feat_d.size
-            
-            if frac_valid > FRAC_MIN:
-                dd = [
-                (lab, feat, '5th', q[0]),
-                (lab, feat, '50th', q[1]),
-                (lab, feat, '95th', q[2])
-                ]
-            
-                r_stats += dd
-        #the motion_modes is a bit different. It is -1 if the worm is going backwards,
-        # 0 if it is paused and 1 if it is going forward
-        feat_d = r_dat['motion_modes']
-        nn = feat_d.count()
-        
-        if nn/feat_d.size > FRAC_MIN:
-            dd = [
-                (lab, 'motion_modes', 'f_backwards', np.sum(feat_d==-1)/nn),
-                (lab, 'motion_modes', 'f_paused', np.sum(feat_d==0)/nn),
-                (lab, 'motion_modes', 'f_forward', np.sum(feat_d==1)/nn)
-                    ]
-            r_stats += dd
-        
-        
-    r_stats = pd.DataFrame(r_stats, columns=['region', 'feat', 'stat', 'value'])
-    
-    return r_stats
+#def get_feat_stats(feat_timeseries, FRAC_MIN=0.8):
+#    #columns that correspond to indexes (not really features)
+#    index_cols =['worm_index','timestamp','skeleton_id','motion_modes']
+#    normal_feats = [x for x in feat_timeseries.columns if not x in index_cols]
+#    
+#    #get the stats for each region and each feature
+#    r_stats = []
+#    for r_lab, r_dat in feat_timeseries.groupby('region_lab'):
+#        if r_lab not in REGION_LABELS_I:
+#            #likely 0 value corresponding a frames between regions
+#            continue
+#        
+#        lab = REGION_LABELS_I[r_lab]
+#            
+#        for feat in normal_feats:
+#            
+#            feat_d = r_dat[feat]
+#            q = np.nanpercentile(feat_d, [5, 50, 95])
+#            frac_valid = feat_d.count()/feat_d.size
+#            
+#            if frac_valid > FRAC_MIN:
+#                dd = [
+#                (lab, feat, '5th', q[0]),
+#                (lab, feat, '50th', q[1]),
+#                (lab, feat, '95th', q[2])
+#                ]
+#            
+#                r_stats += dd
+#        #the motion_modes is a bit different. It is -1 if the worm is going backwards,
+#        # 0 if it is paused and 1 if it is going forward
+#        feat_d = r_dat['motion_modes']
+#        nn = feat_d.count()
+#        
+#        if nn/feat_d.size > FRAC_MIN:
+#            dd = [
+#                (lab, 'motion_modes', 'f_backwards', np.sum(feat_d==-1)/nn),
+#                (lab, 'motion_modes', 'f_paused', np.sum(feat_d==0)/nn),
+#                (lab, 'motion_modes', 'f_forward', np.sum(feat_d==1)/nn)
+#                    ]
+#            r_stats += dd
+#        
+#        
+#    r_stats = pd.DataFrame(r_stats, columns=['region', 'feat', 'stat', 'value'])
+#    
+#    return r_stats
+#
 
-
-#%
+#%%
 #
 #   
 if __name__ == '__main__':
@@ -237,33 +219,46 @@ if __name__ == '__main__':
     for irow, row in exp_df.iterrows():
         print(irow+1, len(exp_df))
         mask_file = row['mask_file']
-        feat_file = mask_file.replace('MaskedVideos', 'Results').replace('.hdf5', '_features.hdf5')
+        feat_file = mask_file.replace('MaskedVideos', 'Results').replace('.hdf5', '_featuresN.hdf5')
         
         output = read_file_data(mask_file, feat_file, _is_debug = _is_debug)
         if output is None:
             continue
         else:
-            feat_timeseries, region_size = output
+            timeseries_data, blob_features, fps, region_size = output
         
         exp_df.loc[irow, 'has_valid_light'] = True
-        
         fps = read_fps(mask_file)
-        exp_df.loc[irow, 'video_duration'] = feat_timeseries['timestamp'].max()/fps
+        exp_df.loc[irow, 'video_duration'] = timeseries_data['timestamp'].max()/fps
         #add duration of each region
         for ii, val in enumerate(region_size):
             exp_df.loc[irow, REGION_LABELS_I[ii+1]] = val
+        #%%
+        r_stats_l = []
+        for r_lab, r_dat in timeseries_data.groupby('region_lab'):
+            if r_lab not in REGION_LABELS_I:
+                #likely 0 value corresponding a frames between regions
+                continue
+            
+            lab = REGION_LABELS_I[r_lab]
+            r_blob = blob_features.loc[r_dat.index]
+            
+            r_dat = r_dat.reset_index(drop=True)
+            r_blob = r_blob.reset_index(drop=True)
+            
+            dd = _test_get_feat_stats_all(r_dat, r_blob, fps)
+            print(r_lab)
+            r_stats_l += [(r_lab, *x) for x in zip(dd.index, dd)]
+        #%%
+        r_stats = pd.DataFrame(r_stats_l, columns=['region', 'feat', 'value'])
+            
         
-        
-        
-        r_stats = get_feat_stats(feat_timeseries)
         r_stats['exp_id'] = irow
 
         all_data = pd.concat([all_data, r_stats])
         
-        
-        
-        if irow > 10:
-            sdafadsf
+        if irow > 5:
+            asfa
     #%%
     #save results
     all_data.to_csv('regions_stats.csv', index=False)

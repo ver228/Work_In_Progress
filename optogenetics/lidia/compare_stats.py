@@ -45,7 +45,7 @@ if __name__ == '__main__':
     all_data = all_data.join(exp_df[['strain', 'exp_type']], on='exp_id')
     
     exp_pvals = []
-    for group, group_data in all_data.groupby(['strain', 'region', 'stat', 'feat']):
+    for group, group_data in all_data.groupby(['strain', 'region', 'feat']):
         good = group_data['exp_type'] == 'EtOH'
         ctr = group_data.loc[good, 'value'].values
         atr = group_data.loc[~good, 'value'].values
@@ -55,7 +55,7 @@ if __name__ == '__main__':
         
         exp_pvals.append(list(group) + [p])
     
-    exp_pvals_df = pd.DataFrame(exp_pvals, columns = ['strain', 'region', 'stat', 'feat', 'p-values'])
+    exp_pvals_df = pd.DataFrame(exp_pvals, columns = ['strain', 'region',  'feat', 'p-values'])
     
     #%%
     
