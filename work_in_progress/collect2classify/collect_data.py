@@ -75,12 +75,14 @@ if __name__ == '__main__':
         
         sample_data_l = []
         for w, dat in trajectories_data.groupby('worm_index_joined'):
+            #I am only getting middle ROI in the trajectory
             ind_m = dat.index[len(dat)//2]
             row = dat.loc[ind_m]        
         
             frame_number = int(row['frame_number'])
             worm_index = int(row['worm_index_joined'])
             
+            #slow but simple
             row, worm_roi, roi_corner = getROIfromInd(mask_file, trajectories_data, frame_number, worm_index, roi_size = roi_size)
             worm_roi, roi_corner = pad_if_necessary(worm_roi, roi_corner, roi_size)
             masks.append(worm_roi[None, ...])

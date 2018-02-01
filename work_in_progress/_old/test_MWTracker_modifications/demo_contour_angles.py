@@ -10,12 +10,12 @@ import pandas as pd
 import numpy as np
 import os
 
-from MWTracker.analysis.ske_create.getSkeletonsTables import getWormMask
-from MWTracker.analysis.ske_create.helperIterROI import  getROIfromInd
-from MWTracker.analysis.ske_create.segWormPython.mainSegworm import getSkeleton, contour2Skeleton, get_cnt_ang
+from tierpsy.analysis.ske_create.getSkeletonsTables import getWormMask
+from tierpsy.analysis.ske_create.helperIterROI import  getROIfromInd
+from tierpsy.analysis.ske_create.segWormPython.mainSegworm import getSkeleton, contour2Skeleton, get_contour_angles
 
 
-from MWTracker.analysis.ske_create.segWormPython.cythonFiles.segWorm_cython import circComputeChainCodeLengths
+from tierpsy.analysis.ske_create.segWormPython.cython_files.segWorm_cython import circComputeChainCodeLengths
 
 
 def cnt2angles(contour, ske_worm_segments):
@@ -25,14 +25,15 @@ def cnt2angles(contour, ske_worm_segments):
                        0] + cnt_chain_code_len[-1]) / cnt_worm_segments
     
     #calculate contour angles
-    hi_freq_output, low_freq_output = get_cnt_ang(contour, cnt_chain_code_len, cnt_worm_segments, worm_seg_length)
+    hi_freq_output, low_freq_output = get_contour_angles(contour, cnt_chain_code_len, cnt_worm_segments, worm_seg_length)
     
     return hi_freq_output, low_freq_output
 
 
 
 if __name__ == '__main__':
-    masked_file = '/Users/ajaver/OneDrive - Imperial College London/Tests/different_animals/maggots/MaskedVideos/hodor_ko_l3_control_siamac_1.hdf5'
+    #masked_file = '/Users/ajaver/OneDrive - Imperial College London/Tests/different_animals/maggots/MaskedVideos/hodor_ko_l3_control_siamac_1.hdf5'
+    masked_file = '/home/ajaver@cscdom.csc.mrc.ac.uk/Downloads/CeleST submission small/demos/CeleST - demo with videos/samples/Results/Sample01/frame001.hdf5'
     skeletons_file = masked_file.replace('MaskedVideos', 'Results').replace('.hdf5', '_skeletons.hdf5')
     
     assert(os.path.exists(masked_file))
@@ -43,19 +44,24 @@ if __name__ == '__main__':
         trajectories_data = fid['/trajectories_data']
     
     strel_size = 5
-    worm_index = 1
+    worm_index = 3
     
-    ske_morph_segments = 16
+    ske_morph_segments = 24
     ske_head_angle_thresh = 60
-        
     
-    for frame_number in range(1, 1000, 50):
+    is_light_background = False
+        
+    tot = trajectories_data.loc[trajectories_data['worm_index_joined'] == worm_index, 'frame_number'].max()
+    
+    tot = min(tot, 10)
+    for frame_number in range(1, tot, 1):
         row, worm_roi, roi_corner = getROIfromInd(masked_file, trajectories_data, frame_number, worm_index)
         
         worm_mask, contour, cnt_area = getWormMask(worm_roi, 
                                                     row['threshold'], 
                                                     strel_size, 
-                                                    min_blob_area=row['area'] / 2)
+                                                    min_blob_area=row['area'] / 2,
+                                                    is_light_background = is_light_background)
         
         #contour = worm_cnt.astype(np.float32)
         if contour.dtype != np.double:
@@ -72,7 +78,7 @@ if __name__ == '__main__':
     
         
         output = getSkeleton(contour, 
-                             ske_worm_segments=ske_morph_segments,  
+                             num_segments=ske_morph_segments,  
                              head_angle_thresh=ske_head_angle_thresh)
         
         skeleton, ske_len, cnt_side1, cnt_side2, cnt_widths, cnt_area = output
